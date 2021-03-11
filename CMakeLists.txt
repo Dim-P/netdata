@@ -812,6 +812,23 @@ set(MONGODB_BACKEND_FILES
         backends/mongodb/mongodb.h
         )
 
+set(LOGSMANAGEMENT_PLUGIN_FILES
+        logsmanagement/circular_buffer.c
+        logsmanagement/circular_buffer.h
+        logsmanagement/compression.c
+        logsmanagement/compression.h
+        logsmanagement/config.h
+        logsmanagement/db_api.c
+        logsmanagement/db_api.h
+        logsmanagement/file_info.h
+        logsmanagement/helper.h
+        logsmanagement/logsmanagement.c
+        logsmanagement/query.c
+        logsmanagement/query.h
+        logsmanagement/query_test.c
+        logsmanagement/query_test.h
+        )
+
 set(DAEMON_FILES
         daemon/buildinfo.c
         daemon/buildinfo.h
@@ -849,6 +866,7 @@ set(NETDATA_FILES
         ${CLAIM_PLUGIN_FILES}
         ${SPAWN_PLUGIN_FILES}
         ${PARSER_PLUGIN_FILES}
+        ${LOGSMANAGEMENT_PLUGIN_FILES}
 )
 
 set(NETDATACLI_FILES

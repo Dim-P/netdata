@@ -1614,6 +1614,7 @@ AC_CONFIG_FILES([
     aclk/legacy/Makefile
     spawn/Makefile
     parser/Makefile
+    logsmanagement/Makefile
 ])
 AC_OUTPUT
 
