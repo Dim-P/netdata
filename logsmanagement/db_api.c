@@ -433,7 +433,7 @@ void db_init() {
 		sprintf(db_metadata_path, "%s" METADATA_DB_FILENAME, p_file_infos_arr->data[i]->db_dir);
 		rc = sqlite3_open(db_metadata_path, &p_file_infos_arr->data[i]->db);
 		if (unlikely(rc != SQLITE_OK)) fatal_sqlite3_err(rc, __LINE__);
-		free(db_metadata_path);
+		m_free(db_metadata_path);
 
 		/* Initialise DB mutex */
 		rc = uv_mutex_init(&p_file_infos_arr->data[i]->db_mut);
@@ -498,7 +498,7 @@ void db_init() {
 				rc = sqlite3_step(stmt_init_BLOBS_table);
 				if (rc != SQLITE_DONE) fatal_sqlite3_err(rc, __LINE__);
 				sqlite3_reset(stmt_init_BLOBS_table);
-				free(filename);
+				m_free(filename);
 			}
 			sqlite3_finalize(stmt_init_BLOBS_table);
 		}
@@ -729,7 +729,7 @@ void db_init() {
 			if(filename[strlen(filename) - 1] == '0')
 				p_file_infos_arr->data[i]->blob_write_handle_offset = id;
 				
-			free(filename);
+			m_free(filename);
 			uv_fs_req_cleanup(&open_req);
 			sqlite3_reset(stmt_retrieve_total_logs_size);
 			sqlite3_reset(stmt_retrieve_metadata_from_id);
@@ -823,7 +823,7 @@ void db_search(DB_query_params_t *query_params, struct File_info *p_file_info) {
             query_params->results_size = query_params_results_size_new - 1;  // -1 due to terminating NUL char
 
             fprintf_log(LOGS_MANAG_DEBUG, stderr, "Timestamp decompressed: %" PRIu64 "\n", (uint64_t)temp_msg.timestamp);
-            free(temp_msg.text_compressed);
+            m_free(temp_msg.text_compressed);
         }
 
         rc = sqlite3_step(stmt_retrieve_log_msg_metadata);

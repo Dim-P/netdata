@@ -15,7 +15,7 @@ static uv_loop_t *circ_buff_loop = NULL;
  * @brief Cleans up after an execution of the msg_parser function. 
  */
 static void msg_parser_cleanup(uv_work_t *req, int status){
-    free(req);
+    m_free(req);
 }
 
 /**
@@ -44,9 +44,9 @@ static void msg_parser(uv_work_t *req){
     decompress_text(temp_msg);
     int cmp_res = memcmp(buff_msg_current->text, temp_msg->text, buff_msg_current->text_size);
     m_assert(!cmp_res, "Decompressed text != compressed text!");
-    free(temp_msg->text);
-    free(temp_msg->text_compressed);
-    free(temp_msg);
+    m_free(temp_msg->text);
+    m_free(temp_msg->text_compressed);
+    m_free(temp_msg);
 #endif  // VALIDATE_COMPRESSION
 
     uv_mutex_lock(&buff->mut);

@@ -256,7 +256,7 @@ free_access_lock:
     (void)file_close(p_file_info);
     (void)enable_file_changed_events(p_file_info, 1);
     uv_fs_req_cleanup(req);
-    free(req);
+    m_free(req);
 }
 
 static int check_file_rotation(struct File_info *p_file_info, uint64_t new_filesize) {
@@ -334,7 +334,7 @@ static int check_file_rotation(struct File_info *p_file_info, uint64_t new_files
         p_file_info->signature_size = comp_buff_size;
         memcpy(p_file_info->signature, comp_buff, p_file_info->signature_size);
 
-        free(comp_buff);
+        m_free(comp_buff);
 
         end_time = get_unix_time_ms();
         fprintf_log(LOGS_MANAG_INFO, stderr, "(3) It took %" PRIu64 "ms to check file rotation.\n", end_time - start_time);
@@ -446,7 +446,7 @@ static void check_if_filesize_changed_cb(uv_fs_t *req) {
 
 cleanup_and_return:
     uv_fs_req_cleanup(req);
-    free(req);
+    m_free(req);
 }
 
 static void file_changed_cb(uv_fs_event_t *handle, const char *file_basename, int events, int status) {
@@ -534,7 +534,7 @@ static int monitor_log_file_init(const char *filename) {
 
     struct File_info *p_file_info = m_malloc(sizeof(struct File_info));
 
-    p_file_info->filename = filename;            // NOTE: file_basename uses strdup which uses m_malloc. free() if necessary!
+    p_file_info->filename = filename;            // NOTE: file_basename uses strdup which uses m_malloc. m_free() if necessary!
     p_file_info->file_basename = get_basename(filename);  // buff pointer must be NULL before first m_realloc call
     p_file_info->buff = NULL;
     p_file_info->buff_size = p_file_info->buff_size_max = 0;
@@ -542,7 +542,7 @@ static int monitor_log_file_init(const char *filename) {
     p_file_info->force_file_changed_cb = 0;
 
     if ((rc = file_open(p_file_info)) < 0) {
-        free(p_file_info);
+        m_free(p_file_info);
         return rc;
     }
 
@@ -553,7 +553,7 @@ static int monitor_log_file_init(const char *filename) {
     if (unlikely(rc)) {
         fprintf_log(LOGS_MANAG_ERROR, stderr, "uv_fs_stat() error for %s: (%d) %s\n", filename, rc, uv_strerror(rc));
         uv_fs_req_cleanup(&stat_req);
-        free(p_file_info);
+        m_free(p_file_info);
         return rc;
         // m_assert(!rc, "uv_fs_stat() failed");
     } else {
@@ -566,7 +566,7 @@ static int monitor_log_file_init(const char *filename) {
     uv_fs_req_cleanup(&stat_req);
 
     if (!p_file_info->filesize) {  // TODO: Cornercase where filesize is 0 at the beginning - will not work for now. Known bug.
-        free(p_file_info);
+        m_free(p_file_info);
         return rc;
     }
 
@@ -649,7 +649,7 @@ int logsmanagement_main(int argc, const char *argv[]) {
     fprintf_log(LOGS_MANAG_INFO, stderr, "LZ4 version: %s\n" LOG_SEPARATOR, LZ4_versionString());
     char *sqlite_version = db_get_sqlite_version();
     fprintf_log(LOGS_MANAG_INFO, stderr, "SQLITE version: %s\n" LOG_SEPARATOR, sqlite_version);
-    free(sqlite_version);
+    m_free(sqlite_version);
 
 #if STRESS_TEST
     fprintf(stderr, LOG_SEPARATOR "Running netdata-logs with Stress Test enabled!\n" LOG_SEPARATOR);

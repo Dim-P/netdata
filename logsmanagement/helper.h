@@ -151,6 +151,7 @@ static inline void fprintf_log_internal(Log_level log_level, FILE *stream, const
     va_end(args);
 }
 
+#if 0
 #define m_malloc(size) m_malloc_int(__FILE__, __FUNCTION__, __LINE__, size)
 /**
  * @brief Custom malloc() implementation
@@ -183,5 +184,10 @@ static inline void *m_realloc_int(const char *file, const char *function, int li
     }
     return ptr;
 }
+#else
+#define m_malloc(size) mallocz(size)
+#define m_realloc(ptr, size) reallocz(ptr, size)
+#define m_free(ptr) freez(ptr)
+#endif
 
 #endif  // HELPER_H_
