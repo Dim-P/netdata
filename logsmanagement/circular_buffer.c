@@ -75,7 +75,7 @@ void circ_buff_write(struct File_info *p_file_info) {
     uv_mutex_lock(&buff->mut);
     if (((buff->head_index + 1) & BUFF_SIZE_MASK) == (buff->tail_index & BUFF_SIZE_MASK)) {
         uv_mutex_unlock(&buff->mut);
-        fprintf_log(WARNING, stderr, "Buffer out of space! Losing data!\n");
+        fprintf_log(LOGS_MANAG_WARNING, stderr, "Buffer out of space! Losing data!\n");
         return;
     }
     uv_mutex_unlock(&buff->mut);
@@ -95,10 +95,10 @@ void circ_buff_write(struct File_info *p_file_info) {
     p_file_info->buff_size = 0;
     p_file_info->buff_size_max = temp_size_max;
 
-    fprintf_log(DEBUG, stderr, "timestamp of msg to write in buff: %" PRIu64 "\n",
+    fprintf_log(LOGS_MANAG_DEBUG, stderr, "timestamp of msg to write in buff: %" PRIu64 "\n",
                 buff_msg_current->timestamp);
-    fprintf_log(DEBUG, stderr, "buff_msg->text_size: %zuB\n", buff_msg_current->text_size);
-    fprintf_log(DEBUG, stderr, "buff_msg->text_size_max: %zuB\n", buff_msg_current->text_size_max);
+    fprintf_log(LOGS_MANAG_DEBUG, stderr, "buff_msg->text_size: %zuB\n", buff_msg_current->text_size);
+    fprintf_log(LOGS_MANAG_DEBUG, stderr, "buff_msg->text_size_max: %zuB\n", buff_msg_current->text_size_max);
 
     p_file_info->filesize += buff_msg_current->text_size - 1;
 
@@ -113,7 +113,7 @@ void circ_buff_write(struct File_info *p_file_info) {
     uv_queue_work(circ_buff_loop, req, msg_parser, msg_parser_cleanup);
 
     end_time = get_unix_time_ms();
-    fprintf_log(INFO, stderr, "It took %" PRIu64 "ms to insert message into buffer.\n", end_time - start_time);
+    fprintf_log(LOGS_MANAG_INFO, stderr, "It took %" PRIu64 "ms to insert message into buffer.\n", end_time - start_time);
 }
 
 /**
@@ -131,7 +131,7 @@ Message_t *circ_buff_read(Circ_buff_t *buff) {
     if ((buff->parsed_index & BUFF_SIZE_MASK) == (buff->read_index & BUFF_SIZE_MASK)) {
         buff->tail_index = buff->read_index;
         uv_mutex_unlock(&buff->mut);
-        fprintf_log(DEBUG, stderr, "No more items to read from circular buffer!\n");
+        fprintf_log(LOGS_MANAG_DEBUG, stderr, "No more items to read from circular buffer!\n");
         return NULL;
     }
     Message_t *p_msg = &buff->msgs[(buff->read_index++) & BUFF_SIZE_MASK];
@@ -158,20 +158,20 @@ void circ_buff_search(Circ_buff_t *buff, DB_query_params_t *query_params) {
     uv_mutex_unlock(&buff->mut);
 
     if (head_index_tmp == (buff->tail_index & BUFF_SIZE_MASK)) {
-        fprintf_log(INFO, stderr, "Circ buff empty! Won't be searched.\n");
+        fprintf_log(LOGS_MANAG_INFO, stderr, "Circ buff empty! Won't be searched.\n");
         return;  // Nothing to do if buff is emtpy
     }
 
     for (uint8_t i = (buff->tail_index & BUFF_SIZE_MASK);
          i != head_index_tmp; i = (i + 1) % CIRCULAR_BUFF_SIZE) {
-        fprintf_log(DEBUG, stderr, "tail:%d head:%d i:%d\n",
+        fprintf_log(LOGS_MANAG_DEBUG, stderr, "tail:%d head:%d i:%d\n",
                     buff->tail_index & BUFF_SIZE_MASK, head_index_tmp, i);
         if (buff->msgs[i].timestamp >= query_params->start_timestamp && buff->msgs[i].timestamp < query_params->end_timestamp) {
-            fprintf_log(DEBUG, stderr, "Found text in circ buffer with timestamp: %" PRIu64 "\n",
+            fprintf_log(LOGS_MANAG_DEBUG, stderr, "Found text in circ buffer with timestamp: %" PRIu64 "\n",
                         buff->msgs[i].timestamp);
             size_t query_params_results_size_new = query_params->results_size + buff->msgs[i].text_size;
             query_params->results = m_realloc(query_params->results, query_params_results_size_new);
-            fprintf_log(DEBUG, stdout, "Text to add: %s\n", buff->msgs[i].text);
+            fprintf_log(LOGS_MANAG_DEBUG, stdout, "Text to add: %s\n", buff->msgs[i].text);
             memcpy(&query_params->results[query_params->results_size],
                    buff->msgs[i].text, buff->msgs[i].text_size);
             query_params->results_size = query_params_results_size_new - 1;
@@ -209,16 +209,16 @@ Circ_buff_t *circ_buff_init() {
     buff->size = 0;
     rc = uv_mutex_init(&buff->mut);
     if (unlikely(rc)){
-        fprintf_log(ERROR, stderr, "uv_mutex_init() error: (%d) %s\n", rc, uv_strerror(rc));
-        fatal();
+        fprintf_log(LOGS_MANAG_ERROR, stderr, "uv_mutex_init() error: (%d) %s\n", rc, uv_strerror(rc));
+        fatal("uv_mutex_init() error: (%d) %s\n", rc, uv_strerror(rc));
     }
     if(!circ_buff_loop){
         circ_buff_loop = m_malloc(sizeof(uv_loop_t));
         rc = uv_loop_init(circ_buff_loop);
-        if (unlikely(rc)) fatal();
+        if (unlikely(rc)) fatal("uv_loop_init() error");
         uv_thread_t *circ_buff_loop_run_thread = m_malloc(sizeof(uv_thread_t));
         rc = uv_thread_create(circ_buff_loop_run_thread, circ_buff_loop_run, NULL);
-        if (unlikely(rc)) fatal();
+        if (unlikely(rc)) fatal("uv_thread_create() error");
     }
     return buff;
 }
