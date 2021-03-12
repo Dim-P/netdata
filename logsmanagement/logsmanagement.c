@@ -658,4 +658,13 @@ int logsmanagement_main(int argc, const char *argv[]) {
 
     // Run uvlib loop
     uv_run(uv_default_loop(), UV_RUN_DEFAULT);
+
+    return 0;
 }
+
+#if STRESS_TEST
+int main(int argc, const char *argv[]) {
+    logsmanagement_main(argc, argv);
+}
+#endif
+

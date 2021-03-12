@@ -112,8 +112,8 @@ static inline char *basename(char const *path) {
  * @brief Custom formatted print implementation
  */
 static inline void fprintf_log_internal(Log_level log_level, FILE *stream, const char *format, ...) {
-    /* if (log_level > DEBUG_LEV) */
-    /*     return; */
+    if (log_level > DEBUG_LEV)
+        return;
 
     struct timeval tv;
     time_t nowtime;
