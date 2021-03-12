@@ -181,6 +181,20 @@ AC_ARG_WITH(
     ],
     [with_bundled_lws="no"]
 )
+AC_ARG_ENABLE(
+    [logsmanagement],
+    [AS_HELP_STRING([--enable-logsmanagement],
+                    [Enable logsmanagement @<:@default disabled@:>@])],
+    ,
+    [enable_logsmanagement="detect"]
+)
+
+if test "${enable_logsmanagement}" = "yes"; then
+    AC_DEFINE([ENABLE_LOGSMANAGEMENT], [1], [enable logs management functionality])
+fi
+
+AC_MSG_RESULT([${enable_logsmanagement}])
+AM_CONDITIONAL([ENABLE_LOGSMANAGEMENT], [test "${enable_logsmanagement}" = "yes"])
 
 # -----------------------------------------------------------------------------
 # Enforce building with C99, bail early if we can't.
@@ -738,7 +752,6 @@ else
 fi
 AC_MSG_RESULT([${enable_plugin_apps}])
 AM_CONDITIONAL([ENABLE_PLUGIN_APPS], [test "${enable_plugin_apps}" = "yes"])
-
 
 # -----------------------------------------------------------------------------
 # freeipmi.plugin - libipmimonitoring
