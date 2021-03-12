@@ -11,7 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <uv.h>
-#include "config.h"
+#include "config_.h"
 #include "query.h"
 #include "file_info.h"
 

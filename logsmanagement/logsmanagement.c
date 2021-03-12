@@ -19,7 +19,7 @@
 #include <time.h>
 #include <uv.h>
 #include "circular_buffer.h"
-#include "config.h"
+#include "config_.h"
 #include "db_api.h"
 #include "file_info.h"
 #include "helper.h"

@@ -9,7 +9,7 @@
 
 #include <lz4frame.h>
 #include "circular_buffer.h"
-#include "config.h"
+#include "config_.h"
 
 static const LZ4F_preferences_t kPrefs = {
     {LZ4F_max64KB, LZ4F_blockLinked, LZ4F_noContentChecksum, LZ4F_frame,

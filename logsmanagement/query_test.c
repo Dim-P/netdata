@@ -8,7 +8,7 @@
 #include <inttypes.h>
 #include <stdlib.h>
 #include <uv.h>
-#include "config.h"
+#include "config_.h"
 #include "helper.h"
 #include "query_test.h"
 

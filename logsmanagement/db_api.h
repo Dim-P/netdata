@@ -12,7 +12,6 @@
 #include "query.h"
 #include "file_info.h"	
 
-// sqlite3 *get_db_handle();
 void db_set_lock(uv_mutex_t db_mut);
 void db_release_lock(uv_mutex_t db_mut);
 char *db_get_sqlite_version();

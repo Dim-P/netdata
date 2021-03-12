@@ -8,7 +8,7 @@
 #define FILE_INFO_H_
 
 #include <sqlite3.h>
-#include "config.h"
+#include "config_.h"
 
 // Forward declaration to break circular dependency
 struct Circ_buff;
