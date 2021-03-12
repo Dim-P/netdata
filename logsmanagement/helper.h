@@ -7,26 +7,18 @@
 #ifndef HELPER_H_
 #define HELPER_H_
 
+#include "../libnetdata/libnetdata.h"
 #include <assert.h>
 #include <stdarg.h>
 #include <string.h>
 #include <sys/time.h>
 
-// branch prediction optimisation
-#ifdef __GNUC__
-#define likely(x) __builtin_expect(!!(x), 1)
-#define unlikely(x) __builtin_expect(!!(x), 0)
-#else
-#define likely(x) (x)
-#define unlikely(x) (x)
-#endif
-
 #define LOG_SEPARATOR "===============================\n"
 
-typedef enum { ERROR,
-               WARNING,
-               INFO,
-               DEBUG } Log_level;
+typedef enum { LOGS_MANAG_ERROR,
+               LOGS_MANAG_WARNING,
+               LOGS_MANAG_INFO,
+               LOGS_MANAG_DEBUG } Log_level;
 
 #if DEBUG_LEV
 #define fprintf_log(log_level, ...)                          \
@@ -50,9 +42,9 @@ typedef enum { ERROR,
 #endif  // DEBUG_LEV
 #endif  // m_assert
 
-#ifndef fatal
-#define fatal() assert(0); /**< Always-enabled fatal assert. Persists in producation releases. */
-#endif                     // fatal
+//#ifndef fatal
+//#define fatal() assert(0); /**< Always-enabled fatal assert. Persists in producation releases. */
+//#endif                     // fatal
 
 #ifndef s_assert
 #define s_assert(X) ({ extern int __attribute__((error("assertion failure: '" #X "' not true"))) compile_time_check(); ((X)?0:compile_time_check()),0; })
@@ -96,11 +88,11 @@ static inline uint64_t get_unix_time_ms() {
 }
 
 /**
- * @brief Extract basename from full file path
+ * @brief Extract file_basename from full file path
  * @param path String containing the full path.
- * @return Pointer to the basename string
+ * @return Pointer to the file_basename string
  */
-static inline char *basename(char const *path) {
+static inline char *get_basename(char const *path) {
     char *s = strrchr(path, '/');
     if (!s)
         return strdup(path);
@@ -128,17 +120,17 @@ static inline void fprintf_log_internal(Log_level log_level, FILE *stream, const
     fprintf(stream, "*ND-LGS %s.%06ld ", tmbuf, (long)tv.tv_usec);
 
     switch (log_level) {
-        case WARNING:
-            fprintf(stream, "WARNING: ");
+        case LOGS_MANAG_WARNING:
+            fprintf(stream, "LOGS_MANAG_WARNING: ");
             break;
-        case INFO:
-            fprintf(stream, "INFO: ");
+        case LOGS_MANAG_INFO:
+            fprintf(stream, "LOGS_MANAG_INFO: ");
             break;
-        case DEBUG:
-            fprintf(stream, "DEBUG: ");
+        case LOGS_MANAG_DEBUG:
+            fprintf(stream, "LOGS_MANAG_DEBUG: ");
             break;
-        case ERROR:
-            fprintf(stream, "ERROR: ");
+        case LOGS_MANAG_ERROR:
+            fprintf(stream, "LOGS_MANAG_ERROR: ");
             break;
         default:
             break;
@@ -150,6 +142,7 @@ static inline void fprintf_log_internal(Log_level log_level, FILE *stream, const
     va_end(args);
 }
 
+#if 0
 #define m_malloc(size) m_malloc_int(__FILE__, __FUNCTION__, __LINE__, size)
 /**
  * @brief Custom malloc() implementation
@@ -159,8 +152,8 @@ static inline void fprintf_log_internal(Log_level log_level, FILE *stream, const
 static inline void *m_malloc_int(const char *file, const char *function, const unsigned long line, size_t size) {
     void *ptr = malloc(size);
     if (unlikely(!ptr)) {
-        fprintf_log(ERROR, stderr, "%s:%d: `m_malloc' failed to allocate memory in function `%s'\n", file, line, function);
-        fatal();
+        fprintf_log(LOGS_MANAG_ERROR, stderr, "%s:%d: `m_malloc' failed to allocate memory in function `%s'\n", file, line, function);
+        fatal("%s:%d: `m_malloc' failed to allocate memory in function `%s'\n", file, line, function);
     }
     return ptr;
 }
@@ -177,10 +170,15 @@ static inline void *m_realloc_int(const char *file, const char *function, int li
 
     ptr = realloc(ptr, size);
     if (unlikely(!ptr)) {
-        fprintf_log(ERROR, stderr, "%s:%d: `m_realloc' failed to reallocate memory in function `%s'\n", file, line, function);
-        fatal();
+        fprintf_log(LOGS_MANAG_ERROR, stderr, "%s:%d: `m_realloc' failed to reallocate memory in function `%s'\n", file, line, function);
+        fatal("%s:%d: `m_realloc' failed to reallocate memory in function `%s'\n", file, line, function);
     }
     return ptr;
 }
+#else
+#define m_malloc(size) mallocz(size)
+#define m_realloc(ptr, size) reallocz(ptr, size)
+#define m_free(ptr) freez(ptr)
+#endif
 
 #endif  // HELPER_H_

@@ -21,7 +21,7 @@ struct File_info {
     uv_file blob_handles[BLOB_MAX_FILES + 1]; /**< Item 0 not used - just for matching 1-1 with DB ids **/
     int blob_write_handle_offset;
     const char *filename;    /**< Full path of log source */
-    const char *basename;    /**< Basename of log source */
+    const char *file_basename;    /**< Basename of log source */
     uv_fs_event_t *fs_event_req;
     uv_timer_t *enable_file_changed_events_timer;
     uint8_t force_file_changed_cb; /**< Boolean to indicate whether an immediate call of the file_changed_cb() function is needed */

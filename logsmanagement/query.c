@@ -59,7 +59,7 @@ char *execute_query(uint64_t start_timestamp, uint64_t end_timestamp, const char
 
     // Search circular buffer ONLY IF DB returns no more results!
     if (!query_params.results_size) {
-        fprintf_log(DEBUG, stderr, "\nSearching circular buffer!\n");
+        fprintf_log(LOGS_MANAG_DEBUG, stderr, "\nSearching circular buffer!\n");
         circ_buff_search(p_file_info->msg_buff, &query_params);
     }
 
@@ -70,7 +70,7 @@ char *execute_query(uint64_t start_timestamp, uint64_t end_timestamp, const char
     *p_size = query_params.results_size;
 
     const uint64_t end_time = get_unix_time_ms();
-    fprintf_log(INFO, stderr,
+    fprintf_log(LOGS_MANAG_INFO, stderr,
                 "It took %" PRId64
                 "ms to execute query "
                 "(%" PRId64 "ms DB search, %" PRId64

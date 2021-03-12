@@ -40,8 +40,8 @@ void db_release_lock(uv_mutex_t db_mut) {
  * @param[in] line_no Line number where the error occurred 
  */
 static void fatal_sqlite3_err(int rc, int line_no){
-	fprintf_log(ERROR, stderr, "SQLite error: %s (line %d)\n", sqlite3_errstr(rc), line_no);
-	fatal();
+	fprintf_log(LOGS_MANAG_ERROR, stderr, "SQLite error: %s (line %d)\n", sqlite3_errstr(rc), line_no);
+	fatal("SQLite error: %s (line %d)\n", sqlite3_errstr(rc), line_no);
 }
 
 /**
@@ -52,8 +52,8 @@ static void fatal_sqlite3_err(int rc, int line_no){
  * @param[in] line_no Line number where the error occurred 
  */
 static void fatal_libuv_err(int rc, int line_no){
-	fprintf_log(ERROR, stderr, "libuv error: %s (line %d)\n", uv_strerror(rc), line_no);
-	fatal();
+	fprintf_log(LOGS_MANAG_ERROR, stderr, "libuv error: %s (line %d)\n", uv_strerror(rc), line_no);
+	fatal("libuv error: %s (line %d)\n", uv_strerror(rc), line_no);
 }
 
 /**
@@ -77,7 +77,7 @@ char *db_get_sqlite_version() {
 static void db_writer(void *arg){
 	int rc = 0;
 	struct File_info *p_file_info = *((struct File_info **) arg);
-	fprintf_log(DEBUG, stderr, "Entering writer thread for: %s\n", p_file_info->filename);
+	fprintf_log(LOGS_MANAG_DEBUG, stderr, "Entering writer thread for: %s\n", p_file_info->filename);
 	
 	uv_loop_t *writer_loop = m_malloc(sizeof(uv_loop_t));
     rc = uv_loop_init(writer_loop);
@@ -144,7 +144,7 @@ static void db_writer(void *arg){
 	int64_t blob_filesize = (int64_t) sqlite3_column_int64(stmt_retrieve_filesize_from_id, 0);
 	sqlite3_finalize(stmt_retrieve_filesize_from_id);
 	
-	fprintf_log(DEBUG, stderr, "initial blob_filesize: %" PRId64 "\n", blob_filesize);
+	fprintf_log(LOGS_MANAG_DEBUG, stderr, "initial blob_filesize: %" PRId64 "\n", blob_filesize);
 	
 	
 	Message_t *p_msg;
@@ -163,12 +163,12 @@ static void db_writer(void *arg){
 			rc = uv_fs_write(writer_loop, &write_req, 
 				p_file_info->blob_handles[p_file_info->blob_write_handle_offset], 
 				&uv_buf, 1, blob_filesize, NULL); // Write synchronously at the end of the BLOB file
-			if(unlikely(rc < 0)) fatal();
+			if(unlikely(rc < 0)) fatal("Failed to write logs management BLOB");
 			uv_fs_req_cleanup(&write_req);
 			
 			/* Write metadata of log message in LOGS_TABLE */
-			fprintf_log(DEBUG, stderr, "DB msg timestamp: %" PRIu64 "\n", p_msg->timestamp);
-            fprintf_log(DEBUG, stderr, "DB msg size: %zu\n", p_msg->text_size);
+			fprintf_log(LOGS_MANAG_DEBUG, stderr, "DB msg timestamp: %" PRIu64 "\n", p_msg->timestamp);
+            fprintf_log(LOGS_MANAG_DEBUG, stderr, "DB msg size: %zu\n", p_msg->text_size);
             rc = sqlite3_bind_int(stmt_logs_insert, 1, p_file_info->blob_write_handle_offset);
             if (unlikely(rc != SQLITE_OK)) fatal_sqlite3_err(rc, __LINE__);
             rc = sqlite3_bind_int64(stmt_logs_insert, 2, (sqlite3_int64) blob_filesize);
@@ -272,7 +272,7 @@ static void db_writer(void *arg){
 			/* (e) */
 			blob_filesize = 0;
 
-			fprintf_log(INFO, stderr,
+			fprintf_log(LOGS_MANAG_INFO, stderr,
                 "It took %" PRId64 "ms to rotate BLOBs\n",
                 (int64_t)get_unix_time_ms() - start_time);
 		}
@@ -294,7 +294,7 @@ void db_init() {
 	/* Create databases directory if it doesn't exist. */
     rc = uv_fs_mkdir(db_loop, &mkdir_req, MAIN_DB_DIR, 0755, NULL);
     if (likely(rc)) 
-        fprintf_log(WARNING, stderr, "Mkdir " MAIN_DB_DIR "/ error: %s\n", uv_strerror(rc));
+        fprintf_log(LOGS_MANAG_WARNING, stderr, "Mkdir " MAIN_DB_DIR "/ error: %s\n", uv_strerror(rc));
     uv_fs_req_cleanup(&mkdir_req);
 
 #if 0 // FOR STRESS TESTING PURPOSES ONLY! - Temporarily comment out
@@ -321,12 +321,12 @@ void db_init() {
                       "PRAGMA foreign_keys = ON;",
                       0, 0, &err_msg);
     if (unlikely(rc != SQLITE_OK)) {
-        fprintf_log(ERROR, stderr, "Failed to configure database\n");
-        fprintf_log(ERROR, stderr, "SQL error: %s\n", err_msg);
+        fprintf_log(LOGS_MANAG_ERROR, stderr, "Failed to configure database\n");
+        fprintf_log(LOGS_MANAG_ERROR, stderr, "SQL error: %s\n", err_msg);
         sqlite3_free(err_msg);
-        fatal();
+        fatal("Failed to configure database, SQL error: %s\n", err_msg);
     } else {
-        fprintf_log(INFO, stderr, "Database configured successfully\n");
+        fprintf_log(LOGS_MANAG_INFO, stderr, "Database configured successfully\n");
     }
     
     /* Create new main DB LogCollections table if it doesn't exist */
@@ -338,11 +338,11 @@ void db_init() {
                       ");",
                       0, 0, &err_msg);
     if (unlikely(rc != SQLITE_OK)) {
-        fprintf_log(ERROR, stderr, "Failed to create table\n");
-        fprintf_log(ERROR, stderr, "SQL error: %s\n", err_msg);
+        fprintf_log(LOGS_MANAG_ERROR, stderr, "Failed to create table\n");
+        fprintf_log(LOGS_MANAG_ERROR, stderr, "SQL error: %s\n", err_msg);
         sqlite3_free(err_msg);
         m_assert(0, "Failed to create table" MAIN_COLLECTIONS_TABLE);
-    } else fprintf_log(INFO, stderr, "Table %s created successfully\n", MAIN_COLLECTIONS_TABLE);
+    } else fprintf_log(LOGS_MANAG_INFO, stderr, "Table %s created successfully\n", MAIN_COLLECTIONS_TABLE);
     
     /* Create DB subdirectories and metadata DBs for each log source. Create/open binaries. */
     sqlite3_stmt *stmt_get_last_id;
@@ -373,7 +373,7 @@ void db_init() {
         if (unlikely(rc != SQLITE_ROW)) fatal_sqlite3_err(rc, __LINE__);
         
         int log_source_occurences = sqlite3_column_int(stmt_search_if_log_source_exists, 0);
-        fprintf_log(INFO, stderr, "DB file occurences of %s: %d\n", 
+        fprintf_log(LOGS_MANAG_INFO, stderr, "DB file occurences of %s: %d\n", 
                 p_file_infos_arr->data[i]->filename, log_source_occurences);
         switch (log_source_occurences) {
             case 0:  /* Log collection metadata not found in main DB - create a new record */
@@ -383,14 +383,14 @@ void db_init() {
                 if (unlikely(rc != SQLITE_OK)) fatal_sqlite3_err(rc, __LINE__);
                 
                 /* Create directory of collection of logs for the particular log source and insert it into DB. 
-                 * The directory will be in the format of '(log source basename)_(unique id)'. 
+                 * The directory will be in the format of '(log source file_basename)_(unique id)'. 
                  * The unique id is the maximum id of the MAIN_COLLECTIONS_TABLE. */
                 rc = sqlite3_step(stmt_get_last_id);
                 if (unlikely(rc != SQLITE_ROW)) fatal_sqlite3_err(rc, __LINE__);
                 
 				int last_row_id = sqlite3_column_int(stmt_get_last_id, 0);
-                char *db_dir = m_malloc(snprintf(NULL, 0, MAIN_DB_DIR "/%s_%d/", p_file_infos_arr->data[i]->basename, last_row_id) + 1);
-				sprintf(db_dir, MAIN_DB_DIR "/%s_%d/", p_file_infos_arr->data[i]->basename, last_row_id);
+                char *db_dir = m_malloc(snprintf(NULL, 0, MAIN_DB_DIR "/%s_%d/", p_file_infos_arr->data[i]->file_basename, last_row_id) + 1);
+				sprintf(db_dir, MAIN_DB_DIR "/%s_%d/", p_file_infos_arr->data[i]->file_basename, last_row_id);
 				
 				rc = uv_fs_mkdir(db_loop, &mkdir_req, db_dir, 0755, NULL);
 				if (unlikely(rc)) fatal_libuv_err(rc, __LINE__); // If db_dir exists but was not found in main DB, then that's a fatal()
@@ -419,11 +419,12 @@ void db_init() {
                 break;
                 
             default:  // Error, file metadata can exist either 0 or 1 times in DB
-                fprintf_log(ERROR, stderr,
+                fprintf_log(LOGS_MANAG_ERROR, stderr,
                             "Error: %s record encountered multiple times in DB " MAIN_COLLECTIONS_TABLE " table \n",
                             p_file_infos_arr->data[i]->filename);
                 m_assert(0, "Same file stored in DB more than once!");
-                fatal();
+                fatal("Error: %s record encountered multiple times in DB " MAIN_COLLECTIONS_TABLE " table \n",
+                            p_file_infos_arr->data[i]->filename);
         }
         sqlite3_reset(stmt_search_if_log_source_exists);
         
@@ -432,7 +433,7 @@ void db_init() {
 		sprintf(db_metadata_path, "%s" METADATA_DB_FILENAME, p_file_infos_arr->data[i]->db_dir);
 		rc = sqlite3_open(db_metadata_path, &p_file_infos_arr->data[i]->db);
 		if (unlikely(rc != SQLITE_OK)) fatal_sqlite3_err(rc, __LINE__);
-		free(db_metadata_path);
+		m_free(db_metadata_path);
 
 		/* Initialise DB mutex */
 		rc = uv_mutex_init(&p_file_infos_arr->data[i]->db_mut);
@@ -447,11 +448,11 @@ void db_init() {
 						  "PRAGMA foreign_keys = ON;",
 						  0, 0, &err_msg);
 		if (unlikely(rc != SQLITE_OK)) {
-			fprintf_log(ERROR, stderr, "Failed to configure database for %s\n", p_file_infos_arr->data[i]->filename);
-			fprintf_log(ERROR, stderr, "SQL error: %s\n", err_msg);
+			fprintf_log(LOGS_MANAG_ERROR, stderr, "Failed to configure database for %s\n", p_file_infos_arr->data[i]->filename);
+			fprintf_log(LOGS_MANAG_ERROR, stderr, "SQL error: %s\n", err_msg);
 			sqlite3_free(err_msg);
-			fatal();
-		} else fprintf_log(INFO, stderr, "Database configured successfully\n");
+			fatal("Failed to configure database for %s\n, SQL error: %s\n", p_file_infos_arr->data[i]->filename, err_msg);
+		} else fprintf_log(LOGS_MANAG_INFO, stderr, "Database configured successfully\n");
 		
 		/* Check if BLOBS_TABLE exists or not */
 		sqlite3_stmt *stmt_check_if_BLOBS_TABLE_exists;
@@ -475,10 +476,10 @@ void db_init() {
                       ");",
                       0, 0, &err_msg);
 			if (unlikely(rc != SQLITE_OK)) {
-				fprintf_log(ERROR, stderr, "Failed to create %s. SQL error: %s\n", BLOBS_TABLE, err_msg);
+				fprintf_log(LOGS_MANAG_ERROR, stderr, "Failed to create %s. SQL error: %s\n", BLOBS_TABLE, err_msg);
 				sqlite3_free(err_msg);
-				fatal();
-			} else fprintf_log(INFO, stderr, "Table %s created successfully\n", BLOBS_TABLE);
+				fatal("Failed to create %s. SQL error: %s\n", BLOBS_TABLE, err_msg);
+			} else fprintf_log(LOGS_MANAG_INFO, stderr, "Table %s created successfully\n", BLOBS_TABLE);
 			
 			/* 2. Populate it */
 			sqlite3_stmt *stmt_init_BLOBS_table;
@@ -497,7 +498,7 @@ void db_init() {
 				rc = sqlite3_step(stmt_init_BLOBS_table);
 				if (rc != SQLITE_DONE) fatal_sqlite3_err(rc, __LINE__);
 				sqlite3_reset(stmt_init_BLOBS_table);
-				free(filename);
+				m_free(filename);
 			}
 			sqlite3_finalize(stmt_init_BLOBS_table);
 		}
@@ -516,10 +517,10 @@ void db_init() {
                       ");",
                       0, 0, &err_msg);
 		if (unlikely(rc != SQLITE_OK)) {
-			fprintf_log(ERROR, stderr, "Failed to create %s. SQL error: %s\n", LOGS_TABLE, err_msg);
+			fprintf_log(LOGS_MANAG_ERROR, stderr, "Failed to create %s. SQL error: %s\n", LOGS_TABLE, err_msg);
 			sqlite3_free(err_msg);
-			fatal();
-		} else fprintf_log(INFO, stderr, "Table %s created successfully\n", LOGS_TABLE);
+			fatal("Failed to create %s. SQL error: %s\n", LOGS_TABLE, err_msg);
+		} else fprintf_log(LOGS_MANAG_INFO, stderr, "Table %s created successfully\n", LOGS_TABLE);
 		
 		// Create index on LOGS_TABLE Timestamp
 		/* TODO: If this doesn't speed up queries, check SQLITE R*tree module. 
@@ -529,9 +530,9 @@ void db_init() {
 						  "ON " LOGS_TABLE "(Timestamp);",
 						  0, 0, &err_msg);
 		if (unlikely(rc != SQLITE_OK)) {
-			fprintf_log(ERROR, stderr, "Failed to create logs_timestamps_idx. SQL error: %s\n", err_msg);
+			fprintf_log(LOGS_MANAG_ERROR, stderr, "Failed to create logs_timestamps_idx. SQL error: %s\n", err_msg);
 			sqlite3_free(err_msg);
-		} else fprintf_log(INFO, stderr, "logs_timestamps_idx created successfully\n");
+		} else fprintf_log(LOGS_MANAG_INFO, stderr, "logs_timestamps_idx created successfully\n");
 
 		/* Remove excess BLOBs beyond BLOB_MAX_FILES (from both DB and disk storage) */
 		{
@@ -560,7 +561,7 @@ void db_init() {
 
 			for (int id = 1; id <= blobs_table_max_id; id++){
 
-				// fprintf_log(DEBUG, stderr, "----Id:: %d\n", id);
+				// fprintf_log(LOGS_MANAG_DEBUG, stderr, "----Id:: %d\n", id);
 				rc = sqlite3_bind_int(stmt_retrieve_filename_last_digits, 1, id);
 				if (rc != SQLITE_OK) fatal_sqlite3_err(rc, __LINE__);
 				rc = sqlite3_step(stmt_retrieve_filename_last_digits);
@@ -616,8 +617,8 @@ void db_init() {
 			if (rc != SQLITE_OK) fatal_sqlite3_err(rc, __LINE__);
 
 			for (int i = 0; i < BLOB_MAX_FILES; i++){
-				// fprintf_log(DEBUG, stderr, "----Id to set:: %d\n", i + 1);
-				// fprintf_log(DEBUG, stderr, "----Id before:: %d\n", old_blobs_table_ids[i]);
+				// fprintf_log(LOGS_MANAG_DEBUG, stderr, "----Id to set:: %d\n", i + 1);
+				// fprintf_log(LOGS_MANAG_DEBUG, stderr, "----Id before:: %d\n", old_blobs_table_ids[i]);
 				rc = sqlite3_bind_int(stmt_update_id, 1, i + 1);
 				if (rc != SQLITE_OK) fatal_sqlite3_err(rc, __LINE__);
 				rc = sqlite3_bind_int(stmt_update_id, 2, old_blobs_table_ids[i]);
@@ -660,7 +661,7 @@ void db_init() {
 			rc = uv_fs_open(db_loop, &open_req, filename, 
 				UV_FS_O_RDWR | UV_FS_O_CREAT | UV_FS_O_APPEND | UV_FS_O_RANDOM , 0644, NULL);
 			if (unlikely(rc < 0)) fatal_libuv_err(rc, __LINE__);
-			fprintf_log(DEBUG, stderr, "Opened file: %s\n", filename);
+			fprintf_log(LOGS_MANAG_DEBUG, stderr, "Opened file: %s\n", filename);
 			p_file_infos_arr->data[i]->blob_handles[id] = open_req.result; 	// open_req.result of a uv_fs_t is the file descriptor in case of the uv_fs_open
 			int64_t metadata_filesize = (int64_t) sqlite3_column_int64(stmt_retrieve_metadata_from_id, 1);
 			
@@ -695,14 +696,14 @@ void db_init() {
 				 * maybe be recovered by un-rotating? Either way, treat as fatal() for now. */
 				 // TODO: Can we avoid fatal()? 
 				if(unlikely(blob_filesize == 0 && metadata_filesize > 0)){
-					fprintf_log(ERROR, stderr, "blob_filesize == 0 but metadata_filesize > 0\n");
-					fatal();
+					fprintf_log(LOGS_MANAG_ERROR, stderr, "blob_filesize == 0 but metadata_filesize > 0\n");
+					fatal("blob_filesize == 0 but metadata_filesize > 0");
 				}
 				
 				/* Case 3: blob_filesize > metadata_filesize: Truncate binary to sqlite filesize, program 
 				 * crashed or terminated after writing BLOBs to external file but before metadata was updated */
 				if(unlikely(blob_filesize > metadata_filesize)){
-					fprintf_log(WARNING, stderr, "blob_filesize > metadata_filesize for '%s'. Will attempt to fix.\n", filename);
+					fprintf_log(LOGS_MANAG_WARNING, stderr, "blob_filesize > metadata_filesize for '%s'. Will attempt to fix.\n", filename);
 					uv_fs_t trunc_req;
 				    rc = uv_fs_ftruncate(db_loop, &trunc_req, p_file_infos_arr->data[i]->blob_handles[id], 
 				    	metadata_filesize, NULL);
@@ -715,12 +716,12 @@ void db_init() {
 				 * state), delete external binaries, clear metadata record and then fatal() */
 				// TODO: Delete external BLOB and clear metadata from DB, start from clean state but the most recent logs.
 		    	if(unlikely(blob_filesize < metadata_filesize)){
-		    		fprintf_log(ERROR, stderr, "blob_filesize < metadata_filesize for '%s'. \n", filename);
-		        	fatal();
+		    		fprintf_log(LOGS_MANAG_ERROR, stderr, "blob_filesize < metadata_filesize for '%s'. \n", filename);
+		        	fatal("blob_filesize < metadata_filesize for '%s'. \n", filename);
 		        }
 
 			    /* Case 5: default if none of the above, should never reach here, fatal() */
-				fatal();
+				fatal("invalid case when comparing blob_filesize with metadata_filesize");
 			} while(0);
 			
 			
@@ -728,7 +729,7 @@ void db_init() {
 			if(filename[strlen(filename) - 1] == '0')
 				p_file_infos_arr->data[i]->blob_write_handle_offset = id;
 				
-			free(filename);
+			m_free(filename);
 			uv_fs_req_cleanup(&open_req);
 			sqlite3_reset(stmt_retrieve_total_logs_size);
 			sqlite3_reset(stmt_retrieve_metadata_from_id);
@@ -783,16 +784,16 @@ void db_search(DB_query_params_t *query_params, struct File_info *p_file_info) {
     if (rc != SQLITE_OK) fatal_sqlite3_err(rc, __LINE__);
 
     rc = sqlite3_step(stmt_retrieve_log_msg_metadata);
-    fprintf_log(DEBUG, stderr, "Query: %s\n rc:%d\n", sqlite3_expanded_sql(stmt_retrieve_log_msg_metadata), rc);
+    fprintf_log(LOGS_MANAG_DEBUG, stderr, "Query: %s\n rc:%d\n", sqlite3_expanded_sql(stmt_retrieve_log_msg_metadata), rc);
     if (rc != SQLITE_ROW && rc != SQLITE_DONE) fatal_sqlite3_err(rc, __LINE__);
 
     while (rc == SQLITE_ROW) {
     	/* Retrieve metadata from DB */
         temp_msg.timestamp = (uint64_t)sqlite3_column_int64(stmt_retrieve_log_msg_metadata, 0);
-        fprintf_log(DEBUG, stderr, "Timestamp retrieved: %" PRIu64 "\n", (uint64_t)temp_msg.timestamp);
+        fprintf_log(LOGS_MANAG_DEBUG, stderr, "Timestamp retrieved: %" PRIu64 "\n", (uint64_t)temp_msg.timestamp);
         temp_msg.text_compressed_size = (size_t)sqlite3_column_int64(stmt_retrieve_log_msg_metadata, 1);
         temp_msg.text_size = (size_t)sqlite3_column_int64(stmt_retrieve_log_msg_metadata, 2);
-        fprintf_log(DEBUG, stderr, "Size of results from query: %zu\n", temp_msg.text_size);
+        fprintf_log(LOGS_MANAG_DEBUG, stderr, "Size of results from query: %zu\n", temp_msg.text_size);
         blob_offset = (int64_t) sqlite3_column_int64(stmt_retrieve_log_msg_metadata, 3);
         blob_handles_offset = sqlite3_column_int(stmt_retrieve_log_msg_metadata, 4);
 
@@ -812,7 +813,7 @@ void db_search(DB_query_params_t *query_params, struct File_info *p_file_info) {
 		 * execution (providing that query_params->results_size != 0 i.e. we have retrieved at least 1 row of results). */
         if (query_params->results_size && query_params_results_size_new > max_query_page_size) {
             query_params->start_timestamp = temp_msg.timestamp;  // Save the timestamp of where to continue from next time!
-            fprintf_log(DEBUG, stderr, "New timestamp to 'cont' from: %" PRId64 "\n", 
+            fprintf_log(LOGS_MANAG_DEBUG, stderr, "New timestamp to 'cont' from: %" PRId64 "\n", 
                     (int64_t)query_params->start_timestamp);
             break;
         } else {
@@ -821,12 +822,12 @@ void db_search(DB_query_params_t *query_params, struct File_info *p_file_info) {
             decompress_text(&temp_msg, &query_params->results[query_params->results_size]);
             query_params->results_size = query_params_results_size_new - 1;  // -1 due to terminating NUL char
 
-            fprintf_log(DEBUG, stderr, "Timestamp decompressed: %" PRIu64 "\n", (uint64_t)temp_msg.timestamp);
-            free(temp_msg.text_compressed);
+            fprintf_log(LOGS_MANAG_DEBUG, stderr, "Timestamp decompressed: %" PRIu64 "\n", (uint64_t)temp_msg.timestamp);
+            m_free(temp_msg.text_compressed);
         }
 
         rc = sqlite3_step(stmt_retrieve_log_msg_metadata);
-        fprintf_log(DEBUG, stderr, "Query: %s\n rc:%d\n", sqlite3_expanded_sql(stmt_retrieve_log_msg_metadata), rc);
+        fprintf_log(LOGS_MANAG_DEBUG, stderr, "Query: %s\n rc:%d\n", sqlite3_expanded_sql(stmt_retrieve_log_msg_metadata), rc);
         if (rc != SQLITE_ROW && rc != SQLITE_DONE) fatal_sqlite3_err(rc, __LINE__);
     }
 
