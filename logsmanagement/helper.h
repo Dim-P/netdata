@@ -13,15 +13,6 @@
 #include <string.h>
 #include <sys/time.h>
 
-// branch prediction optimisation
-#ifdef __GNUC__
-#define likely(x) __builtin_expect(!!(x), 1)
-#define unlikely(x) __builtin_expect(!!(x), 0)
-#else
-#define likely(x) (x)
-#define unlikely(x) (x)
-#endif
-
 #define LOG_SEPARATOR "===============================\n"
 
 typedef enum { LOGS_MANAG_ERROR,
