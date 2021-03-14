@@ -589,7 +589,8 @@ static int monitor_log_file_init(const char *filename) {
  * After any initialisation routines, the default uv_loop_t is executed indefinitely. 
  * @todo Any cleanup required on program exit? 
  */
-int logsmanagement_main(int argc, const char *argv[]) {
+//int logsmanagement_main(int argc, const char *argv[]) {
+void logsmanagement_main(void) {
     //int rc = 0;
 
     // Static asserts
@@ -611,13 +612,13 @@ int logsmanagement_main(int argc, const char *argv[]) {
     uv_thread_create(&fs_events_reenable_thread_id, fs_events_reenable_thread, NULL);
 
     // Read files to monitor from arguments if they exist.
-    if (argc > 1) {
-        fprintf_log(INFO, stderr, "Arguments found - to be used as log sources\n");
-        for (int arg_off = 1; arg_off < argc; arg_off++) {
-            fprintf_log(INFO, stderr, "Arg %d: %s\n", arg_off, argv[arg_off]);
-            monitor_log_file_init(argv[arg_off]);
-        }
-    } else {
+    /* if (argc > 1) { */
+    /*     fprintf_log(INFO, stderr, "Arguments found - to be used as log sources\n"); */
+    /*     for (int arg_off = 1; arg_off < argc; arg_off++) { */
+    /*         fprintf_log(INFO, stderr, "Arg %d: %s\n", arg_off, argv[arg_off]); */
+    /*         monitor_log_file_init(argv[arg_off]); */
+    /*     } */
+    /* } else { */
         fprintf_log(INFO, stderr, "Arguments not found - using hard-coded log sources\n");
         monitor_log_file_init(SIMULATED_APACHE_LOG_PATH);
         monitor_log_file_init(SIMULATED_PHP_LOG_PATH);
@@ -627,7 +628,7 @@ int logsmanagement_main(int argc, const char *argv[]) {
         // monitor_log_file_init(DAEMON_LOG_PATH);
         monitor_log_file_init(APACHE_LOG_PATH);
         monitor_log_file_init(APACHE_ERROR_LOG_PATH);
-    }
+    /* } */
 
     fprintf_log(INFO, stderr,
                 "File monitoring setup completed. Running db_init().\n" LOG_SEPARATOR);

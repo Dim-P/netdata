@@ -624,7 +624,8 @@ MONGODB_BACKEND_FILES = \
     backends/mongodb/mongodb.h \
     $(NULL)
 
-LOGSMANAGEMENT_PLUGIN_FILES = \
+if ENABLE_LOGSMANAGEMENT
+LOGSMANAGEMENT_FILES = \
     logsmanagement/circular_buffer.c \
     logsmanagement/circular_buffer.h \
     logsmanagement/compression.c \
@@ -640,6 +641,7 @@ LOGSMANAGEMENT_PLUGIN_FILES = \
     logsmanagement/query_test.c \
     logsmanagement/query_test.h \
     $(NULL)
+endif
 
 DAEMON_FILES = \
     daemon/buildinfo.c \
@@ -680,7 +682,7 @@ NETDATA_FILES = \
     $(PARSER_FILES) \
     $(ACLK_FILES) \
     $(SPAWN_PLUGIN_FILES) \
-    $(LOGSMANAGEMENT_PLUGIN_FILES) \
+    $(LOGSMANAGEMENT_FILES) \
     $(NULL)
 
 if FREEBSD
