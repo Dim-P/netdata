@@ -143,42 +143,38 @@ static inline void fprintf_log_internal(Log_level log_level, FILE *stream, const
 }
 
 #if 0
-#define m_malloc(size) m_malloc_int(__FILE__, __FUNCTION__, __LINE__, size)
+#define mallocz(size) mallocz_int(__FILE__, __FUNCTION__, __LINE__, size)
 /**
  * @brief Custom malloc() implementation
  * @details Same as malloc() but will #fatal() if it cannot allocate the memory 
  * @return Pointer to the allocated memory block
  */
-static inline void *m_malloc_int(const char *file, const char *function, const unsigned long line, size_t size) {
+static inline void *mallocz_int(const char *file, const char *function, const unsigned long line, size_t size) {
     void *ptr = malloc(size);
     if (unlikely(!ptr)) {
-        fprintf_log(LOGS_MANAG_ERROR, stderr, "%s:%d: `m_malloc' failed to allocate memory in function `%s'\n", file, line, function);
-        fatal("%s:%d: `m_malloc' failed to allocate memory in function `%s'\n", file, line, function);
+        fprintf_log(LOGS_MANAG_ERROR, stderr, "%s:%d: `mallocz' failed to allocate memory in function `%s'\n", file, line, function);
+        fatal("%s:%d: `mallocz' failed to allocate memory in function `%s'\n", file, line, function);
     }
     return ptr;
 }
 
-#define m_realloc(ptr, size) m_realloc_int(__FILE__, __FUNCTION__, __LINE__, ptr, size)
+#define reallocz(ptr, size) reallocz_int(__FILE__, __FUNCTION__, __LINE__, ptr, size)
 /**
  * @brief Custom realloc() implementation
  * @details Same as realloc() but will #fatal() if it cannot reallocate the memory 
  * @return Pointer to the reallocated memory block
  */
-static inline void *m_realloc_int(const char *file, const char *function, int line, void *ptr, size_t size) {
+static inline void *reallocz_int(const char *file, const char *function, int line, void *ptr, size_t size) {
     if (!ptr)
-        return m_malloc(size);
+        return mallocz(size);
 
     ptr = realloc(ptr, size);
     if (unlikely(!ptr)) {
-        fprintf_log(LOGS_MANAG_ERROR, stderr, "%s:%d: `m_realloc' failed to reallocate memory in function `%s'\n", file, line, function);
-        fatal("%s:%d: `m_realloc' failed to reallocate memory in function `%s'\n", file, line, function);
+        fprintf_log(LOGS_MANAG_ERROR, stderr, "%s:%d: `reallocz' failed to reallocate memory in function `%s'\n", file, line, function);
+        fatal("%s:%d: `reallocz' failed to reallocate memory in function `%s'\n", file, line, function);
     }
     return ptr;
 }
-#else
-#define m_malloc(size) mallocz(size)
-#define m_realloc(ptr, size) reallocz(ptr, size)
-#define m_free(ptr) freez(ptr)
 #endif
 
 #endif  // HELPER_H_

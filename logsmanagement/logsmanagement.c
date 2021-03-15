@@ -241,7 +241,7 @@ static void read_file_cb(uv_fs_t *req) {
         }
 
         /* Null-terminate p_file_info->buff using the extra byte (in case needed)
-         * that was m_realloc'd in check_if_file_changed_cb(); */
+         * that was reallocz'd in check_if_file_changed_cb(); */
         p_file_info->buff[p_file_info->buff_size++] = '\0';
 
         circ_buff_write(p_file_info);
@@ -257,7 +257,7 @@ free_access_lock:
     (void)file_close(p_file_info);
     (void)enable_file_changed_events(p_file_info, 1);
     uv_fs_req_cleanup(req);
-    m_free(req);
+    freez(req);
 }
 
 static int check_file_rotation(struct File_info *p_file_info, uint64_t new_filesize) {
@@ -292,8 +292,8 @@ static int check_file_rotation(struct File_info *p_file_info, uint64_t new_files
         rotated = 1;
 
         p_file_info->signature_size = new_filesize > MAX_FILE_SIGNATURE_SIZE ? MAX_FILE_SIGNATURE_SIZE : (size_t)new_filesize;
-        // TODO: Refactor next line with temp pointer, currently in risk of memory leak in case m_realloc fails!
-        p_file_info->signature = m_realloc(p_file_info->signature, p_file_info->signature_size);
+        // TODO: Refactor next line with temp pointer, currently in risk of memory leak in case reallocz fails!
+        p_file_info->signature = reallocz(p_file_info->signature, p_file_info->signature_size);
         p_file_info->uvBuf = uv_buf_init(p_file_info->signature, p_file_info->signature_size);
         uv_fs_t read_req;
         rc = uv_fs_read(main_loop, &read_req, p_file_info->file_handle, &p_file_info->uvBuf, 1, 0, NULL);
@@ -322,7 +322,7 @@ static int check_file_rotation(struct File_info *p_file_info, uint64_t new_files
         uv_fs_req_cleanup(&read_req);
 
         // TODO: Use fixed-size signature buffer to reduce number of reallocs
-        p_file_info->signature = m_realloc(p_file_info->signature, comp_buff_size);
+        p_file_info->signature = reallocz(p_file_info->signature, comp_buff_size);
         rotated = memcmp(p_file_info->signature, comp_buff, p_file_info->signature_size) ? 1 : 0;
         fprintf_log(LOGS_MANAG_DEBUG, stderr, "Signature size: %zuB Comp buff size: %zuB\n", p_file_info->signature_size, comp_buff_size);
         fprintf_log(LOGS_MANAG_DEBUG, stderr,
@@ -335,7 +335,7 @@ static int check_file_rotation(struct File_info *p_file_info, uint64_t new_files
         p_file_info->signature_size = comp_buff_size;
         memcpy(p_file_info->signature, comp_buff, p_file_info->signature_size);
 
-        m_free(comp_buff);
+        freez(comp_buff);
 
         end_time = get_unix_time_ms();
         fprintf_log(LOGS_MANAG_INFO, stderr, "(3) It took %" PRIu64 "ms to check file rotation.\n", end_time - start_time);
@@ -412,12 +412,12 @@ static void check_if_filesize_changed_cb(uv_fs_t *req) {
         }
 #endif
 
-        uv_fs_t *read_req = m_malloc(sizeof(uv_fs_t));
+        uv_fs_t *read_req = mallocz(sizeof(uv_fs_t));
         read_req->data = p_file_info;
         p_file_info->buff_size = filesize_diff;
         if (!p_file_info->buff || filesize_diff > p_file_info->buff_size_max) {
             p_file_info->buff_size_max = filesize_diff * BUFF_SCALE_FACTOR;
-            p_file_info->buff = m_realloc(p_file_info->buff, p_file_info->buff_size_max);
+            p_file_info->buff = reallocz(p_file_info->buff, p_file_info->buff_size_max);
         }
         m_assert(p_file_info->buff, "Realloc buffer must not be NULL!");
         p_file_info->uvBuf = uv_buf_init(p_file_info->buff, p_file_info->buff_size);
@@ -447,7 +447,7 @@ static void check_if_filesize_changed_cb(uv_fs_t *req) {
 
 cleanup_and_return:
     uv_fs_req_cleanup(req);
-    m_free(req);
+    freez(req);
 }
 
 static void file_changed_cb(uv_fs_event_t *handle, const char *file_basename, int events, int status) {
@@ -467,7 +467,7 @@ static void file_changed_cb(uv_fs_event_t *handle, const char *file_basename, in
     // if (events & UV_RENAME)
     //    sleep_ms(LOG_ROTATION_WAIT_TIME);  // If renamed likely that log was rotated - wait a while for new log to be created.
 
-    uv_fs_t *stat_req = m_malloc(sizeof(uv_fs_t));
+    uv_fs_t *stat_req = mallocz(sizeof(uv_fs_t));
     stat_req->data = p_file_info;
 
     rc = uv_fs_stat(main_loop, stat_req, p_file_info->filename, check_if_filesize_changed_cb);
@@ -482,7 +482,7 @@ static void register_file_changed_listener(struct File_info *p_file_info) {
     int rc = 0;
     fprintf_log(LOGS_MANAG_DEBUG, stderr, "Adding changes listener: %s\n", p_file_info->file_basename);
 
-    uv_fs_event_t *fs_event_req = m_malloc(sizeof(uv_fs_event_t));
+    uv_fs_event_t *fs_event_req = mallocz(sizeof(uv_fs_event_t));
     fs_event_req->data = p_file_info;
     p_file_info->fs_event_req = fs_event_req;
     rc = uv_fs_event_init(main_loop, fs_event_req);
@@ -490,7 +490,7 @@ static void register_file_changed_listener(struct File_info *p_file_info) {
         fprintf_log(LOGS_MANAG_ERROR, stderr, "uv_fs_event_init() for %s failed\n", p_file_info->filename);
     m_assert(!rc, "uv_fs_event_init() failed");
 
-    p_file_info->enable_file_changed_events_timer = m_malloc(sizeof(uv_timer_t));
+    p_file_info->enable_file_changed_events_timer = mallocz(sizeof(uv_timer_t));
     rc = uv_timer_init(main_loop, p_file_info->enable_file_changed_events_timer);
     if (unlikely(rc))
         fprintf_log(LOGS_MANAG_ERROR, stderr, "uv_timer_init() for %s failed\n", p_file_info->filename);
@@ -510,7 +510,7 @@ static void file_signature_init(struct File_info *p_file_info) {
     int rc = 0;
 
     p_file_info->signature_size = p_file_info->filesize > MAX_FILE_SIGNATURE_SIZE ? MAX_FILE_SIGNATURE_SIZE : (size_t)p_file_info->filesize;
-    p_file_info->signature = m_malloc(p_file_info->signature_size);
+    p_file_info->signature = mallocz(p_file_info->signature_size);
     p_file_info->uvBuf = uv_buf_init(p_file_info->signature, p_file_info->signature_size);
 
     uv_fs_t read_req;
@@ -533,17 +533,17 @@ static int monitor_log_file_init(const char *filename) {
                 "Initialising file monitoring: %s\n",
                 filename);
 
-    struct File_info *p_file_info = m_malloc(sizeof(struct File_info));
+    struct File_info *p_file_info = mallocz(sizeof(struct File_info));
 
-    p_file_info->filename = filename;            // NOTE: file_basename uses strdup which uses m_malloc. m_free() if necessary!
-    p_file_info->file_basename = get_basename(filename);  // buff pointer must be NULL before first m_realloc call
+    p_file_info->filename = filename;            // NOTE: file_basename uses strdup which uses mallocz. freez() if necessary!
+    p_file_info->file_basename = get_basename(filename);  // buff pointer must be NULL before first reallocz call
     p_file_info->buff = NULL;
     p_file_info->buff_size = p_file_info->buff_size_max = 0;
     p_file_info->access_lock = 0;
     p_file_info->force_file_changed_cb = 0;
 
     if ((rc = file_open(p_file_info)) < 0) {
-        m_free(p_file_info);
+        freez(p_file_info);
         return rc;
     }
 
@@ -554,7 +554,7 @@ static int monitor_log_file_init(const char *filename) {
     if (unlikely(rc)) {
         fprintf_log(LOGS_MANAG_ERROR, stderr, "uv_fs_stat() error for %s: (%d) %s\n", filename, rc, uv_strerror(rc));
         uv_fs_req_cleanup(&stat_req);
-        m_free(p_file_info);
+        freez(p_file_info);
         return rc;
         // m_assert(!rc, "uv_fs_stat() failed");
     } else {
@@ -567,7 +567,7 @@ static int monitor_log_file_init(const char *filename) {
     uv_fs_req_cleanup(&stat_req);
 
     if (!p_file_info->filesize) {  // TODO: Cornercase where filesize is 0 at the beginning - will not work for now. Known bug.
-        m_free(p_file_info);
+        freez(p_file_info);
         return rc;
     }
 
@@ -578,7 +578,7 @@ static int monitor_log_file_init(const char *filename) {
     register_file_changed_listener(p_file_info);  // TODO: Error check
 
     // All set up successfully - add p_file_info to list of all p_file_info structs
-    p_file_infos_arr->data = m_realloc(p_file_infos_arr->data,
+    p_file_infos_arr->data = reallocz(p_file_infos_arr->data,
                                        (++p_file_infos_arr->count) * (sizeof p_file_info));
     p_file_infos_arr->data[p_file_infos_arr->count - 1] = p_file_info;
 
@@ -595,7 +595,7 @@ static int monitor_log_file_init(const char *filename) {
 void logsmanagement_main(void) {
     //int rc = 0;
 
-    main_loop = m_malloc(sizeof(uv_loop_t));
+    main_loop = mallocz(sizeof(uv_loop_t));
     fatal_assert(uv_loop_init(main_loop) == 0);
 
     // Static asserts
@@ -610,7 +610,7 @@ void logsmanagement_main(void) {
     uint64_t start_time = get_unix_time_ms();
 
     // Initialise array of File_Info pointers
-    p_file_infos_arr = m_malloc(sizeof(struct File_infos_arr));
+    p_file_infos_arr = mallocz(sizeof(struct File_infos_arr));
     *p_file_infos_arr = (struct File_infos_arr){0};
     (void)uv_mutex_init(&p_file_infos_arr->fs_events_reenable_lock);
     (void)uv_cond_init(&p_file_infos_arr->fs_events_reenable_cond);
@@ -654,7 +654,7 @@ void logsmanagement_main(void) {
     fprintf_log(LOGS_MANAG_INFO, stderr, "LZ4 version: %s\n" LOG_SEPARATOR, LZ4_versionString());
     char *sqlite_version = db_get_sqlite_version();
     fprintf_log(LOGS_MANAG_INFO, stderr, "SQLITE version: %s\n" LOG_SEPARATOR, sqlite_version);
-    m_free(sqlite_version);
+    freez(sqlite_version);
 
 #if STRESS_TEST
     fprintf(stderr, LOG_SEPARATOR "Running netdata-logs with Stress Test enabled!\n" LOG_SEPARATOR);

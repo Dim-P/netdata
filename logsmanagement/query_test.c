@@ -143,7 +143,7 @@ void test_execute_query_thread(void *args) {
 
         file_offset += query_params.results_size;
         fprintf(stderr, "Query file offset %" PRId64 " for %s\n", file_offset, query_params.filename);
-        m_free(query_params.results);
+        freez(query_params.results);
         query_params.results_size = results_size;  // Set desired max size of results again
         uv_fs_req_cleanup(&read_req);
     }

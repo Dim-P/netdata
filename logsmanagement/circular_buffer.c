@@ -15,7 +15,7 @@ static uv_loop_t *circ_buff_loop = NULL;
  * @brief Cleans up after an execution of the msg_parser function. 
  */
 static void msg_parser_cleanup(uv_work_t *req, int status){
-    m_free(req);
+    freez(req);
 }
 
 /**
@@ -37,16 +37,16 @@ static void msg_parser(uv_work_t *req){
 
     compress_text(buff_msg_current);
 #if VALIDATE_COMPRESSION
-    Message_t *temp_msg = m_malloc(sizeof(Message_t));
+    Message_t *temp_msg = mallocz(sizeof(Message_t));
     temp_msg->text_compressed_size = buff_msg_current->text_compressed_size;
-    temp_msg->text_compressed = m_malloc(temp_msg->text_compressed_size);
+    temp_msg->text_compressed = mallocz(temp_msg->text_compressed_size);
     memcpy(temp_msg->text_compressed, buff_msg_current->text_compressed, buff_msg_current->text_compressed_size);
     decompress_text(temp_msg);
     int cmp_res = memcmp(buff_msg_current->text, temp_msg->text, buff_msg_current->text_size);
     m_assert(!cmp_res, "Decompressed text != compressed text!");
-    m_free(temp_msg->text);
-    m_free(temp_msg->text_compressed);
-    m_free(temp_msg);
+    freez(temp_msg->text);
+    freez(temp_msg->text_compressed);
+    freez(temp_msg);
 #endif  // VALIDATE_COMPRESSION
 
     uv_mutex_lock(&buff->mut);
@@ -108,7 +108,7 @@ void circ_buff_write(struct File_info *p_file_info) {
     uv_mutex_unlock(&buff->mut);
 
     // TODO: Can we get rid of malloc here?
-    uv_work_t *req = m_malloc(sizeof(uv_work_t));
+    uv_work_t *req = mallocz(sizeof(uv_work_t));
     req->data = (void *) buff; 
     uv_queue_work(circ_buff_loop, req, msg_parser, msg_parser_cleanup);
 
@@ -170,7 +170,7 @@ void circ_buff_search(Circ_buff_t *buff, DB_query_params_t *query_params) {
             fprintf_log(LOGS_MANAG_DEBUG, stderr, "Found text in circ buffer with timestamp: %" PRIu64 "\n",
                         buff->msgs[i].timestamp);
             size_t query_params_results_size_new = query_params->results_size + buff->msgs[i].text_size;
-            query_params->results = m_realloc(query_params->results, query_params_results_size_new);
+            query_params->results = reallocz(query_params->results, query_params_results_size_new);
             fprintf_log(LOGS_MANAG_DEBUG, stdout, "Text to add: %s\n", buff->msgs[i].text);
             memcpy(&query_params->results[query_params->results_size],
                    buff->msgs[i].text, buff->msgs[i].text_size);
@@ -203,7 +203,7 @@ static void circ_buff_loop_run(void *arg){
  */ 
 Circ_buff_t *circ_buff_init() {
     int rc = 0;
-    Circ_buff_t *buff = m_malloc(sizeof(Circ_buff_t));
+    Circ_buff_t *buff = mallocz(sizeof(Circ_buff_t));
     *buff = (Circ_buff_t){0};
     buff->tail_index = buff->read_index = buff->parsed_index = buff->head_index = 0;
     buff->size = 0;
@@ -213,10 +213,10 @@ Circ_buff_t *circ_buff_init() {
         fatal("uv_mutex_init() error: (%d) %s\n", rc, uv_strerror(rc));
     }
     if(!circ_buff_loop){
-        circ_buff_loop = m_malloc(sizeof(uv_loop_t));
+        circ_buff_loop = mallocz(sizeof(uv_loop_t));
         rc = uv_loop_init(circ_buff_loop);
         if (unlikely(rc)) fatal("uv_loop_init() error");
-        uv_thread_t *circ_buff_loop_run_thread = m_malloc(sizeof(uv_thread_t));
+        uv_thread_t *circ_buff_loop_run_thread = mallocz(sizeof(uv_thread_t));
         rc = uv_thread_create(circ_buff_loop_run_thread, circ_buff_loop_run, NULL);
         if (unlikely(rc)) fatal("uv_thread_create() error");
     }

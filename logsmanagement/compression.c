@@ -22,7 +22,7 @@ void compress_text(Message_t *msg) {
     fprintf_log(LOGS_MANAG_DEBUG, stderr, "Max outbufCapacity: %zuB\n", outbufCapacity);
     if (!msg->text_compressed || outbufCapacity > msg->text_compressed_size_max) {
         msg->text_compressed_size_max = outbufCapacity * BUFF_SCALE_FACTOR;
-        msg->text_compressed = m_realloc(msg->text_compressed, msg->text_compressed_size_max);
+        msg->text_compressed = reallocz(msg->text_compressed, msg->text_compressed_size_max);
         fprintf_log(LOGS_MANAG_DEBUG, stderr, "Realloc'ing circ buff compressed item to: %zuB\n", msg->text_compressed_size_max);
     }
 
@@ -86,7 +86,7 @@ void decompress_text(Message_t *msg, char* out_buf) {
     // Decompress
     msg->text_size = (size_t) info.contentSize;  // Expected size of decompressed text
     if(out_buf == NULL)
-        msg->text = m_malloc(msg->text_size);        // Destination buffer
+        msg->text = mallocz(msg->text_size);        // Destination buffer
     size_t srcSize = msg->text_compressed_size;  // text_compressed_size needs to be known!
     fprintf_log(LOGS_MANAG_DEBUG, stderr, "sizeof decompressed content (msg->text_size): %zu\n", msg->text_size);
     fprintf_log(LOGS_MANAG_DEBUG, stderr, "sizeof msg->text_compressed (bytes to decompress): %zu\n", srcSize);
