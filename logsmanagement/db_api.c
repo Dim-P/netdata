@@ -292,8 +292,8 @@ void db_init() {
     rc = uv_loop_init(db_loop);
     if (unlikely(rc)) fatal_libuv_err(rc, __LINE__);
 
-    snprintfz(main_db_dir, FILENAME_MAX, "%s/logs_management_db", netdata_configured_cache_dir);
-    snprintfz(main_db_path, FILENAME_MAX, "%s/" MAIN_DB, main_db_dir);
+    snprintf(main_db_dir, FILENAME_MAX, "%s/logs_management_db", netdata_configured_cache_dir);
+    snprintf(main_db_path, FILENAME_MAX, "%s/" MAIN_DB, main_db_dir);
 
 	/* Create databases directory if it doesn't exist. */
     rc = uv_fs_mkdir(db_loop, &mkdir_req, main_db_dir, 0755, NULL);
@@ -393,7 +393,7 @@ void db_init() {
                 if (unlikely(rc != SQLITE_ROW)) fatal_sqlite3_err(rc, __LINE__);
                 
 				int last_row_id = sqlite3_column_int(stmt_get_last_id, 0);
-                char *db_dir = m_malloc(snprintfz(NULL, 0, "%s/%s_%d/", main_db_dir, p_file_infos_arr->data[i]->file_basename, last_row_id) + 1);
+                char *db_dir = m_malloc(snprintf(NULL, 0, "%s/%s_%d/", main_db_dir, p_file_infos_arr->data[i]->file_basename, last_row_id) + 1);
 				sprintf(db_dir, "%s/%s_%d/", main_db_dir, p_file_infos_arr->data[i]->file_basename, last_row_id);
 				
 				rc = uv_fs_mkdir(db_loop, &mkdir_req, db_dir, 0755, NULL);
@@ -433,7 +433,7 @@ void db_init() {
         sqlite3_reset(stmt_search_if_log_source_exists);
         
         /* Create or open metadata DBs for each log collection */
-        char *db_metadata_path = m_malloc(snprintfz(NULL, 0, "%s" METADATA_DB_FILENAME, p_file_infos_arr->data[i]->db_dir) + 1);
+        char *db_metadata_path = m_malloc(snprintf(NULL, 0, "%s" METADATA_DB_FILENAME, p_file_infos_arr->data[i]->db_dir) + 1);
 		sprintf(db_metadata_path, "%s" METADATA_DB_FILENAME, p_file_infos_arr->data[i]->db_dir);
 		rc = sqlite3_open(db_metadata_path, &p_file_infos_arr->data[i]->db);
 		if (unlikely(rc != SQLITE_OK)) fatal_sqlite3_err(rc, __LINE__);
@@ -493,7 +493,7 @@ void db_init() {
                             -1, &stmt_init_BLOBS_table, NULL);
 			if (unlikely(rc != SQLITE_OK)) fatal_sqlite3_err(rc, __LINE__);
 			for( int i = 0; i < BLOB_MAX_FILES; i++){
-				char *filename = m_malloc(snprintfz(NULL, 0, BLOB_STORE_FILENAME ".%d", i) + 1);
+				char *filename = m_malloc(snprintf(NULL, 0, BLOB_STORE_FILENAME ".%d", i) + 1);
 				sprintf(filename, BLOB_STORE_FILENAME ".%d", i);
 				rc = sqlite3_bind_text(stmt_init_BLOBS_table, 1, filename, -1, NULL);
                 if (rc != SQLITE_OK) fatal_sqlite3_err(rc, __LINE__);
@@ -657,7 +657,7 @@ void db_init() {
             if (rc != SQLITE_OK) fatal_sqlite3_err(rc, __LINE__);
 			rc = sqlite3_step(stmt_retrieve_metadata_from_id);
 			if (rc != SQLITE_ROW) fatal_sqlite3_err(rc, __LINE__);
-			char *filename = m_malloc(snprintfz(NULL, 0, "%s%s", 
+			char *filename = m_malloc(snprintf(NULL, 0, "%s%s", 
 				p_file_infos_arr->data[i]->db_dir, 
 				sqlite3_column_text(stmt_retrieve_metadata_from_id, 0)) + 1);
 			sprintf(filename, "%s%s", p_file_infos_arr->data[i]->db_dir, 
