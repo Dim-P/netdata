@@ -40,6 +40,7 @@
 
 struct File_infos_arr *p_file_infos_arr;
 static uv_thread_t fs_events_reenable_thread_id;
+static uv_loop_t *main_loop; 
 
 // Forward declarations
 static void file_changed_cb(uv_fs_event_t *handle, const char *file_basename, int events, int status);
@@ -131,7 +132,7 @@ static void handle_UV_ENOENT_err(struct File_info *p_file_info) {
 static int file_close(struct File_info *p_file_info) {
     int rc = 0;
     uv_fs_t close_req;
-    rc = uv_fs_close(uv_default_loop(), &close_req, p_file_info->file_handle, NULL);
+    rc = uv_fs_close(main_loop, &close_req, p_file_info->file_handle, NULL);
     if (unlikely(rc)) {
         fprintf_log(LOGS_MANAG_ERROR, stderr, "error closing %s: %s\n", p_file_info->filename, uv_strerror(rc));
         m_assert(!rc, "uv_fs_close() failed");
@@ -152,7 +153,7 @@ static int file_open(struct File_info *p_file_info) {
     int rc = 0;
     // TODO: Need more elegant solution about file opening and monitoring - what if file becomes available later than startup?
     uv_fs_t open_req;
-    rc = uv_fs_open(uv_default_loop(), &open_req, p_file_info->filename, O_RDONLY, 0, NULL);
+    rc = uv_fs_open(main_loop, &open_req, p_file_info->filename, O_RDONLY, 0, NULL);
     if (unlikely(rc < 0)) {
         fprintf_log(LOGS_MANAG_ERROR, stderr, "file_open() error: %s (%d) %s\n", p_file_info->filename, rc, uv_strerror(rc));
         // m_assert(rc >= 0, "uv_fs_open() failed");
@@ -274,7 +275,7 @@ static int check_file_rotation(struct File_info *p_file_info, uint64_t new_files
         // TODO: Realloc down p_file_info->signature here? Not sure if needed as that will grow at some point soon!
         p_file_info->uvBuf = uv_buf_init(p_file_info->signature, p_file_info->signature_size);
         uv_fs_t read_req;
-        rc = uv_fs_read(uv_default_loop(), &read_req, p_file_info->file_handle, &p_file_info->uvBuf, 1, 0, NULL);
+        rc = uv_fs_read(main_loop, &read_req, p_file_info->file_handle, &p_file_info->uvBuf, 1, 0, NULL);
         if (rc < 0)
             fprintf_log(LOGS_MANAG_ERROR, stderr, "uv_fs_read() error for %s\n", p_file_info->filename);
         m_assert(rc >= 0, "uv_fs_read() failed");
@@ -295,7 +296,7 @@ static int check_file_rotation(struct File_info *p_file_info, uint64_t new_files
         p_file_info->signature = m_realloc(p_file_info->signature, p_file_info->signature_size);
         p_file_info->uvBuf = uv_buf_init(p_file_info->signature, p_file_info->signature_size);
         uv_fs_t read_req;
-        rc = uv_fs_read(uv_default_loop(), &read_req, p_file_info->file_handle, &p_file_info->uvBuf, 1, 0, NULL);
+        rc = uv_fs_read(main_loop, &read_req, p_file_info->file_handle, &p_file_info->uvBuf, 1, 0, NULL);
         if (rc < 0)
             fprintf_log(LOGS_MANAG_ERROR, stderr, "uv_fs_read() error for %s\n", p_file_info->filename);
         m_assert(rc >= 0, "uv_fs_read() failed");
@@ -314,7 +315,7 @@ static int check_file_rotation(struct File_info *p_file_info, uint64_t new_files
         char *comp_buff = mallocz(comp_buff_size);
         p_file_info->uvBuf = uv_buf_init(comp_buff, comp_buff_size);
         uv_fs_t read_req;
-        rc = uv_fs_read(uv_default_loop(), &read_req, p_file_info->file_handle, &p_file_info->uvBuf, 1, 0, NULL);
+        rc = uv_fs_read(main_loop, &read_req, p_file_info->file_handle, &p_file_info->uvBuf, 1, 0, NULL);
         if (rc < 0)
             fprintf_log(LOGS_MANAG_ERROR, stderr, "uv_fs_read() error for %s\n", p_file_info->filename);
         m_assert(rc >= 0, "uv_fs_read() failed");
@@ -420,7 +421,7 @@ static void check_if_filesize_changed_cb(uv_fs_t *req) {
         }
         m_assert(p_file_info->buff, "Realloc buffer must not be NULL!");
         p_file_info->uvBuf = uv_buf_init(p_file_info->buff, p_file_info->buff_size);
-        rc = uv_fs_read(uv_default_loop(), read_req, p_file_info->file_handle,
+        rc = uv_fs_read(main_loop, read_req, p_file_info->file_handle,
                         &p_file_info->uvBuf, 1, old_filesize, read_file_cb);
         if (rc)
             fprintf_log(LOGS_MANAG_ERROR, stderr, "uv_fs_read() error for %s\n", p_file_info->filename);
@@ -469,7 +470,7 @@ static void file_changed_cb(uv_fs_event_t *handle, const char *file_basename, in
     uv_fs_t *stat_req = m_malloc(sizeof(uv_fs_t));
     stat_req->data = p_file_info;
 
-    rc = uv_fs_stat(uv_default_loop(), stat_req, p_file_info->filename, check_if_filesize_changed_cb);
+    rc = uv_fs_stat(main_loop, stat_req, p_file_info->filename, check_if_filesize_changed_cb);
     if (unlikely(rc)) {
         fprintf_log(LOGS_MANAG_ERROR, stderr, "uv_fs_stat error: %s\n", uv_strerror(rc));
         m_assert(!rc, "uv_fs_stat error");
@@ -484,13 +485,13 @@ static void register_file_changed_listener(struct File_info *p_file_info) {
     uv_fs_event_t *fs_event_req = m_malloc(sizeof(uv_fs_event_t));
     fs_event_req->data = p_file_info;
     p_file_info->fs_event_req = fs_event_req;
-    rc = uv_fs_event_init(uv_default_loop(), fs_event_req);
+    rc = uv_fs_event_init(main_loop, fs_event_req);
     if (unlikely(rc))
         fprintf_log(LOGS_MANAG_ERROR, stderr, "uv_fs_event_init() for %s failed\n", p_file_info->filename);
     m_assert(!rc, "uv_fs_event_init() failed");
 
     p_file_info->enable_file_changed_events_timer = m_malloc(sizeof(uv_timer_t));
-    rc = uv_timer_init(uv_default_loop(), p_file_info->enable_file_changed_events_timer);
+    rc = uv_timer_init(main_loop, p_file_info->enable_file_changed_events_timer);
     if (unlikely(rc))
         fprintf_log(LOGS_MANAG_ERROR, stderr, "uv_timer_init() for %s failed\n", p_file_info->filename);
     m_assert(!rc, "uv_timer_init() failed");
@@ -513,7 +514,7 @@ static void file_signature_init(struct File_info *p_file_info) {
     p_file_info->uvBuf = uv_buf_init(p_file_info->signature, p_file_info->signature_size);
 
     uv_fs_t read_req;
-    rc = uv_fs_read(uv_default_loop(), &read_req, p_file_info->file_handle, &p_file_info->uvBuf, 1, 0, NULL);
+    rc = uv_fs_read(main_loop, &read_req, p_file_info->file_handle, &p_file_info->uvBuf, 1, 0, NULL);
     if (unlikely(rc < 0))
         fprintf_log(LOGS_MANAG_ERROR, stderr, "uv_fs_read() for %s failed: (%d) %s\n", p_file_info->filename, rc, uv_strerror(rc));
     m_assert(rc >= 0, "uv_fs_read() failed");
@@ -549,7 +550,7 @@ static int monitor_log_file_init(const char *filename) {
     // Store initial filesize in file_info - synchronous
     uv_fs_t stat_req;
     stat_req.data = p_file_info;
-    rc = uv_fs_stat(uv_default_loop(), &stat_req, filename, NULL);
+    rc = uv_fs_stat(main_loop, &stat_req, filename, NULL);
     if (unlikely(rc)) {
         fprintf_log(LOGS_MANAG_ERROR, stderr, "uv_fs_stat() error for %s: (%d) %s\n", filename, rc, uv_strerror(rc));
         uv_fs_req_cleanup(&stat_req);
@@ -593,6 +594,9 @@ static int monitor_log_file_init(const char *filename) {
 //int logsmanagement_main(int argc, const char *argv[]) {
 void logsmanagement_main(void) {
     //int rc = 0;
+
+    main_loop = m_malloc(sizeof(uv_loop_t));
+    fatal_assert(uv_loop_init(main_loop) == 0);
 
     // Static asserts
     // s_assert(MAX_QUERY_PAGE_SIZE >= MAX_LOG_MSG_SIZE);                                           // Check if DB query page large enough
@@ -659,5 +663,5 @@ void logsmanagement_main(void) {
 #endif  // STRESS_TEST
 
     // Run uvlib loop
-    uv_run(uv_default_loop(), UV_RUN_DEFAULT);
+    uv_run(main_loop, UV_RUN_DEFAULT);
 }

@@ -9,6 +9,7 @@ int netdata_anonymous_statistics_enabled;
 //should go in common.h or libnetdata.h when ready
 #ifdef ENABLE_LOGSMANAGEMENT
 extern void logsmanagement_main();
+static uv_thread_t *logsmanagement_main_thread;
 #endif
 
 struct config netdata_config = {
@@ -1496,7 +1497,8 @@ int main(int argc, char **argv) {
     // ------------------------------------------------------------------------
     // Start logsmanagement
 #ifdef ENABLE_LOGSMANAGEMENT
-    logsmanagement_main();
+    logsmanagement_main_thread = mallocz(sizeof(uv_thread_t));
+    fatal_assert(uv_thread_create(logsmanagement_main_thread, logsmanagement_main, NULL) == 0);
 #endif
 
     // ------------------------------------------------------------------------

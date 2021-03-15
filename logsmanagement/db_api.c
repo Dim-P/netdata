@@ -418,7 +418,7 @@ void db_init() {
             case 1:  // File metadata found in DB - retrieve id
                 p_file_infos_arr->data[i]->db_fileInfos_Id = (uint8_t)sqlite3_column_int(stmt_search_if_log_source_exists, 1);
                 
-                p_file_infos_arr->data[i]->db_dir = m_malloc((size_t)sqlite3_column_bytes(stmt_search_if_log_source_exists, 2));
+                p_file_infos_arr->data[i]->db_dir = m_malloc((size_t)sqlite3_column_bytes(stmt_search_if_log_source_exists, 2) + 1);
                 sprintf((char*) p_file_infos_arr->data[i]->db_dir, "%s", sqlite3_column_text(stmt_search_if_log_source_exists, 2));
                 break;
                 
