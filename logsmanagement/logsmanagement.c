@@ -38,6 +38,19 @@
 #define APACHE_LOG_PATH "/var/log/apache2/access.log"
 #define APACHE_ERROR_LOG_PATH "/var/log/apache2/error.log"
 
+static struct config log_management_config = {
+    .first_section = NULL,
+    .last_section = NULL,
+    .mutex = NETDATA_MUTEX_INITIALIZER,
+    .index = {
+            .avl_tree = {
+                    .root = NULL,
+                    .compar = appconfig_section_compare
+            },
+            .rwlock = AVL_LOCK_INITIALIZER
+    }
+};
+
 struct File_infos_arr *p_file_infos_arr;
 static uv_thread_t fs_events_reenable_thread_id;
 static uv_loop_t *main_loop; 
@@ -586,6 +599,61 @@ static int monitor_log_file_init(const char *filename) {
 }
 
 /**
+ * @brief Read configuration of log sources to monitor.
+ * @todo How to handle duplicate entries?
+ * @todo How to handle missing config file? 
+ */
+static void config_init(){
+    int rc = 0;
+    char config_filename[FILENAME_MAX + 1];
+    snprintf(config_filename, FILENAME_MAX, LOGS_MANAGEMENT_CONFIG_PATH);
+
+    if(config_filename && *config_filename) {
+        rc = appconfig_load(&log_management_config, config_filename, 0, NULL); // What does 3rd argument do?
+        if(!rc)
+            error("CONFIG: cannot load config file '%s'.", config_filename); // TODO: Load stock configuration in this case?
+    }
+    #if 0
+    else {
+        config_filename = strdupz_path_subpath(netdata_configured_user_config_dir, "netdata.conf");
+
+        ret = config_load(filename, overwrite_used, NULL);
+        if(!ret) {
+            info("CONFIG: cannot load user config '%s'. Will try the stock version.", filename);
+            freez(filename);
+
+            filename = strdupz_path_subpath(netdata_configured_stock_config_dir, "netdata.conf");
+            ret = config_load(filename, overwrite_used, NULL);
+            if(!ret)
+                info("CONFIG: cannot load stock config '%s'. Running with internal defaults.", filename);
+        }
+
+        freez(filename);
+    }
+    #endif
+
+    fprintf(stderr, "=========\nNDLGS First section: %s\n", log_management_config.first_section->name);
+    fprintf(stderr, "NDLGS Last  section: %s\n", log_management_config.last_section->name);
+
+    struct section *config_section = log_management_config.first_section;
+    do{
+        fprintf(stderr, "NDLGS Processing section: %s\n", config_section->name);
+        int enabled = appconfig_get_boolean(&log_management_config, config_section->name, "enabled", 0);
+        fprintf(stderr, "NDLGS Enabled value: %d for section: %s\n", enabled, config_section->name);
+        fprintf(stderr, "config_section->next NULL? %s\n", config_section->next ? "yes" : "no");
+
+        if(enabled){
+            char *log_source_path = appconfig_get(&log_management_config, config_section->name, "log path", NULL);
+            fprintf(stderr, "NDLGS log path value: %s for section: %s\n==== \n", log_source_path ? log_source_path : "NULL!", config_section->name);
+            if(log_source_path && log_source_path[0]!='\0'){
+                monitor_log_file_init(log_source_path);
+            }
+        }
+        config_section = config_section->next;
+    } while(config_section);
+}
+
+/**
  * @brief The main function of the program.
  * @details Any static asserts are most likely going to be inluded here. 
  * After any initialisation routines, the default uv_loop_t is executed indefinitely. 
@@ -603,7 +671,7 @@ void logsmanagement_main(void) {
     s_assert(DB_FLUSH_BUFF_INTERVAL > LOG_FILE_READ_INTERVAL);                                      // Do not flush to DB more frequently than reading the logs from the sources.
     s_assert(DB_FLUSH_BUFF_INTERVAL / LOG_FILE_READ_INTERVAL < CIRCULAR_BUFF_SIZE);                 // Check if enough circ buffer spaces
     s_assert((CIRCULAR_BUFF_SIZE != 0) && ((CIRCULAR_BUFF_SIZE & (CIRCULAR_BUFF_SIZE - 1)) == 0));  // CIRCULAR_BUFF_SIZE must be a power of 2.
-    s_assert(LOGS_MANAG_DEBUG ? 1 : !VALIDATE_COMPRESSION);                                                    // Ensure VALIDATE_COMPRESSION is disabled in release versions.
+    s_assert(LOGS_MANAG_DEBUG ? 1 : !VALIDATE_COMPRESSION);                                         // Ensure VALIDATE_COMPRESSION is disabled in release versions.
 
     // Setup timing
     uint64_t end_time;
@@ -616,27 +684,10 @@ void logsmanagement_main(void) {
     (void)uv_cond_init(&p_file_infos_arr->fs_events_reenable_cond);
     uv_thread_create(&fs_events_reenable_thread_id, fs_events_reenable_thread, NULL);
 
-    // Read files to monitor from arguments if they exist.
-    /* if (argc > 1) { */
-    /*     fprintf_log(INFO, stderr, "Arguments found - to be used as log sources\n"); */
-    /*     for (int arg_off = 1; arg_off < argc; arg_off++) { */
-    /*         fprintf_log(INFO, stderr, "Arg %d: %s\n", arg_off, argv[arg_off]); */
-    /*         monitor_log_file_init(argv[arg_off]); */
-    /*     } */
-    /* } else { */
-        fprintf_log(LOGS_MANAG_INFO, stderr, "Arguments not found - using hard-coded log sources\n");
-        monitor_log_file_init(SIMULATED_APACHE_LOG_PATH);
-        monitor_log_file_init(SIMULATED_PHP_LOG_PATH);
-        monitor_log_file_init(SIMULATED_MYSQL_LOG_PATH);
-        monitor_log_file_init(NETDATA_ERROR_LOG_PATH);
-        monitor_log_file_init(SYSLOG_PATH);
-        // monitor_log_file_init(DAEMON_LOG_PATH);
-        monitor_log_file_init(APACHE_LOG_PATH);
-        monitor_log_file_init(APACHE_ERROR_LOG_PATH);
-    /* } */
+    config_init();
 
-    fprintf_log(LOGS_MANAG_INFO, stderr,
-                "File monitoring setup completed. Running db_init().\n" LOG_SEPARATOR);
+    fprintf_log(LOGS_MANAG_INFO, stderr, "File monitoring setup completed. Running db_init().\n" LOG_SEPARATOR);
+    
     db_init();
 
     // Timing of setup routines
