@@ -206,7 +206,7 @@ static void db_writer(void *arg){
 		/* If the filesize of the current write-to BLOB is > BLOB_MAX_SIZE, rotate BLOBs */
 		if(blob_filesize > BLOB_MAX_SIZE){
 			const uint64_t start_time = get_unix_time_ms();
-			char old_path[MAX_PATH_LENGTH + 1], new_path[MAX_PATH_LENGTH + 1];
+			char old_path[FILENAME_MAX + 1], new_path[FILENAME_MAX + 1];
 
 			/* 1. Rotate BLOBS_TABLE Filenames and path of actual BLOBs. 
 			 * Performed in 2 steps: 
@@ -585,7 +585,7 @@ void db_init() {
 					sqlite3_reset(stmt_delete_row_by_id);
 
 					// Delete BLOB file from filesystem
-					char blob_delete_path[MAX_PATH_LENGTH + 1];
+					char blob_delete_path[FILENAME_MAX + 1];
 					sprintf(blob_delete_path, "%s" BLOB_STORE_FILENAME ".%d", p_file_infos_arr->data[i]->db_dir, last_digits);
 					uv_fs_t unlink_req;
 				    rc = uv_fs_unlink(db_loop, &unlink_req, blob_delete_path, NULL);

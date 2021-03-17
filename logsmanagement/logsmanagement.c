@@ -602,9 +602,12 @@ static void config_init(){
 
     if(config_filename && *config_filename) {
         rc = appconfig_load(&log_management_config, config_filename, 0, NULL); // What does 3rd argument do?
-        if(!rc)
+        if(!rc){
             error("CONFIG: cannot load config file '%s'.", config_filename); // TODO: Load stock configuration in this case?
+            return;
+        }
     }
+    else return;
     #if 0
     else {
         config_filename = strdupz_path_subpath(netdata_configured_user_config_dir, "netdata.conf");
@@ -623,9 +626,6 @@ static void config_init(){
         freez(filename);
     }
     #endif
-
-    fprintf(stderr, "=========\nNDLGS First section: %s\n", log_management_config.first_section->name);
-    fprintf(stderr, "NDLGS Last  section: %s\n", log_management_config.last_section->name);
 
     struct section *config_section = log_management_config.first_section;
     do{

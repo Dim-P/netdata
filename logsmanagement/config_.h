@@ -22,6 +22,5 @@
 
 #define BLOB_MAX_SIZE 200 MiB /**< Maximum quota for BLOB files, used to store compressed logs. When exceeded, the BLOB file will be rotated. **/
 #define BLOB_MAX_FILES 10	  /**< Maximum allowed number of BLOB files (per collection) that are used to store compressed logs. When exceeded, the olderst one will be overwritten. **/
-#define MAX_PATH_LENGTH 4096  /**< Max path length - required for some static allocations **/
 
 #endif  // CONFIG__H_
