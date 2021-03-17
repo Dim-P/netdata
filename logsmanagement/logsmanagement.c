@@ -11,6 +11,7 @@
 
 // Relevant about file read in C: https://stackoverflow.com/questions/3002122/fastest-file-reading-in-c
 
+#include "../daemon/common.h"
 #include "../libnetdata/libnetdata.h"
 #include <assert.h>
 #include <inttypes.h>
@@ -605,8 +606,9 @@ static int monitor_log_file_init(const char *filename) {
  */
 static void config_init(){
     int rc = 0;
+
     char config_filename[FILENAME_MAX + 1];
-    snprintf(config_filename, FILENAME_MAX, LOGS_MANAGEMENT_CONFIG_PATH);
+    snprintf(config_filename, FILENAME_MAX, "%s/log_management.conf", netdata_configured_user_config_dir);
 
     if(config_filename && *config_filename) {
         rc = appconfig_load(&log_management_config, config_filename, 0, NULL); // What does 3rd argument do?
