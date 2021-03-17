@@ -11,7 +11,6 @@
 #define MiB * 1048576UL
 #define GiB * 1073741824UL
 
-#define DATABASES_DIR "databases/" /**< Path to store the collected logs and their metadata in */
 #define MAX_LOG_MSG_SIZE 50 MiB   /**< Maximum allowable log message size (in Bytes) to be stored in message queue and DB. **/
 #define DB_FLUSH_BUFF_INTERVAL 8000U /**< Interval (in ms) to attempt to flush individual queues to DB. **/
 #define LOG_FILE_READ_INTERVAL 1000U /**< Minimum interval (in ms) to permit reading of log file contents in message queue. **/
@@ -23,6 +22,5 @@
 
 #define BLOB_MAX_SIZE 200 MiB /**< Maximum quota for BLOB files, used to store compressed logs. When exceeded, the BLOB file will be rotated. **/
 #define BLOB_MAX_FILES 10	  /**< Maximum allowed number of BLOB files (per collection) that are used to store compressed logs. When exceeded, the olderst one will be overwritten. **/
-#define MAX_PATH_LENGTH 4096  /**< Max path length - required for some static allocations **/
 
 #endif  // CONFIG__H_

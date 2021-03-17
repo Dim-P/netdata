@@ -42,13 +42,33 @@ typedef enum { LOGS_MANAG_ERROR,
 #endif  // DEBUG_LEV
 #endif  // m_assert
 
-//#ifndef fatal
-//#define fatal() assert(0); /**< Always-enabled fatal assert. Persists in producation releases. */
-//#endif                     // fatal
+// Portable thread local, see https://stackoverflow.com/questions/18298280/how-to-declare-a-variable-as-thread-local-portably
+#ifndef thread_local
+# if __STDC_VERSION__ >= 201112 && !defined __STDC_NO_THREADS__
+#  define thread_local _Thread_local
+# elif defined _WIN32 && ( \
+       defined _MSC_VER || \
+       defined __ICL || \
+       defined __DMC__ || \
+       defined __BORLANDC__ )
+#  define thread_local __declspec(thread) 
+/* note that ICC (linux) and Clang are covered by __GNUC__ */
+# elif defined __GNUC__ || \
+       defined __SUNPRO_C || \
+       defined __xlC__
+#  define thread_local __thread
+# else
+#  error "Cannot define thread_local"
+# endif
+#endif
 
-#ifndef s_assert
-#define s_assert(X) ({ extern int __attribute__((error("assertion failure: '" #X "' not true"))) compile_time_check(); ((X)?0:compile_time_check()),0; })
-#endif  // s_assert
+#ifndef COMPILE_TIME_ASSERT // https://stackoverflow.com/questions/3385515/static-assert-in-c
+#define STATIC_ASSERT(COND,MSG) typedef char static_assertion_##MSG[(!!(COND))*2-1]
+// token pasting madness:
+#define COMPILE_TIME_ASSERT3(X,L) STATIC_ASSERT(X,static_assertion_at_line_##L)
+#define COMPILE_TIME_ASSERT2(X,L) COMPILE_TIME_ASSERT3(X,L)
+#define COMPILE_TIME_ASSERT(X)    COMPILE_TIME_ASSERT2(X,__LINE__)
+#endif  // COMPILE_TIME_ASSERT
 
 #define BIT_SET(a, b) ((a) |= (1ULL << (b)))
 #define BIT_CLEAR(a, b) ((a) &= ~(1ULL << (b)))
@@ -104,8 +124,8 @@ static inline char *get_basename(char const *path) {
  * @brief Custom formatted print implementation
  */
 static inline void fprintf_log_internal(Log_level log_level, FILE *stream, const char *format, ...) {
-    if (log_level > DEBUG_LEV)
-        return;
+    if (log_level > DEBUG_LEV) 
+        return; 
 
     struct timeval tv;
     time_t nowtime;
@@ -141,44 +161,5 @@ static inline void fprintf_log_internal(Log_level log_level, FILE *stream, const
     vfprintf(stream, format, args);
     va_end(args);
 }
-
-#if 0
-#define m_malloc(size) m_malloc_int(__FILE__, __FUNCTION__, __LINE__, size)
-/**
- * @brief Custom malloc() implementation
- * @details Same as malloc() but will #fatal() if it cannot allocate the memory 
- * @return Pointer to the allocated memory block
- */
-static inline void *m_malloc_int(const char *file, const char *function, const unsigned long line, size_t size) {
-    void *ptr = malloc(size);
-    if (unlikely(!ptr)) {
-        fprintf_log(LOGS_MANAG_ERROR, stderr, "%s:%d: `m_malloc' failed to allocate memory in function `%s'\n", file, line, function);
-        fatal("%s:%d: `m_malloc' failed to allocate memory in function `%s'\n", file, line, function);
-    }
-    return ptr;
-}
-
-#define m_realloc(ptr, size) m_realloc_int(__FILE__, __FUNCTION__, __LINE__, ptr, size)
-/**
- * @brief Custom realloc() implementation
- * @details Same as realloc() but will #fatal() if it cannot reallocate the memory 
- * @return Pointer to the reallocated memory block
- */
-static inline void *m_realloc_int(const char *file, const char *function, int line, void *ptr, size_t size) {
-    if (!ptr)
-        return m_malloc(size);
-
-    ptr = realloc(ptr, size);
-    if (unlikely(!ptr)) {
-        fprintf_log(LOGS_MANAG_ERROR, stderr, "%s:%d: `m_realloc' failed to reallocate memory in function `%s'\n", file, line, function);
-        fatal("%s:%d: `m_realloc' failed to reallocate memory in function `%s'\n", file, line, function);
-    }
-    return ptr;
-}
-#else
-#define m_malloc(size) mallocz(size)
-#define m_realloc(ptr, size) reallocz(ptr, size)
-#define m_free(ptr) freez(ptr)
-#endif
 
 #endif  // HELPER_H_

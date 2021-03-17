@@ -9,8 +9,7 @@
  *  @author Dimitris Pantazis
  */
 
-// Relevant about file read in C: https://stackoverflow.com/questions/3002122/fastest-file-reading-in-c
-
+#include "../daemon/common.h"
 #include "../libnetdata/libnetdata.h"
 #include <assert.h>
 #include <inttypes.h>
@@ -25,21 +24,26 @@
 #include "file_info.h"
 #include "helper.h"
 #include "query.h"
-#if STRESS_TEST
+#if LOGS_MANAGEMENT_STRESS_TEST
 #include "query_test.h"
-#endif  // STRESS_TEST
+#endif  // LOGS_MANAGEMENT_STRESS_TEST
 
-#define SIMULATED_APACHE_LOG_PATH "test_data/apache_error.log"
-#define SIMULATED_PHP_LOG_PATH "test_data/php_error.log"
-#define SIMULATED_MYSQL_LOG_PATH "test_data/mysql_error.log"
-#define NETDATA_ERROR_LOG_PATH "/var/log/netdata/error.log"
-#define SYSLOG_PATH "/var/log/syslog"
-#define DAEMON_LOG_PATH "/var/log/daemon.log"
-#define APACHE_LOG_PATH "/var/log/apache2/access.log"
-#define APACHE_ERROR_LOG_PATH "/var/log/apache2/error.log"
+static struct config log_management_config = {
+    .first_section = NULL,
+    .last_section = NULL,
+    .mutex = NETDATA_MUTEX_INITIALIZER,
+    .index = {
+            .avl_tree = {
+                    .root = NULL,
+                    .compar = appconfig_section_compare
+            },
+            .rwlock = AVL_LOCK_INITIALIZER
+    }
+};
 
 struct File_infos_arr *p_file_infos_arr;
 static uv_thread_t fs_events_reenable_thread_id;
+static uv_loop_t *main_loop; 
 
 // Forward declarations
 static void file_changed_cb(uv_fs_event_t *handle, const char *file_basename, int events, int status);
@@ -131,7 +135,7 @@ static void handle_UV_ENOENT_err(struct File_info *p_file_info) {
 static int file_close(struct File_info *p_file_info) {
     int rc = 0;
     uv_fs_t close_req;
-    rc = uv_fs_close(uv_default_loop(), &close_req, p_file_info->file_handle, NULL);
+    rc = uv_fs_close(main_loop, &close_req, p_file_info->file_handle, NULL);
     if (unlikely(rc)) {
         fprintf_log(LOGS_MANAG_ERROR, stderr, "error closing %s: %s\n", p_file_info->filename, uv_strerror(rc));
         m_assert(!rc, "uv_fs_close() failed");
@@ -152,7 +156,7 @@ static int file_open(struct File_info *p_file_info) {
     int rc = 0;
     // TODO: Need more elegant solution about file opening and monitoring - what if file becomes available later than startup?
     uv_fs_t open_req;
-    rc = uv_fs_open(uv_default_loop(), &open_req, p_file_info->filename, O_RDONLY, 0, NULL);
+    rc = uv_fs_open(main_loop, &open_req, p_file_info->filename, O_RDONLY, 0, NULL);
     if (unlikely(rc < 0)) {
         fprintf_log(LOGS_MANAG_ERROR, stderr, "file_open() error: %s (%d) %s\n", p_file_info->filename, rc, uv_strerror(rc));
         // m_assert(rc >= 0, "uv_fs_open() failed");
@@ -216,6 +220,7 @@ static int enable_file_changed_events(struct File_info *p_file_info, uint8_t for
     }
     return rc;
 }
+
 /**
  * @brief Read text from a log file
  * @details Callback called in #check_if_filesize_changed_cb() to read text
@@ -240,7 +245,7 @@ static void read_file_cb(uv_fs_t *req) {
         }
 
         /* Null-terminate p_file_info->buff using the extra byte (in case needed)
-         * that was m_realloc'd in check_if_file_changed_cb(); */
+         * that was reallocz'd in check_if_file_changed_cb(); */
         p_file_info->buff[p_file_info->buff_size++] = '\0';
 
         circ_buff_write(p_file_info);
@@ -256,7 +261,7 @@ free_access_lock:
     (void)file_close(p_file_info);
     (void)enable_file_changed_events(p_file_info, 1);
     uv_fs_req_cleanup(req);
-    m_free(req);
+    freez(req);
 }
 
 static int check_file_rotation(struct File_info *p_file_info, uint64_t new_filesize) {
@@ -274,7 +279,7 @@ static int check_file_rotation(struct File_info *p_file_info, uint64_t new_files
         // TODO: Realloc down p_file_info->signature here? Not sure if needed as that will grow at some point soon!
         p_file_info->uvBuf = uv_buf_init(p_file_info->signature, p_file_info->signature_size);
         uv_fs_t read_req;
-        rc = uv_fs_read(uv_default_loop(), &read_req, p_file_info->file_handle, &p_file_info->uvBuf, 1, 0, NULL);
+        rc = uv_fs_read(main_loop, &read_req, p_file_info->file_handle, &p_file_info->uvBuf, 1, 0, NULL);
         if (rc < 0)
             fprintf_log(LOGS_MANAG_ERROR, stderr, "uv_fs_read() error for %s\n", p_file_info->filename);
         m_assert(rc >= 0, "uv_fs_read() failed");
@@ -291,11 +296,11 @@ static int check_file_rotation(struct File_info *p_file_info, uint64_t new_files
         rotated = 1;
 
         p_file_info->signature_size = new_filesize > MAX_FILE_SIGNATURE_SIZE ? MAX_FILE_SIGNATURE_SIZE : (size_t)new_filesize;
-        // TODO: Refactor next line with temp pointer, currently in risk of memory leak in case m_realloc fails!
-        p_file_info->signature = m_realloc(p_file_info->signature, p_file_info->signature_size);
+        // TODO: Refactor next line with temp pointer, currently in risk of memory leak in case reallocz fails!
+        p_file_info->signature = reallocz(p_file_info->signature, p_file_info->signature_size);
         p_file_info->uvBuf = uv_buf_init(p_file_info->signature, p_file_info->signature_size);
         uv_fs_t read_req;
-        rc = uv_fs_read(uv_default_loop(), &read_req, p_file_info->file_handle, &p_file_info->uvBuf, 1, 0, NULL);
+        rc = uv_fs_read(main_loop, &read_req, p_file_info->file_handle, &p_file_info->uvBuf, 1, 0, NULL);
         if (rc < 0)
             fprintf_log(LOGS_MANAG_ERROR, stderr, "uv_fs_read() error for %s\n", p_file_info->filename);
         m_assert(rc >= 0, "uv_fs_read() failed");
@@ -314,14 +319,14 @@ static int check_file_rotation(struct File_info *p_file_info, uint64_t new_files
         char *comp_buff = mallocz(comp_buff_size);
         p_file_info->uvBuf = uv_buf_init(comp_buff, comp_buff_size);
         uv_fs_t read_req;
-        rc = uv_fs_read(uv_default_loop(), &read_req, p_file_info->file_handle, &p_file_info->uvBuf, 1, 0, NULL);
+        rc = uv_fs_read(main_loop, &read_req, p_file_info->file_handle, &p_file_info->uvBuf, 1, 0, NULL);
         if (rc < 0)
             fprintf_log(LOGS_MANAG_ERROR, stderr, "uv_fs_read() error for %s\n", p_file_info->filename);
         m_assert(rc >= 0, "uv_fs_read() failed");
         uv_fs_req_cleanup(&read_req);
 
         // TODO: Use fixed-size signature buffer to reduce number of reallocs
-        p_file_info->signature = m_realloc(p_file_info->signature, comp_buff_size);
+        p_file_info->signature = reallocz(p_file_info->signature, comp_buff_size);
         rotated = memcmp(p_file_info->signature, comp_buff, p_file_info->signature_size) ? 1 : 0;
         fprintf_log(LOGS_MANAG_DEBUG, stderr, "Signature size: %zuB Comp buff size: %zuB\n", p_file_info->signature_size, comp_buff_size);
         fprintf_log(LOGS_MANAG_DEBUG, stderr,
@@ -334,7 +339,7 @@ static int check_file_rotation(struct File_info *p_file_info, uint64_t new_files
         p_file_info->signature_size = comp_buff_size;
         memcpy(p_file_info->signature, comp_buff, p_file_info->signature_size);
 
-        m_free(comp_buff);
+        freez(comp_buff);
 
         end_time = get_unix_time_ms();
         fprintf_log(LOGS_MANAG_INFO, stderr, "(3) It took %" PRIu64 "ms to check file rotation.\n", end_time - start_time);
@@ -411,16 +416,16 @@ static void check_if_filesize_changed_cb(uv_fs_t *req) {
         }
 #endif
 
-        uv_fs_t *read_req = m_malloc(sizeof(uv_fs_t));
+        uv_fs_t *read_req = mallocz(sizeof(uv_fs_t));
         read_req->data = p_file_info;
         p_file_info->buff_size = filesize_diff;
         if (!p_file_info->buff || filesize_diff > p_file_info->buff_size_max) {
             p_file_info->buff_size_max = filesize_diff * BUFF_SCALE_FACTOR;
-            p_file_info->buff = m_realloc(p_file_info->buff, p_file_info->buff_size_max);
+            p_file_info->buff = reallocz(p_file_info->buff, p_file_info->buff_size_max);
         }
         m_assert(p_file_info->buff, "Realloc buffer must not be NULL!");
         p_file_info->uvBuf = uv_buf_init(p_file_info->buff, p_file_info->buff_size);
-        rc = uv_fs_read(uv_default_loop(), read_req, p_file_info->file_handle,
+        rc = uv_fs_read(main_loop, read_req, p_file_info->file_handle,
                         &p_file_info->uvBuf, 1, old_filesize, read_file_cb);
         if (rc)
             fprintf_log(LOGS_MANAG_ERROR, stderr, "uv_fs_read() error for %s\n", p_file_info->filename);
@@ -446,7 +451,7 @@ static void check_if_filesize_changed_cb(uv_fs_t *req) {
 
 cleanup_and_return:
     uv_fs_req_cleanup(req);
-    m_free(req);
+    freez(req);
 }
 
 static void file_changed_cb(uv_fs_event_t *handle, const char *file_basename, int events, int status) {
@@ -466,10 +471,10 @@ static void file_changed_cb(uv_fs_event_t *handle, const char *file_basename, in
     // if (events & UV_RENAME)
     //    sleep_ms(LOG_ROTATION_WAIT_TIME);  // If renamed likely that log was rotated - wait a while for new log to be created.
 
-    uv_fs_t *stat_req = m_malloc(sizeof(uv_fs_t));
+    uv_fs_t *stat_req = mallocz(sizeof(uv_fs_t));
     stat_req->data = p_file_info;
 
-    rc = uv_fs_stat(uv_default_loop(), stat_req, p_file_info->filename, check_if_filesize_changed_cb);
+    rc = uv_fs_stat(main_loop, stat_req, p_file_info->filename, check_if_filesize_changed_cb);
     if (unlikely(rc)) {
         fprintf_log(LOGS_MANAG_ERROR, stderr, "uv_fs_stat error: %s\n", uv_strerror(rc));
         m_assert(!rc, "uv_fs_stat error");
@@ -481,16 +486,16 @@ static void register_file_changed_listener(struct File_info *p_file_info) {
     int rc = 0;
     fprintf_log(LOGS_MANAG_DEBUG, stderr, "Adding changes listener: %s\n", p_file_info->file_basename);
 
-    uv_fs_event_t *fs_event_req = m_malloc(sizeof(uv_fs_event_t));
+    uv_fs_event_t *fs_event_req = mallocz(sizeof(uv_fs_event_t));
     fs_event_req->data = p_file_info;
     p_file_info->fs_event_req = fs_event_req;
-    rc = uv_fs_event_init(uv_default_loop(), fs_event_req);
+    rc = uv_fs_event_init(main_loop, fs_event_req);
     if (unlikely(rc))
         fprintf_log(LOGS_MANAG_ERROR, stderr, "uv_fs_event_init() for %s failed\n", p_file_info->filename);
     m_assert(!rc, "uv_fs_event_init() failed");
 
-    p_file_info->enable_file_changed_events_timer = m_malloc(sizeof(uv_timer_t));
-    rc = uv_timer_init(uv_default_loop(), p_file_info->enable_file_changed_events_timer);
+    p_file_info->enable_file_changed_events_timer = mallocz(sizeof(uv_timer_t));
+    rc = uv_timer_init(main_loop, p_file_info->enable_file_changed_events_timer);
     if (unlikely(rc))
         fprintf_log(LOGS_MANAG_ERROR, stderr, "uv_timer_init() for %s failed\n", p_file_info->filename);
     m_assert(!rc, "uv_timer_init() failed");
@@ -509,11 +514,11 @@ static void file_signature_init(struct File_info *p_file_info) {
     int rc = 0;
 
     p_file_info->signature_size = p_file_info->filesize > MAX_FILE_SIGNATURE_SIZE ? MAX_FILE_SIGNATURE_SIZE : (size_t)p_file_info->filesize;
-    p_file_info->signature = m_malloc(p_file_info->signature_size);
+    p_file_info->signature = mallocz(p_file_info->signature_size);
     p_file_info->uvBuf = uv_buf_init(p_file_info->signature, p_file_info->signature_size);
 
     uv_fs_t read_req;
-    rc = uv_fs_read(uv_default_loop(), &read_req, p_file_info->file_handle, &p_file_info->uvBuf, 1, 0, NULL);
+    rc = uv_fs_read(main_loop, &read_req, p_file_info->file_handle, &p_file_info->uvBuf, 1, 0, NULL);
     if (unlikely(rc < 0))
         fprintf_log(LOGS_MANAG_ERROR, stderr, "uv_fs_read() for %s failed: (%d) %s\n", p_file_info->filename, rc, uv_strerror(rc));
     m_assert(rc >= 0, "uv_fs_read() failed");
@@ -532,28 +537,28 @@ static int monitor_log_file_init(const char *filename) {
                 "Initialising file monitoring: %s\n",
                 filename);
 
-    struct File_info *p_file_info = m_malloc(sizeof(struct File_info));
+    struct File_info *p_file_info = mallocz(sizeof(struct File_info));
 
-    p_file_info->filename = filename;            // NOTE: file_basename uses strdup which uses m_malloc. m_free() if necessary!
-    p_file_info->file_basename = get_basename(filename);  // buff pointer must be NULL before first m_realloc call
+    p_file_info->filename = filename;            // NOTE: file_basename uses strdup which uses mallocz. freez() if necessary!
+    p_file_info->file_basename = get_basename(filename);  // buff pointer must be NULL before first reallocz call
     p_file_info->buff = NULL;
     p_file_info->buff_size = p_file_info->buff_size_max = 0;
     p_file_info->access_lock = 0;
     p_file_info->force_file_changed_cb = 0;
 
     if ((rc = file_open(p_file_info)) < 0) {
-        m_free(p_file_info);
+        freez(p_file_info);
         return rc;
     }
 
     // Store initial filesize in file_info - synchronous
     uv_fs_t stat_req;
     stat_req.data = p_file_info;
-    rc = uv_fs_stat(uv_default_loop(), &stat_req, filename, NULL);
+    rc = uv_fs_stat(main_loop, &stat_req, filename, NULL);
     if (unlikely(rc)) {
         fprintf_log(LOGS_MANAG_ERROR, stderr, "uv_fs_stat() error for %s: (%d) %s\n", filename, rc, uv_strerror(rc));
         uv_fs_req_cleanup(&stat_req);
-        m_free(p_file_info);
+        freez(p_file_info);
         return rc;
         // m_assert(!rc, "uv_fs_stat() failed");
     } else {
@@ -566,7 +571,7 @@ static int monitor_log_file_init(const char *filename) {
     uv_fs_req_cleanup(&stat_req);
 
     if (!p_file_info->filesize) {  // TODO: Cornercase where filesize is 0 at the beginning - will not work for now. Known bug.
-        m_free(p_file_info);
+        freez(p_file_info);
         return rc;
     }
 
@@ -577,11 +582,67 @@ static int monitor_log_file_init(const char *filename) {
     register_file_changed_listener(p_file_info);  // TODO: Error check
 
     // All set up successfully - add p_file_info to list of all p_file_info structs
-    p_file_infos_arr->data = m_realloc(p_file_infos_arr->data,
+    p_file_infos_arr->data = reallocz(p_file_infos_arr->data,
                                        (++p_file_infos_arr->count) * (sizeof p_file_info));
     p_file_infos_arr->data[p_file_infos_arr->count - 1] = p_file_info;
 
     return rc;
+}
+
+/**
+ * @brief Read configuration of log sources to monitor.
+ * @todo How to handle duplicate entries?
+ * @todo How to handle missing config file? 
+ */
+static void config_init(){
+    int rc = 0;
+
+    char config_filename[FILENAME_MAX + 1];
+    snprintf(config_filename, FILENAME_MAX, "%s/log_management.conf", netdata_configured_user_config_dir);
+
+    if(config_filename && *config_filename) {
+        rc = appconfig_load(&log_management_config, config_filename, 0, NULL); // What does 3rd argument do?
+        if(!rc){
+            error("CONFIG: cannot load config file '%s'.", config_filename); // TODO: Load stock configuration in this case?
+            return;
+        }
+    }
+    else return;
+    #if 0
+    else {
+        config_filename = strdupz_path_subpath(netdata_configured_user_config_dir, "netdata.conf");
+
+        ret = config_load(filename, overwrite_used, NULL);
+        if(!ret) {
+            info("CONFIG: cannot load user config '%s'. Will try the stock version.", filename);
+            freez(filename);
+
+            filename = strdupz_path_subpath(netdata_configured_stock_config_dir, "netdata.conf");
+            ret = config_load(filename, overwrite_used, NULL);
+            if(!ret)
+                info("CONFIG: cannot load stock config '%s'. Running with internal defaults.", filename);
+        }
+
+        freez(filename);
+    }
+    #endif
+
+    struct section *config_section = log_management_config.first_section;
+    do{
+        fprintf(stderr, "NDLGS Processing section: %s\n", config_section->name);
+        int enabled = appconfig_get_boolean(&log_management_config, config_section->name, "enabled", 0);
+        fprintf(stderr, "NDLGS Enabled value: %d for section: %s\n", enabled, config_section->name);
+        fprintf(stderr, "config_section->next NULL? %s\n", config_section->next ? "yes" : "no");
+
+        if(enabled){
+            char *log_source_path = appconfig_get(&log_management_config, config_section->name, "log path", NULL);
+            fprintf(stderr, "NDLGS log path value: %s for section: %s\n==== \n", log_source_path ? log_source_path : "NULL!", config_section->name);
+            if(log_source_path && log_source_path[0]!='\0'){
+                monitor_log_file_init(log_source_path);
+            }
+        }
+        config_section = config_section->next;
+    } while(config_section);
 }
 
 /**
@@ -590,48 +651,34 @@ static int monitor_log_file_init(const char *filename) {
  * After any initialisation routines, the default uv_loop_t is executed indefinitely. 
  * @todo Any cleanup required on program exit? 
  */
-int logsmanagement_main(int argc, const char *argv[]) {
+//int logsmanagement_main(int argc, const char *argv[]) {
+void logsmanagement_main(void) {
     //int rc = 0;
 
+    main_loop = mallocz(sizeof(uv_loop_t));
+    fatal_assert(uv_loop_init(main_loop) == 0);
+
     // Static asserts
-    // s_assert(MAX_QUERY_PAGE_SIZE >= MAX_LOG_MSG_SIZE);                                           // Check if DB query page large enough
-    s_assert(DB_FLUSH_BUFF_INTERVAL > LOG_FILE_READ_INTERVAL);                                      // Do not flush to DB more frequently than reading the logs from the sources.
-    s_assert(DB_FLUSH_BUFF_INTERVAL / LOG_FILE_READ_INTERVAL < CIRCULAR_BUFF_SIZE);                 // Check if enough circ buffer spaces
-    s_assert((CIRCULAR_BUFF_SIZE != 0) && ((CIRCULAR_BUFF_SIZE & (CIRCULAR_BUFF_SIZE - 1)) == 0));  // CIRCULAR_BUFF_SIZE must be a power of 2.
-    s_assert(LOGS_MANAG_DEBUG ? 1 : !VALIDATE_COMPRESSION);                                                    // Ensure VALIDATE_COMPRESSION is disabled in release versions.
+    COMPILE_TIME_ASSERT(DB_FLUSH_BUFF_INTERVAL > LOG_FILE_READ_INTERVAL);                                      // Do not flush to DB more frequently than reading the logs from the sources.
+    COMPILE_TIME_ASSERT(DB_FLUSH_BUFF_INTERVAL / LOG_FILE_READ_INTERVAL < CIRCULAR_BUFF_SIZE);                 // Check if enough circ buffer spaces
+    COMPILE_TIME_ASSERT((CIRCULAR_BUFF_SIZE != 0) && ((CIRCULAR_BUFF_SIZE & (CIRCULAR_BUFF_SIZE - 1)) == 0));  // CIRCULAR_BUFF_SIZE must be a power of 2.
+    COMPILE_TIME_ASSERT(LOGS_MANAG_DEBUG ? 1 : !VALIDATE_COMPRESSION);                                         // Ensure VALIDATE_COMPRESSION is disabled in release versions.
 
     // Setup timing
     uint64_t end_time;
     uint64_t start_time = get_unix_time_ms();
 
     // Initialise array of File_Info pointers
-    p_file_infos_arr = m_malloc(sizeof(struct File_infos_arr));
+    p_file_infos_arr = mallocz(sizeof(struct File_infos_arr));
     *p_file_infos_arr = (struct File_infos_arr){0};
     (void)uv_mutex_init(&p_file_infos_arr->fs_events_reenable_lock);
     (void)uv_cond_init(&p_file_infos_arr->fs_events_reenable_cond);
     uv_thread_create(&fs_events_reenable_thread_id, fs_events_reenable_thread, NULL);
 
-    // Read files to monitor from arguments if they exist.
-    if (argc > 1) {
-        fprintf_log(LOGS_MANAG_INFO, stderr, "Arguments found - to be used as log sources\n");
-        for (int arg_off = 1; arg_off < argc; arg_off++) {
-            fprintf_log(LOGS_MANAG_INFO, stderr, "Arg %d: %s\n", arg_off, argv[arg_off]);
-            monitor_log_file_init(argv[arg_off]);
-        }
-    } else {
-        fprintf_log(LOGS_MANAG_INFO, stderr, "Arguments not found - using hard-coded log sources\n");
-        monitor_log_file_init(SIMULATED_APACHE_LOG_PATH);
-        monitor_log_file_init(SIMULATED_PHP_LOG_PATH);
-        monitor_log_file_init(SIMULATED_MYSQL_LOG_PATH);
-        monitor_log_file_init(NETDATA_ERROR_LOG_PATH);
-        monitor_log_file_init(SYSLOG_PATH);
-        // monitor_log_file_init(DAEMON_LOG_PATH);
-        monitor_log_file_init(APACHE_LOG_PATH);
-        monitor_log_file_init(APACHE_ERROR_LOG_PATH);
-    }
+    config_init();
 
-    fprintf_log(LOGS_MANAG_INFO, stderr,
-                "File monitoring setup completed. Running db_init().\n" LOG_SEPARATOR);
+    fprintf_log(LOGS_MANAG_INFO, stderr, "File monitoring setup completed. Running db_init().\n" LOG_SEPARATOR);
+    
     db_init();
 
     // Timing of setup routines
@@ -649,23 +696,16 @@ int logsmanagement_main(int argc, const char *argv[]) {
     fprintf_log(LOGS_MANAG_INFO, stderr, "LZ4 version: %s\n" LOG_SEPARATOR, LZ4_versionString());
     char *sqlite_version = db_get_sqlite_version();
     fprintf_log(LOGS_MANAG_INFO, stderr, "SQLITE version: %s\n" LOG_SEPARATOR, sqlite_version);
-    m_free(sqlite_version);
+    freez(sqlite_version);
 
-#if STRESS_TEST
+#if LOGS_MANAGEMENT_STRESS_TEST
     fprintf(stderr, LOG_SEPARATOR "Running netdata-logs with Stress Test enabled!\n" LOG_SEPARATOR);
     static uv_thread_t run_stress_test_queries_thread_id;
     uv_thread_create(&run_stress_test_queries_thread_id, run_stress_test_queries_thread, NULL);
-#endif  // STRESS_TEST
+#endif  // LOGS_MANAGEMENT_STRESS_TEST
 
     // Run uvlib loop
-    uv_run(uv_default_loop(), UV_RUN_DEFAULT);
-
-    return 0;
-}
-
-#if STRESS_TEST
-int main(int argc, const char *argv[]) {
-    logsmanagement_main(argc, argv);
+    uv_run(main_loop, UV_RUN_DEFAULT);
 }
 #endif
 

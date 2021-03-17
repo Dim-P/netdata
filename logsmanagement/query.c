@@ -12,8 +12,8 @@
 #include "helper.h"
 
 char *execute_query(uint64_t start_timestamp, uint64_t end_timestamp, const char *filename, const char *keyword, size_t *p_size) {
-    static _Thread_local uint64_t end_timestamp_prev, last_timestamp_prev = 0;
-    static _Thread_local char *filename_prev, *keyword_prev = NULL;
+    static thread_local uint64_t end_timestamp_prev, last_timestamp_prev = 0;
+    static thread_local char *filename_prev, *keyword_prev = NULL;
     DB_query_params_t query_params = {0};
     struct File_info *p_file_info;
 

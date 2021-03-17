@@ -95,6 +95,7 @@
 #define CONFIG_SECTION_PROMETHEUS "prometheus:exporter"
 #define CONFIG_SECTION_HOST_LABEL "host labels"
 #define EXPORTING_CONF            "exporting.conf"
+#define LOG_MANAGEMENT_CONF       "log_management.conf"
 
 // these are used to limit the configuration names and values lengths
 // they are not enforced by config.c functions (they will strdup() all strings, no matter of their length)

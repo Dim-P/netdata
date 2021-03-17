@@ -4,6 +4,7 @@
  *  @author Dimitris Pantazis
  */
 
+#include "../daemon/common.h"
 #include "db_api.h"
 #include <inttypes.h>
 #include <stdio.h>
@@ -12,9 +13,7 @@
 #include "helper.h"
 #include "lz4.h"
 
-#define MAIN_DB_DIR "databases" /**< Path to store all the databases and log blobs **/
 #define MAIN_DB "main.db" /**< Primary DB with just 1 table - MAIN_COLLECTIONS_TABLE **/
-#define MAIN_DB_PATH MAIN_DB_DIR "/" MAIN_DB
 #define MAIN_COLLECTIONS_TABLE "LogCollections"
 #define BLOB_STORE_FILENAME "logs.bin"
 #define METADATA_DB_FILENAME "metadata.db"
@@ -23,6 +22,8 @@
 
 static uv_loop_t *db_loop;
 static sqlite3 *main_db;
+static char main_db_dir[FILENAME_MAX + 1];  /**< Directory where all the log management databases and log blobs are stored in **/
+static char main_db_path[FILENAME_MAX + 1]; /**< Path of MAIN_DB **/
 
 void db_set_lock(uv_mutex_t db_mut) { 
 	uv_mutex_lock(&db_mut); 
@@ -68,7 +69,7 @@ char *db_get_sqlite_version() {
     if (unlikely(rc != SQLITE_OK)) fatal_sqlite3_err(rc, __LINE__);
     rc = sqlite3_step(stmt_get_sqlite_version);
     if (unlikely(rc != SQLITE_ROW)) fatal_sqlite3_err(rc, __LINE__);
-    char *text = m_malloc(sqlite3_column_bytes(stmt_get_sqlite_version, 0) + 1);
+    char *text = mallocz(sqlite3_column_bytes(stmt_get_sqlite_version, 0) + 1);
     strcpy(text, (char *)sqlite3_column_text(stmt_get_sqlite_version, 0));
     sqlite3_finalize(stmt_get_sqlite_version);
     return text;
@@ -79,7 +80,7 @@ static void db_writer(void *arg){
 	struct File_info *p_file_info = *((struct File_info **) arg);
 	fprintf_log(LOGS_MANAG_DEBUG, stderr, "Entering writer thread for: %s\n", p_file_info->filename);
 	
-	uv_loop_t *writer_loop = m_malloc(sizeof(uv_loop_t));
+	uv_loop_t *writer_loop = mallocz(sizeof(uv_loop_t));
     rc = uv_loop_init(writer_loop);
     if (unlikely(rc)) fatal_libuv_err(rc, __LINE__);
     
@@ -205,7 +206,7 @@ static void db_writer(void *arg){
 		/* If the filesize of the current write-to BLOB is > BLOB_MAX_SIZE, rotate BLOBs */
 		if(blob_filesize > BLOB_MAX_SIZE){
 			const uint64_t start_time = get_unix_time_ms();
-			char old_path[MAX_PATH_LENGTH + 1], new_path[MAX_PATH_LENGTH + 1];
+			char old_path[FILENAME_MAX + 1], new_path[FILENAME_MAX + 1];
 
 			/* 1. Rotate BLOBS_TABLE Filenames and path of actual BLOBs. 
 			 * Performed in 2 steps: 
@@ -287,28 +288,31 @@ void db_init() {
     char *err_msg = 0;
     uv_fs_t mkdir_req;
     
-    db_loop = m_malloc(sizeof(uv_loop_t));
+    db_loop = mallocz(sizeof(uv_loop_t));
     rc = uv_loop_init(db_loop);
     if (unlikely(rc)) fatal_libuv_err(rc, __LINE__);
 
+    snprintf(main_db_dir, FILENAME_MAX, "%s/logs_management_db", netdata_configured_cache_dir);
+    snprintf(main_db_path, FILENAME_MAX, "%s/" MAIN_DB, main_db_dir);
+
 	/* Create databases directory if it doesn't exist. */
-    rc = uv_fs_mkdir(db_loop, &mkdir_req, MAIN_DB_DIR, 0755, NULL);
+    rc = uv_fs_mkdir(db_loop, &mkdir_req, main_db_dir, 0755, NULL);
     if (likely(rc)) 
-        fprintf_log(LOGS_MANAG_WARNING, stderr, "Mkdir " MAIN_DB_DIR "/ error: %s\n", uv_strerror(rc));
+        fprintf_log(LOGS_MANAG_WARNING, stderr, "Mkdir %s/ error: %s\n", main_db_dir, uv_strerror(rc));
     uv_fs_req_cleanup(&mkdir_req);
 
 #if 0 // FOR STRESS TESTING PURPOSES ONLY! - Temporarily comment out
     uv_fs_t unlink_req;
-    rc = uv_fs_unlink(db_loop, &unlink_req, MAIN_DB_PATH, NULL);
+    rc = uv_fs_unlink(db_loop, &unlink_req, main_db_path, NULL);
     if (rc)
-        fprintf(stderr, "Delete " MAIN_DB_PATH " error: %s\n", uv_strerror(rc));
+        fprintf(stderr, "Delete %s/ error: %s\n", main_db_path, uv_strerror(rc));
     uv_fs_req_cleanup(&unlink_req);
 
     // TODO: Delete all external blob files if exist
-#endif  // STRESS_TEST
+#endif  // LOGS_MANAGEMENT_STRESS_TEST
 
 	/* Create or open main db */
-	rc = sqlite3_open(MAIN_DB_PATH, &main_db);
+	rc = sqlite3_open(main_db_path, &main_db);
     if (unlikely(rc != SQLITE_OK)) fatal_sqlite3_err(rc, __LINE__);
     
     /* Configure main database */
@@ -389,8 +393,8 @@ void db_init() {
                 if (unlikely(rc != SQLITE_ROW)) fatal_sqlite3_err(rc, __LINE__);
                 
 				int last_row_id = sqlite3_column_int(stmt_get_last_id, 0);
-                char *db_dir = m_malloc(snprintf(NULL, 0, MAIN_DB_DIR "/%s_%d/", p_file_infos_arr->data[i]->file_basename, last_row_id) + 1);
-				sprintf(db_dir, MAIN_DB_DIR "/%s_%d/", p_file_infos_arr->data[i]->file_basename, last_row_id);
+                char *db_dir = mallocz(snprintf(NULL, 0, "%s/%s_%d/", main_db_dir, p_file_infos_arr->data[i]->file_basename, last_row_id) + 1);
+				sprintf(db_dir, "%s/%s_%d/", main_db_dir, p_file_infos_arr->data[i]->file_basename, last_row_id);
 				
 				rc = uv_fs_mkdir(db_loop, &mkdir_req, db_dir, 0755, NULL);
 				if (unlikely(rc)) fatal_libuv_err(rc, __LINE__); // If db_dir exists but was not found in main DB, then that's a fatal()
@@ -414,7 +418,7 @@ void db_init() {
             case 1:  // File metadata found in DB - retrieve id
                 p_file_infos_arr->data[i]->db_fileInfos_Id = (uint8_t)sqlite3_column_int(stmt_search_if_log_source_exists, 1);
                 
-                p_file_infos_arr->data[i]->db_dir = m_malloc((size_t)sqlite3_column_bytes(stmt_search_if_log_source_exists, 2));
+                p_file_infos_arr->data[i]->db_dir = mallocz((size_t)sqlite3_column_bytes(stmt_search_if_log_source_exists, 2) + 1);
                 sprintf((char*) p_file_infos_arr->data[i]->db_dir, "%s", sqlite3_column_text(stmt_search_if_log_source_exists, 2));
                 break;
                 
@@ -429,11 +433,11 @@ void db_init() {
         sqlite3_reset(stmt_search_if_log_source_exists);
         
         /* Create or open metadata DBs for each log collection */
-        char *db_metadata_path = m_malloc(snprintf(NULL, 0, "%s" METADATA_DB_FILENAME, p_file_infos_arr->data[i]->db_dir) + 1);
+        char *db_metadata_path = mallocz(snprintf(NULL, 0, "%s" METADATA_DB_FILENAME, p_file_infos_arr->data[i]->db_dir) + 1);
 		sprintf(db_metadata_path, "%s" METADATA_DB_FILENAME, p_file_infos_arr->data[i]->db_dir);
 		rc = sqlite3_open(db_metadata_path, &p_file_infos_arr->data[i]->db);
 		if (unlikely(rc != SQLITE_OK)) fatal_sqlite3_err(rc, __LINE__);
-		m_free(db_metadata_path);
+		freez(db_metadata_path);
 
 		/* Initialise DB mutex */
 		rc = uv_mutex_init(&p_file_infos_arr->data[i]->db_mut);
@@ -489,7 +493,7 @@ void db_init() {
                             -1, &stmt_init_BLOBS_table, NULL);
 			if (unlikely(rc != SQLITE_OK)) fatal_sqlite3_err(rc, __LINE__);
 			for( int i = 0; i < BLOB_MAX_FILES; i++){
-				char *filename = m_malloc(snprintf(NULL, 0, BLOB_STORE_FILENAME ".%d", i) + 1);
+				char *filename = mallocz(snprintf(NULL, 0, BLOB_STORE_FILENAME ".%d", i) + 1);
 				sprintf(filename, BLOB_STORE_FILENAME ".%d", i);
 				rc = sqlite3_bind_text(stmt_init_BLOBS_table, 1, filename, -1, NULL);
                 if (rc != SQLITE_OK) fatal_sqlite3_err(rc, __LINE__);
@@ -498,7 +502,7 @@ void db_init() {
 				rc = sqlite3_step(stmt_init_BLOBS_table);
 				if (rc != SQLITE_DONE) fatal_sqlite3_err(rc, __LINE__);
 				sqlite3_reset(stmt_init_BLOBS_table);
-				m_free(filename);
+				freez(filename);
 			}
 			sqlite3_finalize(stmt_init_BLOBS_table);
 		}
@@ -581,7 +585,7 @@ void db_init() {
 					sqlite3_reset(stmt_delete_row_by_id);
 
 					// Delete BLOB file from filesystem
-					char blob_delete_path[MAX_PATH_LENGTH + 1];
+					char blob_delete_path[FILENAME_MAX + 1];
 					sprintf(blob_delete_path, "%s" BLOB_STORE_FILENAME ".%d", p_file_infos_arr->data[i]->db_dir, last_digits);
 					uv_fs_t unlink_req;
 				    rc = uv_fs_unlink(db_loop, &unlink_req, blob_delete_path, NULL);
@@ -653,7 +657,7 @@ void db_init() {
             if (rc != SQLITE_OK) fatal_sqlite3_err(rc, __LINE__);
 			rc = sqlite3_step(stmt_retrieve_metadata_from_id);
 			if (rc != SQLITE_ROW) fatal_sqlite3_err(rc, __LINE__);
-			char *filename = m_malloc(snprintf(NULL, 0, "%s%s", 
+			char *filename = mallocz(snprintf(NULL, 0, "%s%s", 
 				p_file_infos_arr->data[i]->db_dir, 
 				sqlite3_column_text(stmt_retrieve_metadata_from_id, 0)) + 1);
 			sprintf(filename, "%s%s", p_file_infos_arr->data[i]->db_dir, 
@@ -729,7 +733,7 @@ void db_init() {
 			if(filename[strlen(filename) - 1] == '0')
 				p_file_infos_arr->data[i]->blob_write_handle_offset = id;
 				
-			m_free(filename);
+			freez(filename);
 			uv_fs_req_cleanup(&open_req);
 			sqlite3_reset(stmt_retrieve_total_logs_size);
 			sqlite3_reset(stmt_retrieve_metadata_from_id);
@@ -737,7 +741,7 @@ void db_init() {
 		sqlite3_finalize(stmt_retrieve_metadata_from_id);
 		
 		/* Create synchronous writer thread, one for each log source */
-		uv_thread_t *db_writer_thread = m_malloc(sizeof(uv_thread_t));
+		uv_thread_t *db_writer_thread = mallocz(sizeof(uv_thread_t));
 		rc = uv_thread_create(db_writer_thread, db_writer, &p_file_infos_arr->data[i]);
 		if (unlikely(rc)) fatal_libuv_err(rc, __LINE__);
 		
@@ -798,7 +802,7 @@ void db_search(DB_query_params_t *query_params, struct File_info *p_file_info) {
         blob_handles_offset = sqlite3_column_int(stmt_retrieve_log_msg_metadata, 4);
 
         /* Retrieve compressed log messages from BLOB file */
-        temp_msg.text_compressed = m_malloc(temp_msg.text_compressed_size);
+        temp_msg.text_compressed = mallocz(temp_msg.text_compressed_size);
         uv_buf_t uv_buf = uv_buf_init(temp_msg.text_compressed, temp_msg.text_compressed_size);
 	    uv_fs_t read_req;
 	    // TODO: Using db_loop here in separate thread (although synchronously) - thread-safe ?
@@ -818,12 +822,12 @@ void db_search(DB_query_params_t *query_params, struct File_info *p_file_info) {
             break;
         } else {
             // If need be, grow the results buffer.
-            query_params->results = m_realloc(query_params->results, query_params_results_size_new);
+            query_params->results = reallocz(query_params->results, query_params_results_size_new);
             decompress_text(&temp_msg, &query_params->results[query_params->results_size]);
             query_params->results_size = query_params_results_size_new - 1;  // -1 due to terminating NUL char
 
             fprintf_log(LOGS_MANAG_DEBUG, stderr, "Timestamp decompressed: %" PRIu64 "\n", (uint64_t)temp_msg.timestamp);
-            m_free(temp_msg.text_compressed);
+            freez(temp_msg.text_compressed);
         }
 
         rc = sqlite3_step(stmt_retrieve_log_msg_metadata);
