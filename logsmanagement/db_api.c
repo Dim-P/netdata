@@ -309,7 +309,7 @@ void db_init() {
     uv_fs_req_cleanup(&unlink_req);
 
     // TODO: Delete all external blob files if exist
-#endif  // STRESS_TEST
+#endif  // LOGS_MANAGEMENT_STRESS_TEST
 
 	/* Create or open main db */
 	rc = sqlite3_open(main_db_path, &main_db);

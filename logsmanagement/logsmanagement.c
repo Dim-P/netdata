@@ -9,8 +9,6 @@
  *  @author Dimitris Pantazis
  */
 
-// Relevant about file read in C: https://stackoverflow.com/questions/3002122/fastest-file-reading-in-c
-
 #include "../daemon/common.h"
 #include "../libnetdata/libnetdata.h"
 #include <assert.h>
@@ -26,18 +24,9 @@
 #include "file_info.h"
 #include "helper.h"
 #include "query.h"
-#if STRESS_TEST
+#if LOGS_MANAGEMENT_STRESS_TEST
 #include "query_test.h"
-#endif  // STRESS_TEST
-
-#define SIMULATED_APACHE_LOG_PATH "test_data/apache_error.log"
-#define SIMULATED_PHP_LOG_PATH "test_data/php_error.log"
-#define SIMULATED_MYSQL_LOG_PATH "test_data/mysql_error.log"
-#define NETDATA_ERROR_LOG_PATH "/var/log/netdata/error.log"
-#define SYSLOG_PATH "/var/log/syslog"
-#define DAEMON_LOG_PATH "/var/log/daemon.log"
-#define APACHE_LOG_PATH "/var/log/apache2/access.log"
-#define APACHE_ERROR_LOG_PATH "/var/log/apache2/error.log"
+#endif  // LOGS_MANAGEMENT_STRESS_TEST
 
 static struct config log_management_config = {
     .first_section = NULL,
@@ -231,6 +220,7 @@ static int enable_file_changed_events(struct File_info *p_file_info, uint8_t for
     }
     return rc;
 }
+
 /**
  * @brief Read text from a log file
  * @details Callback called in #check_if_filesize_changed_cb() to read text
@@ -669,11 +659,10 @@ void logsmanagement_main(void) {
     fatal_assert(uv_loop_init(main_loop) == 0);
 
     // Static asserts
-    // s_assert(MAX_QUERY_PAGE_SIZE >= MAX_LOG_MSG_SIZE);                                           // Check if DB query page large enough
-    s_assert(DB_FLUSH_BUFF_INTERVAL > LOG_FILE_READ_INTERVAL);                                      // Do not flush to DB more frequently than reading the logs from the sources.
-    s_assert(DB_FLUSH_BUFF_INTERVAL / LOG_FILE_READ_INTERVAL < CIRCULAR_BUFF_SIZE);                 // Check if enough circ buffer spaces
-    s_assert((CIRCULAR_BUFF_SIZE != 0) && ((CIRCULAR_BUFF_SIZE & (CIRCULAR_BUFF_SIZE - 1)) == 0));  // CIRCULAR_BUFF_SIZE must be a power of 2.
-    s_assert(LOGS_MANAG_DEBUG ? 1 : !VALIDATE_COMPRESSION);                                         // Ensure VALIDATE_COMPRESSION is disabled in release versions.
+    COMPILE_TIME_ASSERT(DB_FLUSH_BUFF_INTERVAL > LOG_FILE_READ_INTERVAL);                                      // Do not flush to DB more frequently than reading the logs from the sources.
+    COMPILE_TIME_ASSERT(DB_FLUSH_BUFF_INTERVAL / LOG_FILE_READ_INTERVAL < CIRCULAR_BUFF_SIZE);                 // Check if enough circ buffer spaces
+    COMPILE_TIME_ASSERT((CIRCULAR_BUFF_SIZE != 0) && ((CIRCULAR_BUFF_SIZE & (CIRCULAR_BUFF_SIZE - 1)) == 0));  // CIRCULAR_BUFF_SIZE must be a power of 2.
+    COMPILE_TIME_ASSERT(LOGS_MANAG_DEBUG ? 1 : !VALIDATE_COMPRESSION);                                         // Ensure VALIDATE_COMPRESSION is disabled in release versions.
 
     // Setup timing
     uint64_t end_time;
@@ -709,11 +698,11 @@ void logsmanagement_main(void) {
     fprintf_log(LOGS_MANAG_INFO, stderr, "SQLITE version: %s\n" LOG_SEPARATOR, sqlite_version);
     freez(sqlite_version);
 
-#if STRESS_TEST
+#if LOGS_MANAGEMENT_STRESS_TEST
     fprintf(stderr, LOG_SEPARATOR "Running netdata-logs with Stress Test enabled!\n" LOG_SEPARATOR);
     static uv_thread_t run_stress_test_queries_thread_id;
     uv_thread_create(&run_stress_test_queries_thread_id, run_stress_test_queries_thread, NULL);
-#endif  // STRESS_TEST
+#endif  // LOGS_MANAGEMENT_STRESS_TEST
 
     // Run uvlib loop
     uv_run(main_loop, UV_RUN_DEFAULT);

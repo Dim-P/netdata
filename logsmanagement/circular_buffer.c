@@ -41,7 +41,7 @@ static void msg_parser(uv_work_t *req){
     temp_msg->text_compressed_size = buff_msg_current->text_compressed_size;
     temp_msg->text_compressed = mallocz(temp_msg->text_compressed_size);
     memcpy(temp_msg->text_compressed, buff_msg_current->text_compressed, buff_msg_current->text_compressed_size);
-    decompress_text(temp_msg);
+    decompress_text(temp_msg, NULL);
     int cmp_res = memcmp(buff_msg_current->text, temp_msg->text, buff_msg_current->text_size);
     m_assert(!cmp_res, "Decompressed text != compressed text!");
     freez(temp_msg->text);
