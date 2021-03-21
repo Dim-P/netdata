@@ -17,8 +17,8 @@
 #include "stress_test.h"
 // #include "../src/helper.h"
 
-#define SIMULATED_LOGS_DIR "../test_data/"
-#define MSGS_TO_PRODUCE 2000000U
+#define SIMULATED_LOGS_DIR "/tmp/netdata_log_management_stress_test_data"
+#define MSGS_TO_PRODUCE 1000000U
 #define LOG_PRODUCER_THREADS_SETUP_DELAY 1 /**< Delay between start of log producer threads and netdata-logs launch. **/
 #define QUERIES_DELAY 1 /**< Delay before executing queries once log producer threads have finished. Must be > LOG_FILE_READ_INTERVAL to ensure netdata-logs had chance to read in all produced logs. **/
 
@@ -129,7 +129,7 @@ static void produce_logs(void *arg) {
 
     fprintf(stderr, "Creating thread No %d\n", log_no);
     char log_filename[100];
-    sprintf(log_filename, "%s%d.log", SIMULATED_LOGS_DIR, log_no);
+    sprintf(log_filename, "%s/%d.log", SIMULATED_LOGS_DIR, log_no);
 
     /*
        fprintf(stderr, "Attempting to delete %s\n", log_filename);
@@ -143,7 +143,7 @@ static void produce_logs(void *arg) {
        */
 
     uv_fs_t open_req;
-    rc = uv_fs_open(&loop, &open_req, log_filename, O_WRONLY | O_CREAT | O_TRUNC, 0644, NULL);
+    rc = uv_fs_open(&loop, &open_req, log_filename, O_WRONLY | O_CREAT | O_TRUNC, 0777, NULL);
     if (rc < 0) {
         fprintf(stderr, "file_open() error: %s (%d) %s\n", log_filename, rc, uv_strerror(rc));
     } else {
@@ -158,8 +158,8 @@ static void produce_logs(void *arg) {
     uv_buf = uv_buf_init(buf, strlen(buf)); // Skip trailing null
     uv_fs_write(&loop, &write_req, file_handle, &uv_buf, 1, -1, NULL);
 
-    // Give netdata-logs some time to startup and register a listener to the log source
-#define DELAY_OPEN_TO_WRITE_SEC 4U 
+    // Give Netdata some time to startup and register a listener to the log source
+#define DELAY_OPEN_TO_WRITE_SEC 6U 
     sleep(DELAY_OPEN_TO_WRITE_SEC);
 
     while (msgs_written < MSGS_TO_PRODUCE) {
@@ -170,7 +170,7 @@ static void produce_logs(void *arg) {
         uv_buf = uv_buf_init(buf, buf_size + 1);
         uv_fs_write(&loop, &write_req, file_handle, &uv_buf, 1, -1, NULL);
         msgs_written++;
-        if(!(msgs_written % 10000000))
+        if(!(msgs_written % 1000000))
         fprintf(stderr, "Wrote %d messages to %s\n", msgs_written, log_filename);
     }
 
@@ -179,10 +179,10 @@ static void produce_logs(void *arg) {
             runtime, msgs_written, log_filename, msgs_written / runtime);
 }
 
-void on_netdata_logs_exit(uv_process_t *req, int64_t exit_status, int term_signal) {
-    fprintf(stderr, "Process exited with status %" PRId64 ", signal %d\n", exit_status, term_signal);
-    uv_close((uv_handle_t *)req, NULL);
-}
+//void on_netdata_logs_exit(uv_process_t *req, int64_t exit_status, int term_signal) {
+//    fprintf(stderr, "Process exited with status %" PRId64 ", signal %d\n", exit_status, term_signal);
+//    uv_close((uv_handle_t *)req, NULL);
+//}
 
 static void connect_cb(uv_connect_t* req, int status){
     int rc = 0;
@@ -197,11 +197,11 @@ static void connect_cb(uv_connect_t* req, int status){
     write_req.data = req->handle;
     
     // Serialise DB_query_params_t
-    DB_query_params_t query_params = {0, 10000000000000000, "test_data/0.log", "-", "-", 50000000};    
+    DB_query_params_t query_params = {0, 10000000000000000, SIMULATED_LOGS_DIR "/0.log", "-", "-", 50000000};    
     char *buf = calloc(100 * log_files_no, sizeof(char));
     sprintf(buf, "%d", log_files_no);
     for(int i = 0; i < log_files_no ; i++){
-        sprintf(&buf[strlen(buf)], ",%" PRIu64 ",%" PRIu64 ",test_data/%d.log,%s,%zu", 
+        sprintf(&buf[strlen(buf)], ",%" PRIu64 ",%" PRIu64 "," SIMULATED_LOGS_DIR "/%d.log,%s,%zu", 
                 query_params.start_timestamp, query_params.end_timestamp,
                 i, query_params.keyword, query_params.results_size);
     }
@@ -226,7 +226,6 @@ static void connect_cb(uv_connect_t* req, int status){
     }
 #endif 
     
-    // free(buf);
 }
 
 int main(int argc, const char *argv[]) {
@@ -247,8 +246,10 @@ int main(int argc, const char *argv[]) {
             log_msgs_arr_size, max_msg_len);
 
     // Start threads that produce log messages
-    fprintf(stdout, "Number of log files to simulate (0 to skip):");
-    scanf("%d", &log_files_no);
+    char *ptr;
+    log_files_no = (int) strtol(argv[1], &ptr, 10);
+    fprintf(stdout, "Number of log files to simulate: %d", log_files_no);
+    //scanf("%d", &log_files_no);
     uv_thread_t *log_producer_threads = malloc(log_files_no * sizeof(uv_thread_t));
     int *log_producer_thread_no = malloc(log_files_no * sizeof(int));
     for (int i = 0; i < log_files_no; i++) {
@@ -257,6 +258,7 @@ int main(int argc, const char *argv[]) {
         assert(!uv_thread_create(&log_producer_threads[i], produce_logs, &log_producer_thread_no[i]));
     }
 
+#if 0
     /* Arguments to pass on to netdata-logs. First must be process name and last one 
      * must be NULL: http://docs.libuv.org/en/v1.x/guide/processes.html#spawning-child-processes */
     char **args = malloc((log_files_no + 2) * sizeof(char *));
@@ -295,6 +297,7 @@ int main(int argc, const char *argv[]) {
     } else {
         fprintf(stderr, "Launched netdata-logs with ID %d\n", child_req.pid);
     }
+#endif
 #endif
 
     for (int j = 0; j < log_files_no; j++) {

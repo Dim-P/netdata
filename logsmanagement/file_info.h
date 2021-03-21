@@ -17,7 +17,7 @@ struct File_info {
     uint8_t db_fileInfos_Id; /**< ID of File_info entry in respective metadata table in DB. */
     sqlite3 *db; /**< DB that stores metadata for this log source */
     const char *db_dir; /**< DB and log blob storage path */
-    uv_mutex_t db_mut; /**< DB access mutex */
+    uv_mutex_t *db_mut; /**< DB access mutex */
     uv_file blob_handles[BLOB_MAX_FILES + 1]; /**< Item 0 not used - just for matching 1-1 with DB ids **/
     int blob_write_handle_offset;
     const char *filename;    /**< Full path of log source */

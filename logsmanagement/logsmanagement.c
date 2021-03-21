@@ -603,7 +603,7 @@ static void config_init(){
     if(config_filename && *config_filename) {
         rc = appconfig_load(&log_management_config, config_filename, 0, NULL); // What does 3rd argument do?
         if(!rc){
-            error("CONFIG: cannot load config file '%s'.", config_filename); // TODO: Load stock configuration in this case?
+            fprintf_log(LOGS_MANAG_ERROR, stderr, "CONFIG: cannot load config file '%s'.", config_filename); // TODO: Load stock configuration in this case?
             return;
         }
     }
@@ -699,7 +699,8 @@ void logsmanagement_main(void) {
     freez(sqlite_version);
 
 #if LOGS_MANAGEMENT_STRESS_TEST
-    fprintf(stderr, LOG_SEPARATOR "Running netdata-logs with Stress Test enabled!\n" LOG_SEPARATOR);
+    fprintf_log(LOGS_MANAG_INFO, stderr, "p_file_infos_arr->count: %d\n", p_file_infos_arr->count);
+    fprintf_log(LOGS_MANAG_INFO, stderr, LOG_SEPARATOR "Running Netdata with logs_management stress test enabled!\n" LOG_SEPARATOR);
     static uv_thread_t run_stress_test_queries_thread_id;
     uv_thread_create(&run_stress_test_queries_thread_id, run_stress_test_queries_thread, NULL);
 #endif  // LOGS_MANAGEMENT_STRESS_TEST
@@ -707,5 +708,3 @@ void logsmanagement_main(void) {
     // Run uvlib loop
     uv_run(main_loop, UV_RUN_DEFAULT);
 }
-#endif
-

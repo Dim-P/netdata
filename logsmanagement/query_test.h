@@ -8,9 +8,9 @@
 #define QUERY_TEST_H_
 
 #ifdef _WIN32
-#define PIPENAME "\\\\?\\pipe\\netdata-logs-stress-test"
+#define LOGS_MANAGEMENT_STRESS_TEST_PIPENAME "\\\\?\\pipe\\netdata-logs-stress-test"
 #else
-#define PIPENAME "/tmp/netdata-logs-stress-test"
+#define LOGS_MANAGEMENT_STRESS_TEST_PIPENAME "/tmp/netdata-logs-stress-test"
 #endif  // _WIN32
 
 void run_stress_test_queries_thread(void *args);

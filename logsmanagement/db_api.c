@@ -25,12 +25,12 @@ static sqlite3 *main_db;
 static char main_db_dir[FILENAME_MAX + 1];  /**< Directory where all the log management databases and log blobs are stored in **/
 static char main_db_path[FILENAME_MAX + 1]; /**< Path of MAIN_DB **/
 
-void db_set_lock(uv_mutex_t db_mut) { 
-	uv_mutex_lock(&db_mut); 
+void db_set_lock(uv_mutex_t *db_mut) { 
+	uv_mutex_lock(db_mut); 
 }
 
-void db_release_lock(uv_mutex_t db_mut) { 
-	uv_mutex_unlock(&db_mut);
+void db_release_lock(uv_mutex_t *db_mut) { 
+	uv_mutex_unlock(db_mut);
 }
 
 /**
@@ -40,7 +40,7 @@ void db_release_lock(uv_mutex_t db_mut) {
  * @param[in] rc SQLite3 error code
  * @param[in] line_no Line number where the error occurred 
  */
-static void fatal_sqlite3_err(int rc, int line_no){
+static inline void fatal_sqlite3_err(int rc, int line_no){
 	fprintf_log(LOGS_MANAG_ERROR, stderr, "SQLite error: %s (line %d)\n", sqlite3_errstr(rc), line_no);
 	fatal("SQLite error: %s (line %d)\n", sqlite3_errstr(rc), line_no);
 }
@@ -52,7 +52,7 @@ static void fatal_sqlite3_err(int rc, int line_no){
  * @param[in] rc libuv error code
  * @param[in] line_no Line number where the error occurred 
  */
-static void fatal_libuv_err(int rc, int line_no){
+static inline void fatal_libuv_err(int rc, int line_no){
 	fprintf_log(LOGS_MANAG_ERROR, stderr, "libuv error: %s (line %d)\n", uv_strerror(rc), line_no);
 	fatal("libuv error: %s (line %d)\n", uv_strerror(rc), line_no);
 }
@@ -283,6 +283,13 @@ static void db_writer(void *arg){
 	}
 }
 
+/**
+ * @brief Process the events of the uv_loop_t related to the DB API
+ */
+static void db_loop_run(void *arg){
+    uv_run(db_loop, UV_RUN_DEFAULT);
+}
+
 void db_init() {
 	int rc = 0;
     char *err_msg = 0;
@@ -440,7 +447,8 @@ void db_init() {
 		freez(db_metadata_path);
 
 		/* Initialise DB mutex */
-		rc = uv_mutex_init(&p_file_infos_arr->data[i]->db_mut);
+		p_file_infos_arr->data[i]->db_mut = mallocz(sizeof(uv_mutex_t));
+		rc = uv_mutex_init(p_file_infos_arr->data[i]->db_mut);
 	    if (unlikely(rc)) fatal_libuv_err(rc, __LINE__);
 		
 		/* Configure metadata DB */
@@ -749,6 +757,9 @@ void db_init() {
     sqlite3_finalize(stmt_get_last_id);
     sqlite3_finalize(stmt_search_if_log_source_exists);
     sqlite3_finalize(stmt_insert_log_collection_metadata);
+
+    uv_thread_t *db_loop_run_thread = mallocz(sizeof(uv_thread_t));
+    if(unlikely(uv_thread_create(db_loop_run_thread, db_loop_run, NULL))) fatal("uv_thread_create() error");
 }
 
 /**

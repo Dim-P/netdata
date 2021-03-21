@@ -20,7 +20,7 @@ static void pipe_read_cb(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf
         uv_close((uv_handle_t *)client, NULL);
         return;
     }
-    fprintf(stderr, "Read through pipe: %.*s\n", (int) nread, buf->base);
+    fprintf_log(LOGS_MANAG_INFO, stderr, "Read through pipe: %.*s\n", (int) nread, buf->base);
 
     // Deserialise streamed string
     char *pEnd;
@@ -53,17 +53,17 @@ static void connection_cb(uv_stream_t *server, int status) {
     int rc = 0;
 
     if (status == -1) {
-        fprintf(stderr, "uv_listen connection_cb error\n");
+        fprintf_log(LOGS_MANAG_ERROR, stderr, "uv_listen connection_cb error\n");
         m_assert(0, "uv_listen connection_cb error!");
     }
 
-    fprintf(stderr, "Received connection on " PIPENAME "\n");
+    fprintf_log(LOGS_MANAG_INFO, stderr, "Received connection on " LOGS_MANAGEMENT_STRESS_TEST_PIPENAME "\n");
 
     uv_pipe_t *client = (uv_pipe_t *)malloc(sizeof(uv_pipe_t));
     uv_pipe_init(&query_thread_uv_loop, client, 0);
     if (uv_accept(server, (uv_stream_t *)client) == 0) {
         if ((rc = uv_read_start((uv_stream_t *)client, alloc_cb, pipe_read_cb))) {
-            fprintf(stderr, "uv_read_start(): %s\n", uv_strerror(rc));
+            fprintf_log(LOGS_MANAG_INFO, stderr, "uv_read_start(): %s\n", uv_strerror(rc));
             uv_close((uv_handle_t *)&client, NULL);
             m_assert(0, "uv_read_start() error");
         }
@@ -74,7 +74,7 @@ static void connection_cb(uv_stream_t *server, int status) {
 
 void remove_pipe(int sig) {
     uv_fs_t req;
-    uv_fs_unlink(&query_thread_uv_loop, &req, PIPENAME, NULL);
+    uv_fs_unlink(&query_thread_uv_loop, &req, LOGS_MANAGEMENT_STRESS_TEST_PIPENAME, NULL);
     uv_fs_req_cleanup(&req);
     // exit(0);
 }
@@ -97,7 +97,7 @@ void test_execute_query_thread(void *args) {
         fprintf_log(LOGS_MANAG_ERROR, stderr, "file_open() error: %s (%d) %s\n", query_params.filename, rc, uv_strerror(rc));
         m_assert(rc >= 0, "uv_fs_open() failed");
     } else {
-        fprintf(stderr, "Opened file: %s\n", query_params.filename);
+        fprintf_log(LOGS_MANAG_INFO, stderr, "Opened file: %s\n", query_params.filename);
         file_handle = open_req.result;  // open_req->result of a uv_fs_t is the file descriptor in case of the uv_fs_open
     }
     uv_fs_req_cleanup(&open_req);
@@ -112,7 +112,7 @@ void test_execute_query_thread(void *args) {
             fprintf_log(LOGS_MANAG_ERROR, stderr, "uv_fs_read() error for %s\n", query_params.filename);
         m_assert(rc >= 0, "uv_fs_read() failed");
         file_offset++;
-        // fprintf(stderr, "%c", buf[0]);
+        // fprintf_log(stderr, "%c", buf[0]);
     } while (buf[0] != '\n');
     uv_fs_req_cleanup(&read_req);
 
@@ -134,15 +134,15 @@ void test_execute_query_thread(void *args) {
             fprintf_log(LOGS_MANAG_ERROR, stderr, "uv_fs_read() error for %s\n", query_params.filename);
         m_assert(rc >= 0, "uv_fs_read() failed");
 
-        // fprintf(stderr, "\n%.*s\n", 1000, query_params.results);
-        // fprintf(stderr, "\n%.*s\n\n", 1000, buf);
+        // fprintf_log(LOGS_MANAG_DEBUG, stderr, "\n%.*s\n", 1000, query_params.results);
+        // fprintf_log(LOGS_MANAG_DEBUG, stderr, "\n%.*s\n\n", 1000, buf);
         rc = memcmp(buf, query_params.results, query_params.results_size);
         if (rc)
-            fprintf(stderr, "Mismatch between DB and log file data in %s\n", query_params.filename);
+            fprintf_log(LOGS_MANAG_INFO, stderr, "Mismatch between DB and log file data in %s\n", query_params.filename);
         m_assert(!rc, "Mismatch between DB and log file data!");
 
         file_offset += query_params.results_size;
-        fprintf(stderr, "Query file offset %" PRId64 " for %s\n", file_offset, query_params.filename);
+        fprintf_log(LOGS_MANAG_INFO, stderr, "Query file offset %" PRId64 " for %s\n", file_offset, query_params.filename);
         freez(query_params.results);
         query_params.results_size = results_size;  // Set desired max size of results again
         uv_fs_req_cleanup(&read_req);
@@ -163,13 +163,13 @@ void test_execute_query_thread(void *args) {
             fprintf_log(LOGS_MANAG_ERROR, stderr, "Mismatch between log filesize (%lld) and data size returned from query (%" PRId64 ") for: %s\n",
                         (long long)statbuf->st_size, file_offset, query_params.filename);
         m_assert(statbuf->st_size == file_offset, "Mismatch between log filesize and data size in DB!");
-        fprintf(stderr, "Log filesize and data size from query match for %s\n", query_params.filename);
+        fprintf_log(LOGS_MANAG_INFO, stderr, "Log filesize and data size from query match for %s\n", query_params.filename);
     }
     uv_fs_req_cleanup(&stat_req);
 #endif
 
     const uint64_t end_time = get_unix_time_ms();
-    fprintf(stderr,
+    fprintf_log(LOGS_MANAG_INFO, stderr,
             "==============================\nStress test queries for '%s' completed with success!\n"
             "Total duration: %" PRIu64 "ms to retrieve and compare %" PRId64 "KB.\nQuery execution total duration: %" PRIu64 "ms\n==============================\n",
             query_params.filename, end_time - start_time, file_offset / 1000, query_total_time);
@@ -179,19 +179,20 @@ void test_execute_query_thread(void *args) {
 
 void run_stress_test_queries_thread(void *args) {
     int rc = 0;
-    uv_loop_init(&query_thread_uv_loop);
+    rc = uv_loop_init(&query_thread_uv_loop);
+    if (unlikely(rc)) fatal("Failed to initialise query_thread_uv_loop\n");
 
     if ((rc = uv_pipe_init(&query_thread_uv_loop, &query_data_pipe, 0))) {
-        fprintf(stderr, "uv_pipe_init(): %s\n", uv_strerror(rc));
+        fprintf_log(LOGS_MANAG_INFO, stderr, "uv_pipe_init(): %s\n", uv_strerror(rc));
         m_assert(0, "uv_pipe_init() failed");
     }
     signal(SIGINT, remove_pipe);
-    if ((rc = uv_pipe_bind(&query_data_pipe, PIPENAME))) {
+    if ((rc = uv_pipe_bind(&query_data_pipe, LOGS_MANAGEMENT_STRESS_TEST_PIPENAME))) {
         fprintf_log(LOGS_MANAG_ERROR, stderr, "uv_pipe_bind() error %s. Trying again.\n", uv_err_name(rc));
         // Try removing pipe and binding again
         remove_pipe(0);  // Delete pipe if it exists
         // uv_close((uv_handle_t *)&query_data_pipe, NULL);
-        rc = uv_pipe_bind(&query_data_pipe, PIPENAME);
+        rc = uv_pipe_bind(&query_data_pipe, LOGS_MANAGEMENT_STRESS_TEST_PIPENAME);
         fprintf_log(LOGS_MANAG_ERROR, stderr, "uv_pipe_bind() error %s\n", uv_err_name(rc));
         m_assert(!rc, "uv_pipe_bind() error!");
     }
