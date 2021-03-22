@@ -995,6 +995,51 @@ inline int web_client_api_request_v1_info(RRDHOST *host, struct web_client *w, c
     return HTTP_RESP_OK;
 }
 
+#ifdef ENABLE_LOGSMANAGEMENT
+inline int web_client_api_request_v1_logsmanagement(RRDHOST *host, struct web_client *w, char *url) {
+
+    char *buf, keyword[20];
+    const char *filename;
+    uint64_t from, end;
+    BUFFER *wb = w->response.data;
+    buffer_flush(wb);
+
+    sprintf(keyword, "%ld", random());
+
+    buf = mallocz(100);
+    size_t buf_size = (size_t) 100;
+
+    while(url) {
+        char *value = mystrsep(&url, "&");
+        if (!value || !*value) continue;
+
+        char *name = mystrsep(&value, "=");
+        if(!name || !*name) continue;
+        if(!value || !*value) continue;
+
+        if(!strcmp(name, "from")) {
+            from = strtol(value, NULL, 10);
+        }
+        else if(!strcmp(name, "end")) {
+            end = strtol(value, NULL, 10);
+        }
+        else if(!strcmp(name, "filename")) {
+            filename = value;
+        }
+    }
+
+    wb->contenttype = CT_TEXT_PLAIN;
+
+    while (buf = execute_query (from, end, filename, keyword, &buf_size)) {
+        buffer_sprintf(wb, "%s", buf);
+    }
+
+    buffer_no_cacheable(wb);
+    freez(buf);
+    return HTTP_RESP_OK;
+}
+#endif
+
 static struct api_command {
     const char *command;
     uint32_t hash;
@@ -1019,6 +1064,9 @@ static struct api_command {
         { "alarm_variables", 0, WEB_CLIENT_ACL_DASHBOARD, web_client_api_request_v1_alarm_variables },
         { "alarm_count",     0, WEB_CLIENT_ACL_DASHBOARD, web_client_api_request_v1_alarm_count     },
         { "allmetrics",      0, WEB_CLIENT_ACL_DASHBOARD, web_client_api_request_v1_allmetrics      },
+#ifdef ENABLE_LOGSMANAGEMENT
+        { "logsmanagement",  0, WEB_CLIENT_ACL_DASHBOARD, web_client_api_request_v1_logsmanagement  },
+#endif
         { "manage/health",   0, WEB_CLIENT_ACL_MGMT,      web_client_api_request_v1_mgmt_health     },
         // terminator
         { NULL,              0, WEB_CLIENT_ACL_NONE,      NULL                                      },
