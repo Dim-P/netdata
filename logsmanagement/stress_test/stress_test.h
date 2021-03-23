@@ -7,6 +7,4 @@
 #ifndef STRESS_TEST_H_
 #define STRESS_TEST_H_
 
-void stress_test(void *arg); 
-
 #endif
