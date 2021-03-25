@@ -5,6 +5,7 @@
  *  @author Dimitris Pantazis
  */
 
+#include "../libnetdata/libnetdata.h"
 #include "circular_buffer.h"
 #include "compression.h"
 #include "helper.h"
@@ -150,9 +151,9 @@ Message_t *circ_buff_read(Circ_buff_t *buff) {
  * i.e. circ_buff_search() and circ_buff_read() are mutually exclusive due 
  * to db_set_lock() and db_release_lock() in queries and when writing to DB.
  * @param buff Buffer to be searched
- * @param query_params Query parameters to search according to.
+ * @param p_query_params Query parameters to search according to.
  */
-void circ_buff_search(Circ_buff_t *buff, DB_query_params_t *query_params) {
+void circ_buff_search(Circ_buff_t *buff, logs_query_params_t *p_query_params, size_t max_query_page_size) {
     uv_mutex_lock(&buff->mut);
     uint8_t head_index_tmp = (buff->head_index & BUFF_SIZE_MASK);
     uv_mutex_unlock(&buff->mut);
@@ -162,23 +163,25 @@ void circ_buff_search(Circ_buff_t *buff, DB_query_params_t *query_params) {
         return;  // Nothing to do if buff is emtpy
     }
 
-    for (uint8_t i = (buff->tail_index & BUFF_SIZE_MASK);
-         i != head_index_tmp; i = (i + 1) % CIRCULAR_BUFF_SIZE) {
-        fprintf_log(LOGS_MANAG_DEBUG, stderr, "tail:%d head:%d i:%d\n",
-                    buff->tail_index & BUFF_SIZE_MASK, head_index_tmp, i);
-        if (buff->msgs[i].timestamp >= query_params->start_timestamp && buff->msgs[i].timestamp < query_params->end_timestamp) {
-            fprintf_log(LOGS_MANAG_DEBUG, stderr, "Found text in circ buffer with timestamp: %" PRIu64 "\n",
-                        buff->msgs[i].timestamp);
-            size_t query_params_results_size_new = query_params->results_size + buff->msgs[i].text_size;
-            query_params->results = reallocz(query_params->results, query_params_results_size_new);
+    for (uint8_t i = (buff->tail_index & BUFF_SIZE_MASK); i != head_index_tmp; i = (i + 1) % CIRCULAR_BUFF_SIZE) {
+        fprintf_log(LOGS_MANAG_DEBUG, stderr, "tail:%d head:%d i:%d\n", buff->tail_index & BUFF_SIZE_MASK, head_index_tmp, i);
+
+        if (buff->msgs[i].timestamp >= p_query_params->start_timestamp && buff->msgs[i].timestamp <= p_query_params->end_timestamp) {
+            fprintf_log(LOGS_MANAG_INFO, stderr, "Found text in circ buffer with timestamp: %" PRIu64 "\n", buff->msgs[i].timestamp);
             fprintf_log(LOGS_MANAG_DEBUG, stdout, "Text to add: %s\n", buff->msgs[i].text);
-            memcpy(&query_params->results[query_params->results_size],
-                   buff->msgs[i].text, buff->msgs[i].text_size);
-            query_params->results_size = query_params_results_size_new - 1;
+
+            buffer_increase(p_query_params->results_buff, buff->msgs[i].text_size);
+            memcpy(&p_query_params->results_buff->buffer[p_query_params->results_buff->len], buff->msgs[i].text, buff->msgs[i].text_size);
+            // buffer_overflow_check(p_query_params->results_buff);
+            p_query_params->results_buff->len += buff->msgs[i].text_size - 1; // -1 due to terminating NUL char
+
+            if(p_query_params->results_buff->len >= max_query_page_size){
+                p_query_params->end_timestamp = buff->msgs[i].timestamp;
+                // p_p_query_params->results_buff->len++; // In this case keep NUL char
+                break;
+            }
         }
     }
-
-    query_params->start_timestamp = buff->msgs[head_index_tmp - 1].timestamp + 1;
 }
 
 uint8_t circ_buff_get_size(Circ_buff_t *buff) {

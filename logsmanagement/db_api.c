@@ -767,15 +767,14 @@ void db_init() {
  * @details This function searches the database for any results matching the
  * query parameters. If any results are found, it will decompress the text
  * of each returned row and add it to the results buffer, up to a maximum
- * amount of bytes (defined in query_params->results_size). 
+ * amount of bytes (defined in p_query_params->results_size). 
  * @todo Implement keyword search as well. For now, this only searches for timestamps.
  * @todo What happens in case SQLITE_CORRUPT error? See if it can be handled, for now just fatal().
  * @todo Change results buffer to be long-lived.
  */
-void db_search(DB_query_params_t *query_params, struct File_info *p_file_info) {
+void db_search(logs_query_params_t *p_query_params, struct File_info *p_file_info, size_t max_query_page_size) {
+	fprintf_log(LOGS_MANAG_INFO, stderr, "\nSearching DB...!\n");
     int rc = 0;
-    size_t max_query_page_size = query_params->results_size;
-    query_params->results_size = 0;
     Message_t temp_msg = {0};
     int64_t blob_offset = 0;
     int blob_handles_offset = 0;
@@ -793,9 +792,9 @@ void db_search(DB_query_params_t *query_params, struct File_info *p_file_info) {
     if (unlikely(rc != SQLITE_OK)) fatal_sqlite3_err(rc, __LINE__);
 
     sqlite3_exec(p_file_info->db, "BEGIN TRANSACTION;", NULL, NULL, NULL);
-    rc = sqlite3_bind_int64(stmt_retrieve_log_msg_metadata, 1, (sqlite3_int64)query_params->start_timestamp);
+    rc = sqlite3_bind_int64(stmt_retrieve_log_msg_metadata, 1, (sqlite3_int64)p_query_params->start_timestamp);
     if (rc != SQLITE_OK) fatal_sqlite3_err(rc, __LINE__);
-    rc = sqlite3_bind_int64(stmt_retrieve_log_msg_metadata, 2, (sqlite3_int64)query_params->end_timestamp);
+    rc = sqlite3_bind_int64(stmt_retrieve_log_msg_metadata, 2, (sqlite3_int64)p_query_params->end_timestamp);
     if (rc != SQLITE_OK) fatal_sqlite3_err(rc, __LINE__);
 
     rc = sqlite3_step(stmt_retrieve_log_msg_metadata);
@@ -821,24 +820,19 @@ void db_search(DB_query_params_t *query_params, struct File_info *p_file_info) {
         if (rc < 0) fatal_libuv_err(rc, __LINE__);
 	    uv_fs_req_cleanup(&read_req);
 
-        size_t query_params_results_size_new = query_params->results_size + temp_msg.text_size;
+	    /* Append retrieved results to BUFFER */
+	    buffer_increase(p_query_params->results_buff, temp_msg.text_size);
+        decompress_text(&temp_msg, &p_query_params->results_buff->buffer[p_query_params->results_buff->len]);
+        // buffer_overflow_check(p_query_params->results_buff);
+        p_query_params->results_buff->len += temp_msg.text_size - 1; // -1 due to terminating NUL char
+        
+        fprintf_log(LOGS_MANAG_DEBUG, stderr, "Timestamp decompressed: %" PRIu64 "\n", (uint64_t)temp_msg.timestamp);
+        freez(temp_msg.text_compressed);
 
-        /* If adding the current temp_msg text to the results buffer would exceed the max_query_page_size,
-		 * save the timestamp to continue from in the next call of the querying API and stop the current
-		 * execution (providing that query_params->results_size != 0 i.e. we have retrieved at least 1 row of results). */
-        if (query_params->results_size && query_params_results_size_new > max_query_page_size) {
-            query_params->start_timestamp = temp_msg.timestamp;  // Save the timestamp of where to continue from next time!
-            fprintf_log(LOGS_MANAG_DEBUG, stderr, "New timestamp to 'cont' from: %" PRId64 "\n", 
-                    (int64_t)query_params->start_timestamp);
-            break;
-        } else {
-            // If need be, grow the results buffer.
-            query_params->results = reallocz(query_params->results, query_params_results_size_new);
-            decompress_text(&temp_msg, &query_params->results[query_params->results_size]);
-            query_params->results_size = query_params_results_size_new - 1;  // -1 due to terminating NUL char
-
-            fprintf_log(LOGS_MANAG_DEBUG, stderr, "Timestamp decompressed: %" PRIu64 "\n", (uint64_t)temp_msg.timestamp);
-            freez(temp_msg.text_compressed);
+        if(p_query_params->results_buff->len >= max_query_page_size){
+        	p_query_params->end_timestamp = temp_msg.timestamp;
+        	// p_query_params->results_buff->len++; // In this case keep NUL char
+        	break;
         }
 
         rc = sqlite3_step(stmt_retrieve_log_msg_metadata);
@@ -846,10 +840,6 @@ void db_search(DB_query_params_t *query_params, struct File_info *p_file_info) {
         if (rc != SQLITE_ROW && rc != SQLITE_DONE) fatal_sqlite3_err(rc, __LINE__);
     }
 
-    if (temp_msg.timestamp && rc == SQLITE_DONE) {
-        query_params->start_timestamp = temp_msg.timestamp + 1;  // Save the timestamp of where to continue from next time!
-    }
-
-    sqlite3_reset(stmt_retrieve_log_msg_metadata);
     sqlite3_exec(p_file_info->db, "END TRANSACTION;", NULL, NULL, NULL);
+    sqlite3_finalize(stmt_retrieve_log_msg_metadata);
 }

@@ -46,7 +46,7 @@ typedef struct Circ_buff {
 
 void circ_buff_write(struct File_info *p_file_info);
 Message_t *circ_buff_read(Circ_buff_t *buff);
-void circ_buff_search(Circ_buff_t *buff, DB_query_params_t *query_params);
+void circ_buff_search(Circ_buff_t *buff, logs_query_params_t *query_params, size_t max_query_page_size);
 uint8_t circ_buff_get_size(Circ_buff_t *buff);
 Circ_buff_t *circ_buff_init();
 

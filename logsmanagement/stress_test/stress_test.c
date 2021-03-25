@@ -13,14 +13,14 @@
 #include <time.h>
 #include <unistd.h>
 #include <uv.h>
+#include "../config_.h"
 
 #include "stress_test.h"
-// #include "../src/helper.h"
 
 #define SIMULATED_LOGS_DIR "/tmp/netdata_log_management_stress_test_data"
-#define MSGS_TO_PRODUCE 1000000U
-#define LOG_PRODUCER_THREADS_SETUP_DELAY 1 /**< Delay between start of log producer threads and netdata-logs launch. **/
+#define MSGS_TO_PRODUCE 1000000U /**< Messages to be produced per log source **/
 #define QUERIES_DELAY 1 /**< Delay before executing queries once log producer threads have finished. Must be > LOG_FILE_READ_INTERVAL to ensure netdata-logs had chance to read in all produced logs. **/
+#define DELAY_OPEN_TO_WRITE_SEC 6U /**< Give Netdata some time to startup and register a listener to the log source **/
 
 #ifdef _WIN32
 # define PIPENAME "\\\\?\\pipe\\netdata-logs-stress-test"
@@ -85,6 +85,11 @@ static const char *log_msgs_arr[] = {
     "130302  1:56:03 [Note] Server hostname (bind-address): '0.0.0.0'; port: 3306",
     "130302  1:56:03 [Note]   - '0.0.0.0' resolves to '0.0.0.0';",
     "130302  1:56:03 [Note] Server socket created on IP: '0.0.0.0'.",
+    "python.d ERROR: elasticsearch[local] : _get_data() returned no data or type is not <dict>",
+    "energid[bitcoin] : _get_data() returned no data or type is not <dict>",
+    "gearman[localhost] : Failed to connect to '127.0.0.1', port 4730, error: [Errno 111] Connection refused",
+    "hddtemp[localhost] : Failed to connect to '127.0.0.1', port 7634, error: [Errno 111] Connection refused",
+    "plugin[main] : memcached[localhost] : check failed",
     "",
 };
 
@@ -96,7 +101,7 @@ typedef struct db_query_params {
     char *keyword;
     char *results;
     size_t results_size;
-} DB_query_params_t;
+} logs_query_params_t;
 
 /**
  * @brief Get unix time in milliseconds
@@ -119,7 +124,7 @@ static void produce_logs(void *arg) {
     long int msgs_written = 0;
     uv_file file_handle;
     uv_buf_t uv_buf;
-    char *buf = malloc(max_msg_len + 1);
+    char *buf = malloc(max_msg_len + 100);
 
     size_t buf_size;
     uv_fs_t write_req;
@@ -158,20 +163,24 @@ static void produce_logs(void *arg) {
     uv_buf = uv_buf_init(buf, strlen(buf)); // Skip trailing null
     uv_fs_write(&loop, &write_req, file_handle, &uv_buf, 1, -1, NULL);
 
-    // Give Netdata some time to startup and register a listener to the log source
-#define DELAY_OPEN_TO_WRITE_SEC 6U 
+
     sleep(DELAY_OPEN_TO_WRITE_SEC);
 
     while (msgs_written < MSGS_TO_PRODUCE) {
+        sprintf(buf, "T: %" PRIu64 " ", get_unix_time_ms());
+        size_t msg_timestamp_len = strlen(buf);
         int msg_offset = rand() % log_msgs_arr_size;
-        buf_size = strlen(log_msgs_arr[msg_offset]);
-        memcpy(buf, log_msgs_arr[msg_offset], buf_size);
+        size_t msg_len = strlen(log_msgs_arr[msg_offset]);
+        memcpy(&buf[msg_timestamp_len], log_msgs_arr[msg_offset], msg_len);
+        buf_size = msg_timestamp_len + msg_len;
         buf[buf_size] = '\n';
+        // buf[buf_size + 1] = '\0';
         uv_buf = uv_buf_init(buf, buf_size + 1);
         uv_fs_write(&loop, &write_req, file_handle, &uv_buf, 1, -1, NULL);
         msgs_written++;
         if(!(msgs_written % 1000000))
         fprintf(stderr, "Wrote %d messages to %s\n", msgs_written, log_filename);
+        // usleep(1);
     }
 
     runtime = get_unix_time_ms() - start_time - DELAY_OPEN_TO_WRITE_SEC * 1000;
@@ -196,16 +205,15 @@ static void connect_cb(uv_connect_t* req, int status){
     uv_write_t write_req; 
     write_req.data = req->handle;
     
-    // Serialise DB_query_params_t
-    DB_query_params_t query_params = {0, 10000000000000000, SIMULATED_LOGS_DIR "/0.log", "-", "-", 50000000};    
+    // Serialise logs_query_params_t
     char *buf = calloc(100 * log_files_no, sizeof(char));
     sprintf(buf, "%d", log_files_no);
     for(int i = 0; i < log_files_no ; i++){
         sprintf(&buf[strlen(buf)], ",%" PRIu64 ",%" PRIu64 "," SIMULATED_LOGS_DIR "/%d.log,%s,%zu", 
-                query_params.start_timestamp, query_params.end_timestamp,
-                i, query_params.keyword, query_params.results_size);
+                0, 10000000000000000,
+                i, "-", (size_t) MAX_LOG_MSG_SIZE);
     }
-    // fprintf(stderr, "Serialised DB query params: %s\n", buf);
+    fprintf(stderr, "Serialised DB query params: %s\n", buf);
 
     // Write to pipe
     uv_buf_t uv_buf = uv_buf_init(buf, strlen(buf));

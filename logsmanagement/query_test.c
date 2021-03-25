@@ -25,7 +25,7 @@ static void pipe_read_cb(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf
     // Deserialise streamed string
     char *pEnd;
     int log_files_no = strtol(strtok(buf->base, ","), &pEnd, 10);
-    DB_query_params_t *query_params = malloc(log_files_no * sizeof(DB_query_params_t));
+    logs_query_params_t *query_params = malloc(log_files_no * sizeof(logs_query_params_t));
     uv_thread_t *test_execute_query_thread_id = malloc(log_files_no * sizeof(uv_thread_t));
     for (int i = 0; i < log_files_no; i++) {
         query_params[i].start_timestamp = strtoll(strtok(NULL, ","), &pEnd, 10);
@@ -33,7 +33,7 @@ static void pipe_read_cb(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf
         query_params[i].filename = malloc(100 * sizeof(char));
         query_params[i].filename = strtok(NULL, ",");
         query_params[i].keyword = strtok(NULL, ",");
-        query_params[i].results_size = (size_t)strtoll(strtok(NULL, ","), &pEnd, 10);
+        query_params[i].results_buff = buffer_create((size_t)strtoll(strtok(NULL, ","), &pEnd, 10));
 
 
         int rc = uv_thread_create(&test_execute_query_thread_id[i], test_execute_query_thread, &query_params[i]);
@@ -80,12 +80,13 @@ void remove_pipe(int sig) {
 }
 
 void test_execute_query_thread(void *args) {
-    DB_query_params_t query_params = *((DB_query_params_t *)args);
+    logs_query_params_t query_params = *((logs_query_params_t *)args);
     int rc = 0;
     uv_file file_handle;
     uv_buf_t uv_buf;
     int64_t file_offset = 0;
-    size_t results_size = query_params.results_size;
+    size_t results_size_max = query_params.results_buff->size;
+    uint64_t final_timestamp = query_params.end_timestamp;
 
     uv_loop_t thread_loop;
     uv_loop_init(&thread_loop);
@@ -121,31 +122,34 @@ void test_execute_query_thread(void *args) {
     uint64_t query_start_time, query_total_time = 0;
     while (1) {
         query_start_time = get_unix_time_ms();
-        query_params.results = execute_query(
-            query_params.start_timestamp, query_params.end_timestamp,
-            query_params.filename, NULL, &query_params.results_size);
+        (void) execute_query(&query_params);
         query_total_time += (get_unix_time_ms() - query_start_time);
-        if (!query_params.results)
+        if (query_params.results_buff->len == 0)
             break;
-        buf = realloc(buf, query_params.results_size);
-        uv_buf = uv_buf_init(buf, query_params.results_size);
+
+        buf = realloc(buf, query_params.results_buff->len);
+        uv_buf = uv_buf_init(buf, query_params.results_buff->len);
         rc = uv_fs_read(&thread_loop, &read_req, file_handle, &uv_buf, 1, file_offset, NULL);
         if (rc < 0)
             fprintf_log(LOGS_MANAG_ERROR, stderr, "uv_fs_read() error for %s\n", query_params.filename);
         m_assert(rc >= 0, "uv_fs_read() failed");
 
-        // fprintf_log(LOGS_MANAG_DEBUG, stderr, "\n%.*s\n", 1000, query_params.results);
+        // fprintf_log(LOGS_MANAG_DEBUG, stderr, "\n%.*s\n=====***********=====\n", 1000, query_params.results_buff->buffer);
         // fprintf_log(LOGS_MANAG_DEBUG, stderr, "\n%.*s\n\n", 1000, buf);
-        rc = memcmp(buf, query_params.results, query_params.results_size);
+        rc = memcmp(buf, query_params.results_buff->buffer, query_params.results_buff->len);
         if (rc)
             fprintf_log(LOGS_MANAG_INFO, stderr, "Mismatch between DB and log file data in %s\n", query_params.filename);
         m_assert(!rc, "Mismatch between DB and log file data!");
 
-        file_offset += query_params.results_size;
+        file_offset += query_params.results_buff->len;
         fprintf_log(LOGS_MANAG_INFO, stderr, "Query file offset %" PRId64 " for %s\n", file_offset, query_params.filename);
-        freez(query_params.results);
-        query_params.results_size = results_size;  // Set desired max size of results again
         uv_fs_req_cleanup(&read_req);
+
+        // Simulate real query which would do buffer_create() and buffer_free() everytime 
+        buffer_free(query_params.results_buff); 
+        query_params.results_buff = buffer_create(results_size_max);
+        query_params.start_timestamp = query_params.end_timestamp + 1;
+        query_params.end_timestamp = final_timestamp;
     }
 
 #if 1
