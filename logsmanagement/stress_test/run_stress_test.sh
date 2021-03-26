@@ -1,3 +1,4 @@
+#!/bin/bash
 read -p "Enter number of log sources to generate: " number_log_sources
 
 echo "=========================================="

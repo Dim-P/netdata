@@ -174,7 +174,7 @@ void test_execute_query_thread(void *args) {
 
     const uint64_t end_time = get_unix_time_ms();
     fprintf_log(LOGS_MANAG_INFO, stderr,
-            "==============================\nStress test queries for '%s' completed with success!\n"
+            "\n==============================\nStress test queries for '%s' completed with success!\n"
             "Total duration: %" PRIu64 "ms to retrieve and compare %" PRId64 "KB.\nQuery execution total duration: %" PRIu64 "ms\n==============================\n",
             query_params.filename, end_time - start_time, file_offset / 1000, query_total_time);
 
