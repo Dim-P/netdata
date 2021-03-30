@@ -9,7 +9,6 @@
 #include "helper.h"
 #include <regex.h> 
 
-#define MAX_GROUPS 1U // Change to 2 to get subexpression position
 #define REGEX_SIZE 100U /**< Max size of regular expression in bytes **/
 
 /**
@@ -20,13 +19,14 @@
  * @param keyword The keyword to be searched for in the source buffer
  * @param ignore_case Case insensitive search if 1, it does not matter if keyword characters 
  * are upper or lower case. 
+ * @todo Sanitise keyword (escape regex special characters)
  */
 void search_keyword(char *src, char *dest, const char *keyword, const int ignore_case){
 	char regexString[REGEX_SIZE];
 	snprintf(regexString, REGEX_SIZE, ".*(%s).*", "error");
 
 	regex_t regex_compiled;
-	regmatch_t groupArray[MAX_GROUPS];
+	regmatch_t groupArray[1];
 	int regex_flags = ignore_case ? REG_EXTENDED | REG_NEWLINE | REG_ICASE : REG_EXTENDED | REG_NEWLINE;
 
 	if (regcomp(&regex_compiled, regexString, regex_flags)){
@@ -37,25 +37,19 @@ void search_keyword(char *src, char *dest, const char *keyword, const int ignore
 	size_t dest_off = 0;
 	char *cursor = src;
 	for (int m = 0; ; m++){
-		if (regexec(&regex_compiled, cursor, MAX_GROUPS, groupArray, 0)) break;  // No more matches
+		if (regexec(&regex_compiled, cursor, 1, groupArray, 0)) break;  // No more matches
 
-		unsigned int g = 0;
 		unsigned int offset = 0;
-		for (g = 0; g < MAX_GROUPS; g++){
-			if (groupArray[g].rm_so == (size_t)-1) break;  // No more groups
+		if (groupArray[0].rm_so == (size_t)-1) break;  // No more groups
 
-			if (g == 0) offset = groupArray[g].rm_eo;
+		offset = groupArray[0].rm_eo;
 
-			char cursorCopy[strlen(cursor) + 1];
-			strcpy(cursorCopy, cursor);
-			cursorCopy[groupArray[g].rm_eo] = 0;
-			fprintf_log(LOGS_MANAG_INFO, stderr, "Match %u, Group %u: [%2u-%2u]: %s\n",
-				m, g, groupArray[g].rm_so, groupArray[g].rm_eo,
-				cursorCopy + groupArray[g].rm_so);
-			strcpy(&dest[dest_off], cursorCopy + groupArray[g].rm_so);
-	        dest_off += groupArray[g].rm_eo - groupArray[g].rm_so;
-	        dest[dest_off++] = '\n';
-		}
+		fprintf_log(LOGS_MANAG_DEBUG, stderr, "Match %u: [%2u-%2u]: %.*s\n",
+			m, groupArray[0].rm_so, groupArray[0].rm_eo, groupArray[0].rm_eo - groupArray[0].rm_so,
+			cursor + groupArray[0].rm_so);
+		memcpy(&dest[dest_off], cursor + groupArray[0].rm_so, groupArray[0].rm_eo - groupArray[0].rm_so);
+		dest_off += groupArray[0].rm_eo - groupArray[0].rm_so;
+		dest[dest_off++] = '\n';
 		cursor += offset;
 	}
 
