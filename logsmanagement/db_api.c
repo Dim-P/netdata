@@ -12,6 +12,7 @@
 #include "compression.h"
 #include "helper.h"
 #include "lz4.h"
+#include "parser.h"
 
 #define MAIN_DB "main.db" /**< Primary DB with just 1 table - MAIN_COLLECTIONS_TABLE **/
 #define MAIN_COLLECTIONS_TABLE "LogCollections"
@@ -767,7 +768,7 @@ void db_init() {
  * @details This function searches the database for any results matching the
  * query parameters. If any results are found, it will decompress the text
  * of each returned row and add it to the results buffer, up to a maximum
- * amount of bytes (defined in p_query_params->results_size). 
+ * amount of bytes. 
  * @todo Implement keyword search as well. For now, this only searches for timestamps.
  * @todo What happens in case SQLITE_CORRUPT error? See if it can be handled, for now just fatal().
  * @todo Change results buffer to be long-lived.
@@ -822,12 +823,21 @@ void db_search(logs_query_params_t *p_query_params, struct File_info *p_file_inf
 
 	    /* Append retrieved results to BUFFER */
 	    buffer_increase(p_query_params->results_buff, temp_msg.text_size);
-        decompress_text(&temp_msg, &p_query_params->results_buff->buffer[p_query_params->results_buff->len]);
-        // buffer_overflow_check(p_query_params->results_buff);
+	    if(!p_query_params->keyword || !*p_query_params->keyword){
+	    	decompress_text(&temp_msg, &p_query_params->results_buff->buffer[p_query_params->results_buff->len]);
+	        // buffer_overflow_check(p_query_params->results_buff);
+	    } 
+	    else {
+	    	decompress_text(&temp_msg, NULL);
+		    search_keyword(temp_msg.text, &p_query_params->results_buff->buffer[p_query_params->results_buff->len], p_query_params->keyword, 1);
+		    freez(temp_msg.text);
+	    }
+
+	    freez(temp_msg.text_compressed);
+
         p_query_params->results_buff->len += temp_msg.text_size - 1; // -1 due to terminating NUL char
         
         fprintf_log(LOGS_MANAG_DEBUG, stderr, "Timestamp decompressed: %" PRIu64 "\n", (uint64_t)temp_msg.timestamp);
-        freez(temp_msg.text_compressed);
 
         if(p_query_params->results_buff->len >= max_query_page_size){
         	p_query_params->end_timestamp = temp_msg.timestamp;
@@ -841,5 +851,5 @@ void db_search(logs_query_params_t *p_query_params, struct File_info *p_file_inf
     }
 
     sqlite3_exec(p_file_info->db, "END TRANSACTION;", NULL, NULL, NULL);
-    sqlite3_finalize(stmt_retrieve_log_msg_metadata);
+    if(sqlite3_finalize(stmt_retrieve_log_msg_metadata) != SQLITE_OK) fatal("sqlite3_finalize(stmt_retrieve_log_msg_metadata) error");
 }

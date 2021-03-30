@@ -636,6 +636,8 @@ LOGSMANAGEMENT_FILES = \
     logsmanagement/file_info.h \
     logsmanagement/helper.h \
     logsmanagement/logsmanagement.c \
+    logsmanagement/parser.c \
+    logsmanagement/parser.h \
     logsmanagement/query.c \
     logsmanagement/query.h \
     logsmanagement/query_test.c \

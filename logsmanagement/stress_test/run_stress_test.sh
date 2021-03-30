@@ -42,4 +42,4 @@ gcc stress_test.c -luv -o stress_test
 sudo -u netdata -g netdata ./stress_test "$number_log_sources" &
 sleep 2
 #sudo systemctl start netdata
-sudo gdb -ex=run --args /usr/sbin/netdata -D
+sudo -u netdata -g netdata -s gdb -ex=run --args /usr/sbin/netdata -D
