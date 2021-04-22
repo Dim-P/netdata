@@ -67,7 +67,7 @@ static inline str2xx_errno str2float(float *out, char *s) {
     return STR2XX_SUCCESS;
 }
 
-int count_fields(const char *line, const char delimiter){
+static inline int count_fields(const char *line, const char delimiter){
     const char *ptr;
     int cnt, fQuote;
 
@@ -117,7 +117,7 @@ int count_fields(const char *line, const char delimiter){
  *  which are escaped by "double quotes", extract a NULL-terminated
  *  array of strings, one for every cell in the row.
  */
-char **parse_csv( const char *line, const char delimiter, int num_fields) {
+static inline char **parse_csv( const char *line, const char delimiter, int num_fields) {
     char **buf, **bptr, *tmp, *tptr;
     const char *ptr;
     int fQuote, fEnd;
@@ -130,13 +130,13 @@ char **parse_csv( const char *line, const char delimiter, int num_fields) {
 	    }
 	}
 
-    buf = malloc( sizeof(char*) * (num_fields+1) );
+    buf = mallocz( sizeof(char*) * (num_fields+1) );
 
     if ( !buf ) {
         return NULL;
     }
 
-    tmp = malloc( strlen(line) + 1 );
+    tmp = mallocz( strlen(line) + 1 );
 
     if ( !tmp ) {
         free( buf );
@@ -306,17 +306,154 @@ void search_keyword(char *src, char *dest, const char *keyword, const int ignore
 	fprintf_log(LOGS_MANAG_INFO, stderr, "Results of search\n=====***********=====\n%s\n=====***********=====\n", dest);
 }
 
-void parse_config_str(char *log_format, const char delimiter, struct File_info *p_file_info){
+/**
+ * 
+ * @brief Extract parser configuration from string
+ * @param[in] log_format String that describes the log format
+ * @param[in] delimiter Delimiter to be used when parsing a CSV log format
+ * @return Struct that contains the extracted log format configuration
+ */
+Log_parser_config_t *read_parse_config(char *log_format, const char delimiter){
 	int num_fields = count_fields(log_format, delimiter);
-    char **parsed_format = parse_csv(log_format, delimiter, num_fields);
-    if(num_fields > 0){
-        p_file_info->parser_config = mallocz(Log_parser_config_t);
-        p_file_info->parse_config->num_fields = num_fields;
-    }
+    if(num_fields <= 0) return NULL;
+    Log_parser_config_t *parser_config = mallocz(sizeof(Log_parser_config_t));
+    parser_config->num_fields = num_fields;
+    parser_config->delimiter = delimiter;
     
-    log_line_field_t *fields = calloc(num_fields, sizeof(log_line_field_t));
+    char **parsed_format = parse_csv(log_format, delimiter, num_fields); // parsed_format is NULL-terminated
+    parser_config->fields = calloc(num_fields, sizeof(log_line_field_t));
     unsigned int fields_off = 0;
 
+    for(int i = 0; i < num_fields; i++ ){
+		fprintf(stderr, "Field %d (%s) is ", i, parsed_format[i]);
+
+		if(strcmp(parsed_format[i], "$host") == 0 || 
+		   strcmp(parsed_format[i], "$http_host") == 0 ||
+		   strcmp(parsed_format[i], "%v") == 0) {
+			fprintf(stderr, "VHOST\n");
+			parser_config->fields[fields_off++] = VHOST;
+			continue;
+		}
+
+		if(strcmp(parsed_format[i], "$server_port") == 0 || 
+		   strcmp(parsed_format[i], "%p") == 0) {
+			fprintf(stderr, "PORT\n");
+			parser_config->fields[fields_off++] = PORT;
+			continue;
+		}
+
+		if(strcmp(parsed_format[i], "$host:$server_port") == 0 || 
+		   strcmp(parsed_format[i], "%v:%p") == 0) {
+			fprintf(stderr, "VHOST_WITH_PORT\n");
+			parser_config->fields[fields_off++] = VHOST_WITH_PORT;
+			continue;
+		}
+
+		if(strcmp(parsed_format[i], "$scheme") == 0) {
+			fprintf(stderr, "REQ_SCHEME\n");
+			parser_config->fields[fields_off++] = REQ_SCHEME;
+			continue;
+		}
+
+		if(strcmp(parsed_format[i], "$remote_addr") == 0 || 
+		   strcmp(parsed_format[i], "%a") == 0 ||
+		   strcmp(parsed_format[i], "%h") == 0) {
+			fprintf(stderr, "REQ_CLIENT\n");
+			parser_config->fields[fields_off++] = REQ_CLIENT;
+			continue;
+		}
+
+		if(strcmp(parsed_format[i], "$request") == 0 || 
+		   strcmp(parsed_format[i], "%r") == 0) {
+			fprintf(stderr, "REQ\n");
+			parser_config->fields[fields_off++] = REQ;
+			continue;
+		}
+
+		if(strcmp(parsed_format[i], "$request_method") == 0 || 
+		   strcmp(parsed_format[i], "%m") == 0) {
+			fprintf(stderr, "REQ_METHOD\n");
+			parser_config->fields[fields_off++] = REQ_METHOD;
+			continue;
+		}
+
+		if(strcmp(parsed_format[i], "$request_uri") == 0 || 
+		   strcmp(parsed_format[i], "%U") == 0) {
+			fprintf(stderr, "REQ_URL\n");
+			parser_config->fields[fields_off++] = REQ_URL;
+			continue;
+		}
+
+		if(strcmp(parsed_format[i], "$server_protocol") == 0 || 
+		   strcmp(parsed_format[i], "%H") == 0) {
+			fprintf(stderr, "REQ_PROTO\n");
+			parser_config->fields[fields_off++] = REQ_PROTO;
+			continue;
+		}
+
+		if(strcmp(parsed_format[i], "$request_length") == 0 || 
+		   strcmp(parsed_format[i], "%i") == 0) {
+			fprintf(stderr, "REQ_SIZE\n");
+			parser_config->fields[fields_off++] = REQ_SIZE;
+			continue;
+		}
+
+		if(strcmp(parsed_format[i], "$request_time") == 0 || 
+		   strcmp(parsed_format[i], "%D") == 0) {
+			fprintf(stderr, "REQ_PROC_TIME\n");
+			parser_config->fields[fields_off++] = REQ_PROC_TIME;
+			continue;
+		}
+
+		if(strcmp(parsed_format[i], "$status") == 0 || 
+		   strcmp(parsed_format[i], "%>s") == 0 ||
+		   strcmp(parsed_format[i], "%s") == 0) {
+			fprintf(stderr, "RESP_CODE\n");
+			parser_config->fields[fields_off++] = RESP_CODE;
+			continue;
+		}
+
+		if(strcmp(parsed_format[i], "$bytes_sent") == 0 || 
+		   strcmp(parsed_format[i], "$body_bytes_sent") == 0 ||
+		   strcmp(parsed_format[i], "%b") == 0 ||
+		   strcmp(parsed_format[i], "%O") == 0 ||
+		   strcmp(parsed_format[i], "%B") == 0) {
+			fprintf(stderr, "RESP_SIZE\n");
+			parser_config->fields[fields_off++] = RESP_SIZE;
+			continue;
+		}
+
+		if(strcmp(parsed_format[i], "$upstream_response_time") == 0) {
+			fprintf(stderr, "UPS_RESP_TIME\n");
+			parser_config->fields[fields_off++] = UPS_RESP_TIME;
+			continue;
+		}
+
+		if(strcmp(parsed_format[i], "$ssl_protocol") == 0) {
+			fprintf(stderr, "SSL_PROTO\n");
+			parser_config->fields[fields_off++] = SSL_PROTO;
+			continue;
+		}
+
+		if(strcmp(parsed_format[i], "$ssl_cipher") == 0) {
+			fprintf(stderr, "SSL_CIPHER_SUITE\n");
+			parser_config->fields[fields_off++] = SSL_CIPHER_SUITE;
+			continue;
+		}
+
+		if(strcmp(parsed_format[i], "$time_local") == 0 ||
+		   strcmp(parsed_format[i], "%t") == 0) {
+			fprintf(stderr, "TIME\n");
+			parser_config->fields[fields_off++] = TIME;
+			continue;
+		}
+
+		fprintf(stderr, "UNKNOWN OR CUSTOM\n");
+		parser_config->fields[fields_off++] = CUSTOM;
+		continue;
+
+	}
+
     freez(log_format);
-    // TODO: Free each element of array **parsed_format
+    for(int i = 0; parsed_format[i] != NULL; i++) freez(parsed_format[i]);
 }

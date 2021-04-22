@@ -644,9 +644,7 @@ static void config_init(){
                     fprintf(stderr, "NDLGS log format value: %s for section: %s\n==== \n", log_format ? log_format : "NULL!", config_section->name);
                     const char delimiter = ' '; // TODO!!: TO READ FROM CONFIG
                     if(log_format){
-                        
-
-                        
+                        p_file_info->parser_config = read_parse_config(log_format, delimiter);
                     }
                 }
             }

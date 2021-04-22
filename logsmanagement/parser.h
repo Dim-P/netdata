@@ -60,11 +60,12 @@ typedef struct log_line_parsed{
 } Log_line_parsed_t;
 
 typedef struct log_parser_config{
-    int num_fields;             /**< Number of fields in the parsed log format. */
-    log_line_field_t *fields;   /**< Array of parsed log format of num_fields length. */
-    const char delimiter;       /**< Delimiter that separates the fields in the log format. */
+    log_line_field_t *fields;   
+    int num_fields;             /**< Number of strings in the fields array. */
+    char delimiter;       /**< Delimiter that separates the fields in the log format. */
 } Log_parser_config_t;
 
 void search_keyword(char *src, char *dest, const char *keyword, const int ignore_case);
+Log_parser_config_t *read_parse_config(char *log_format, const char delimiter);
 
 #endif  // PARSER_H_
