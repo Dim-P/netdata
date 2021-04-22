@@ -530,7 +530,7 @@ static void file_signature_init(struct File_info *p_file_info) {
     fprintf_log(LOGS_MANAG_DEBUG, stderr, "Signature: %s\n" LOG_SEPARATOR, p_file_info->signature);
 }
 
-static int monitor_log_file_init(const char *filename) {
+static struct File_info *monitor_log_file_init(const char *filename) {
     int rc = 0;
 
     fprintf_log(LOGS_MANAG_INFO, stderr,
@@ -548,7 +548,7 @@ static int monitor_log_file_init(const char *filename) {
 
     if ((rc = file_open(p_file_info)) < 0) {
         freez(p_file_info);
-        return rc;
+        return NULL;
     }
 
     // Store initial filesize in file_info - synchronous
@@ -559,7 +559,7 @@ static int monitor_log_file_init(const char *filename) {
         fprintf_log(LOGS_MANAG_ERROR, stderr, "uv_fs_stat() error for %s: (%d) %s\n", filename, rc, uv_strerror(rc));
         uv_fs_req_cleanup(&stat_req);
         freez(p_file_info);
-        return rc;
+        return NULL;
         // m_assert(!rc, "uv_fs_stat() failed");
     } else {
         // Request succeeded; get filesize
@@ -572,7 +572,7 @@ static int monitor_log_file_init(const char *filename) {
 
     if (!p_file_info->filesize) {  // TODO: Cornercase where filesize is 0 at the beginning - will not work for now. Known bug.
         freez(p_file_info);
-        return rc;
+        return NULL;
     }
 
     file_signature_init(p_file_info);  // TODO: Error check
@@ -586,7 +586,7 @@ static int monitor_log_file_init(const char *filename) {
                                        (++p_file_infos_arr->count) * (sizeof p_file_info));
     p_file_infos_arr->data[p_file_infos_arr->count - 1] = p_file_info;
 
-    return rc;
+    return p_file_info;
 }
 
 /**
@@ -634,14 +634,26 @@ static void config_init(){
         fprintf(stderr, "NDLGS Enabled value: %d for section: %s\n", enabled, config_section->name);
         fprintf(stderr, "config_section->next NULL? %s\n", config_section->next ? "yes" : "no");
 
-        if(enabled){
+        if(enabled){ // log monitoring for this section is enabled
             char *log_source_path = appconfig_get(&log_management_config, config_section->name, "log path", NULL);
             fprintf(stderr, "NDLGS log path value: %s for section: %s\n==== \n", log_source_path ? log_source_path : "NULL!", config_section->name);
-            if(log_source_path && log_source_path[0]!='\0'){
-                monitor_log_file_init(log_source_path);
+            if(log_source_path && log_source_path[0]!='\0'){ // log source path exists and is valid
+                struct File_info *p_file_info = monitor_log_file_init(log_source_path);
+                if(p_file_info){ // monitor_log_file_init() was successful
+                    char *log_format = appconfig_get(&log_management_config, config_section->name, "log format", NULL);
+                    fprintf(stderr, "NDLGS log format value: %s for section: %s\n==== \n", log_format ? log_format : "NULL!", config_section->name);
+                    const char delimiter = ' '; // TODO!!: TO READ FROM CONFIG
+                    if(log_format){
+                        
+
+                        
+                    }
+                }
             }
         }
+
         config_section = config_section->next;
+
     } while(config_section);
 }
 
