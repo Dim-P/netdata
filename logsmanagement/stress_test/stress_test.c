@@ -35,18 +35,18 @@ static int log_msgs_arr_size;
 static int log_files_no;
 
 static const char *log_msgs_arr[] = {
-    "[Sun Oct 25 18:38:49 2020] [error] [client 127.0.0.1] File does not exist: /Users/user1/Documents/workspace/MAMP_webroot/json",
-    "[Tue Feb 23 15:13:01 2018] [error] [client ::1] File does not exist: /Users/user1/Documents/, referer: http://localhost:8888/app/",
-    "[Fri Feb 12 16:29:04 2015] [notice] caught SIGTERM, shutting down",
-    "[Mon Feb 15 21:38:49 2017] [error] [client ::1] client denied by server configuration: /Users/user1/Documents/workspace/MAMP_webroot/web_app/.DS_Store, referer: http://localhost:8888/web_app/bower_components/",
-    "[Fri Feb 19 20:24:40 2019] [error] [client ::1] client denied by server configuration: /Users/user1/Documents/workspace/MAMP_webroot/.DS_Store",
+    "[error] [client 127.0.0.1] File does not exist: /Users/user1/Documents/workspace/MAMP_webroot/json",
+    "[error] [client ::1] File does not exist: /Users/user1/Documents/, referer: http://localhost:8888/app/",
+    "[notice] caught SIGTERM, shutting down",
+    "[error] [client ::1] client denied by server configuration: /Users/user1/Documents/workspace/MAMP_webroot/web_app/.DS_Store, referer: http://localhost:8888/web_app/bower_components/",
+    "[error] [client ::1] client denied by server configuration: /Users/user1/Documents/workspace/MAMP_webroot/.DS_Store",
     "FORCE BAD WRITE --- [error1] [error2] [error3] [error4] [error5] [error6] [error7] [error8] [error9] [error10] [error11] [error12] [error13] [error14] [error15] --- FORCE BAD WRITE",
-    "::1 - - [17/Jan/2021:02:21:54 +0000] \"GET /server-status?auto HTTP/1.1\" 200 691 \"-\" \"Go-http-client/1.1\" ",
-    "[02-Sep-2017 03:18:44 Europe/Berlin] PHP Warning:  mysqli::__construct(): (HY000/2002): Operation timed out in /Users/user1/Documents/workspace/MAMP_webroot/web_app/resources/real_time_data.php on line 14",
-    "[16-Sep-2018 20:38:50 Europe/Berlin] PHP Notice:  Undefined variable: rows in /Users/user1/Documents/workspace/MAMP_webroot/web_app/resources/real_time_data.php on line 50",
-    "[17-Sep-2020 00:12:49 Europe/Berlin] PHP Warning:  mysqli::__construct(): (08004/1040): Too many connections in /Users/user1/Documents/workspace/MAMP_webroot/web_app/resources/real_time_data.php on line 14",
-    "[17-Sep-2019 06:19:33 Europe/Berlin] PHP Fatal error:  Uncaught Exception: String could not be parsed as XML in /Users/user1/Documents/workspace/MAMP_webroot/web_app/resources/grid_demand.php:9",
-    "[12-Oct-2016 13:20:32 Europe/Berlin] PHP Warning:  mysqli::__construct(): (HY000/2002): Network is unreachable in /Users/user1/Documents/workspace/MAMP_webroot/web_app/resources/real_time_data.php on line 14",
+    "::1 - - \"GET /server-status?auto HTTP/1.1\" 200 691 \"-\" \"Go-http-client/1.1\" ",
+    "PHP Warning:  mysqli::__construct(): (HY000/2002): Operation timed out in /Users/user1/Documents/workspace/MAMP_webroot/web_app/resources/real_time_data.php on line 14",
+    "PHP Notice:  Undefined variable: rows in /Users/user1/Documents/workspace/MAMP_webroot/web_app/resources/real_time_data.php on line 50",
+    "PHP Warning:  mysqli::__construct(): (08004/1040): Too many connections in /Users/user1/Documents/workspace/MAMP_webroot/web_app/resources/real_time_data.php on line 14",
+    "PHP Fatal error:  Uncaught Exception: String could not be parsed as XML in /Users/user1/Documents/workspace/MAMP_webroot/web_app/resources/grid_demand.php:9",
+    "PHP Warning:  mysqli::__construct(): (HY000/2002): Network is unreachable in /Users/user1/Documents/workspace/MAMP_webroot/web_app/resources/real_time_data.php on line 14",
     "130302  1:51:12 [Note] Plugin 'FEDERATED' is disabled.",
     "130302  1:51:12 InnoDB: The InnoDB memory heap is disabled",
     "130302  1:51:12 InnoDB: Mutexes and rw_locks use Windows interlocked functions",
@@ -102,6 +102,13 @@ typedef struct db_query_params {
     char *results;
     size_t results_size;
 } logs_query_params_t;
+
+size_t get_local_time(char *buf, size_t max_buf_size){
+    time_t rawtime;
+    struct tm *info;
+    time( &rawtime );
+    return strftime (buf, max_buf_size, "[%d/%b/%Y:%H:%M:%S %z] ",localtime( &rawtime ));
+}
 
 /**
  * @brief Get unix time in milliseconds
@@ -167,20 +174,25 @@ static void produce_logs(void *arg) {
     sleep(DELAY_OPEN_TO_WRITE_SEC);
 
     while (msgs_written < MSGS_TO_PRODUCE) {
-        sprintf(buf, "T: %" PRIu64 " ", get_unix_time_ms());
-        size_t msg_timestamp_len = strlen(buf);
+        //sprintf(buf, "T: %" PRIu64 " ", get_unix_time_ms());
+        //size_t msg_timestamp_len = strlen(buf);
+
+        size_t msg_timestamp_len = 50;
+        msg_timestamp_len = get_local_time(buf, msg_timestamp_len);
+        
         int msg_offset = rand() % log_msgs_arr_size;
         size_t msg_len = strlen(log_msgs_arr[msg_offset]);
         memcpy(&buf[msg_timestamp_len], log_msgs_arr[msg_offset], msg_len);
         buf_size = msg_timestamp_len + msg_len;
         buf[buf_size] = '\n';
         // buf[buf_size + 1] = '\0';
+        // fprintf(stderr, "%*.*s", (int) buf_size + 1, (int) buf_size + 1, buf);
         uv_buf = uv_buf_init(buf, buf_size + 1);
         uv_fs_write(&loop, &write_req, file_handle, &uv_buf, 1, -1, NULL);
         msgs_written++;
         if(!(msgs_written % 1000000))
         fprintf(stderr, "Wrote %" PRId64 " messages to %s\n", msgs_written, log_filename);
-        // usleep(1);
+        // usleep(1000);
     }
 
     runtime = get_unix_time_ms() - start_time - DELAY_OPEN_TO_WRITE_SEC * 1000;
