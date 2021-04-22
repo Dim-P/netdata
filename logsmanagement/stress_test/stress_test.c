@@ -179,12 +179,12 @@ static void produce_logs(void *arg) {
         uv_fs_write(&loop, &write_req, file_handle, &uv_buf, 1, -1, NULL);
         msgs_written++;
         if(!(msgs_written % 1000000))
-        fprintf(stderr, "Wrote %d messages to %s\n", msgs_written, log_filename);
+        fprintf(stderr, "Wrote %" PRId64 " messages to %s\n", msgs_written, log_filename);
         // usleep(1);
     }
 
     runtime = get_unix_time_ms() - start_time - DELAY_OPEN_TO_WRITE_SEC * 1000;
-    fprintf(stderr, "It took %" PRIu64 "ms to write %d msgs in %s (%dk msgs/s))\n. ",
+    fprintf(stderr, "It took %" PRIu64 "ms to write %" PRId64 " msgs in %s (%" PRId64 "k msgs/s))\n. ",
             runtime, msgs_written, log_filename, msgs_written / runtime);
 }
 
@@ -209,7 +209,7 @@ static void connect_cb(uv_connect_t* req, int status){
     char *buf = calloc(100 * log_files_no, sizeof(char));
     sprintf(buf, "%d", log_files_no);
     for(int i = 0; i < log_files_no ; i++){
-        sprintf(&buf[strlen(buf)], ",0,10000000000000000," SIMULATED_LOGS_DIR "/%d.log,%s,%zu", i, "-", (size_t) MAX_LOG_MSG_SIZE);
+        sprintf(&buf[strlen(buf)], ",0,10000000000000000," SIMULATED_LOGS_DIR "/%d.log,%s,%zu", i, " ", (size_t) MAX_LOG_MSG_SIZE);
     }
     fprintf(stderr, "Serialised DB query params: %s\n", buf);
 

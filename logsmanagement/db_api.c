@@ -823,7 +823,7 @@ void db_search(logs_query_params_t *p_query_params, struct File_info *p_file_inf
 
 	    /* Append retrieved results to BUFFER */
 	    buffer_increase(p_query_params->results_buff, temp_msg.text_size);
-	    if(!p_query_params->keyword || !*p_query_params->keyword){
+	    if(!p_query_params->keyword || !*p_query_params->keyword || !strcmp(p_query_params->keyword, " ")){
 	    	decompress_text(&temp_msg, &p_query_params->results_buff->buffer[p_query_params->results_buff->len]);
 	        // buffer_overflow_check(p_query_params->results_buff);
 	    } 
