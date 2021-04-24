@@ -86,6 +86,10 @@ struct netdata_static_thread static_threads[] = {
     NETDATA_PLUGIN_HOOK_IDLEJITTER
     NETDATA_PLUGIN_HOOK_STATSD
 
+#ifdef ENABLE_LOGSMANAGEMENT
+    NETDATA_PLUGIN_HOOK_LOGSMANAGEMENT
+#endif
+
 #ifdef ENABLE_ACLK
     NETDATA_ACLK_HOOK
 #endif

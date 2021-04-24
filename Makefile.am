@@ -235,6 +235,11 @@ IDLEJITTER_PLUGIN_FILES = \
     collectors/idlejitter.plugin/plugin_idlejitter.h \
     $(NULL)
 
+LOGSMANAGEMENT_PLUGIN_FILES = \
+    collectors/logsmanagement.plugin/plugin_logsmanagement.c \
+    collectors/logsmanagement.plugin/plugin_logsmanagement.h \
+    $(NULL)
+
 CGROUPS_PLUGIN_FILES = \
     collectors/cgroups.plugin/sys_fs_cgroup.c \
     collectors/cgroups.plugin/sys_fs_cgroup.h \
@@ -674,6 +679,7 @@ NETDATA_FILES = \
     $(CHECKS_PLUGIN_FILES) \
     $(HEALTH_PLUGIN_FILES) \
     $(IDLEJITTER_PLUGIN_FILES) \
+    $(LOGSMANAGEMENT_PLUGIN_FILES) \
     $(PLUGINSD_PLUGIN_FILES) \
     $(REGISTRY_PLUGIN_FILES) \
     $(RRD_PLUGIN_FILES) \
