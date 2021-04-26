@@ -9,6 +9,12 @@
 #include "helper.h"
 #include <regex.h> 
 #include "parser.h"
+#define __USE_XOPEN // required by strptime
+#include <time.h>
+#include <sys/time.h>
+
+static regex_t vhost_regex, req_client_regex, cipher_suite_regex;
+static int regexs_initialised = 0;
 
 typedef enum {
     STR2XX_SUCCESS = 0,
@@ -65,6 +71,13 @@ static inline str2xx_errno str2float(float *out, char *s) {
         return STR2XX_INCONVERTIBLE;
     *out = f;
     return STR2XX_SUCCESS;
+}
+
+/* CSV Parse code adapted from: https://github.com/semitrivial/csv_parser */
+void free_csv_line(char **parsed){
+    char **ptr;
+    for(ptr = parsed; *ptr; ptr++) freez(*ptr);
+    freez(parsed);
 }
 
 static inline int count_fields(const char *line, const char delimiter){
@@ -316,6 +329,15 @@ void search_keyword(char *src, char *dest, const char *keyword, const int ignore
 Log_parser_config_t *read_parse_config(char *log_format, const char delimiter){
 	int num_fields = count_fields(log_format, delimiter);
     if(num_fields <= 0) return NULL;
+
+    /* If first execution of this function, initialise regexs */
+    // TODO: Tests needed for following regexs.
+    if(!regexs_initialised){
+        assert(regcomp(&vhost_regex, "^[a-zA-Z0-9:.-]+$", REG_NOSUB | REG_EXTENDED) == 0);
+        assert(regcomp(&req_client_regex, "^([0-9a-f:.]+|localhost)$", REG_NOSUB | REG_EXTENDED) == 0);
+        assert(regcomp(&cipher_suite_regex, "^[A-Z0-9_-]+$", REG_NOSUB | REG_EXTENDED) == 0);
+    }
+
     Log_parser_config_t *parser_config = callocz(1, sizeof(Log_parser_config_t));
     parser_config->num_fields = num_fields;
     parser_config->delimiter = delimiter;
@@ -445,6 +467,7 @@ Log_parser_config_t *read_parse_config(char *log_format, const char delimiter){
 		   strcmp(parsed_format[i], "%t") == 0) {
 			fprintf(stderr, "TIME\n");
 			parser_config->fields[fields_off++] = TIME;
+            parser_config->fields[fields_off++] = TIME; // TIME takes 2 fields
 			continue;
 		}
 
@@ -459,14 +482,364 @@ Log_parser_config_t *read_parse_config(char *log_format, const char delimiter){
     return parser_config;
 }
 
-Log_parser_metrics_t parse_text_buf(char *text, size_t text_size){
+static Log_line_parsed_t *parse_log_line(log_line_field_t *fields_format, const int num_fields_format, const char *line, const char delimiter, const int verify){
+    Log_line_parsed_t *log_line_parsed = callocz(1, sizeof(Log_line_parsed_t));
+    fprintf(stderr, "Original line: %s\n", line);
+    int num_fields = count_fields(line, delimiter);
+    char **parsed = parse_csv(line, delimiter, num_fields);
+    fprintf(stderr, "Number of items: %d\n", num_fields);
+    // int parsed_offset = 0;
+    for(int i = 0; i < num_fields_format; i++ ){
+        fprintf(stderr, "===\nField %d:%s\n", i, parsed[i]);
+
+        if(fields_format[i] == VHOST_WITH_PORT && strcmp(parsed[i], "-")){
+            fprintf(stderr, "Item %d (type: VHOST_WITH_PORT):%s\n", i, parsed[i]);
+            char *sep = strrchr(parsed[i], ':');
+            if(sep) *sep = '\0';
+            else parsed[i][0] = '\0';
+        }
+
+        if((fields_format[i] == VHOST_WITH_PORT || fields_format[i] == VHOST) && strcmp(parsed[i], "-")){
+            fprintf(stderr, "Item %d (type: VHOST):%s\n", i, parsed[i]);
+            // nginx $host and $http_host return ipv6 in [], apache doesn't
+            // TODO: TEST! This case hasn't been tested!
+            char *pch = strchr(parsed[i], ']');
+            if(pch){
+                //parsed[i][strcspn(parsed[i], "]")] = 0;
+                *pch = '\0';
+                memmove(parsed[i], parsed[i]+1, strlen(parsed[i]));
+            }
+            if(verify){
+                int rc = regexec(&vhost_regex, parsed[i], 0, NULL, 0);
+                if(!rc) log_line_parsed->vhost = strdup(parsed[i]);
+                else if (rc == REG_NOMATCH) fprintf(stderr, "VHOST is invalid\n");
+                else assert(0); 
+            }
+            else log_line_parsed->vhost = strdup(parsed[i]);
+            fprintf(stderr, "Extracted VHOST:%s\n", log_line_parsed->vhost);
+        }
+
+        if((fields_format[i] == VHOST_WITH_PORT || fields_format[i] == PORT) && strcmp(parsed[i], "-")){
+            char *port;
+            if(fields_format[i] == VHOST_WITH_PORT) port = &parsed[i][strlen(parsed[i]) + 1];
+            else port = parsed[i];
+            fprintf(stderr, "Item %d (type: PORT):%s\n", i, port);
+            if(str2int(&log_line_parsed->port, port, 10) == STR2XX_SUCCESS){
+                if(verify){
+                    if(log_line_parsed->port < 80 || log_line_parsed->port > 49151){
+                        log_line_parsed->port = 0;
+                        fprintf(stderr, "PORT is invalid (<80 or >49151)\n");
+                    }
+                }
+            }
+            else fprintf(stderr, "Error while extracting PORT from string\n");
+            fprintf(stderr, "Extracted PORT:%d\n", log_line_parsed->port);
+        }
+
+        if(fields_format[i] == REQ_SCHEME && strcmp(parsed[i], "-")){
+            fprintf(stderr, "Item %d (type: REQ_SCHEME):%s\n", i, parsed[i]);
+            snprintf(log_line_parsed->req_scheme, REQ_SCHEME_MAX_LEN, "%s", parsed[i]); 
+            if(verify){
+                if(strlen(parsed[i]) >= REQ_SCHEME_MAX_LEN || 
+                    (strcmp(log_line_parsed->req_scheme, "http") && 
+                     strcmp(log_line_parsed->req_scheme, "https"))){
+                    fprintf(stderr, "REQ_SCHEME is invalid (must be either 'http' or 'https')\n");
+                    log_line_parsed->req_scheme[0] = '\0';
+                }
+            }
+            fprintf(stderr, "Extracted REQ_SCHEME:%s\n", log_line_parsed->req_scheme);
+        }
+
+        if(fields_format[i] == REQ_CLIENT && strcmp(parsed[i], "-")){
+            fprintf(stderr, "Item %d (type: REQ_CLIENT):%s\n", i, parsed[i]);
+            if(verify){
+                int rc = regexec(&req_client_regex, parsed[i], 0, NULL, 0);
+                if(!rc) log_line_parsed->req_client = strdup(parsed[i]);
+                else if (rc == REG_NOMATCH) fprintf(stderr, "REQ_CLIENT is invalid\n");
+                else assert(0); // Can also use: regerror(rc, &req_client_regex, msgbuf, sizeof(msgbuf));
+            }
+            else log_line_parsed->req_client = strdup(parsed[i]);
+            fprintf(stderr, "Extracted REQ_CLIENT:%s\n", log_line_parsed->req_client);
+        }
+
+        char *req_first_sep, *req_last_sep = NULL;
+        if(fields_format[i] == REQ && strcmp(parsed[i], "-")){
+            fprintf(stderr, "Item %d (type: REQ):%s\n", i, parsed[i]);
+            req_first_sep = strchr(parsed[i], ' ');
+            req_last_sep = strrchr(parsed[i], ' ');
+            if(!req_first_sep || req_first_sep == req_last_sep) parsed[i][0] = '\0';
+            else *req_first_sep = *req_last_sep = '\0';
+        }
+
+        if((fields_format[i] == REQ || fields_format[i] == REQ_METHOD) && strcmp(parsed[i], "-")){
+            fprintf(stderr, "Item %d (type: REQ_METHOD):%s\n", i, parsed[i]);
+            snprintf(log_line_parsed->req_method, REQ_METHOD_MAX_LEN, "%s", parsed[i]); 
+            if(verify){
+                if(strlen(parsed[i]) >= REQ_METHOD_MAX_LEN || 
+                    (strcmp(log_line_parsed->req_method, "ACL") && 
+                     strcmp(log_line_parsed->req_method, "BASELINE-CONTROL") && 
+                     strcmp(log_line_parsed->req_method, "BIND") && 
+                     strcmp(log_line_parsed->req_method, "CHECKIN") && 
+                     strcmp(log_line_parsed->req_method, "CHECKOUT") && 
+                     strcmp(log_line_parsed->req_method, "CONNECT") && 
+                     strcmp(log_line_parsed->req_method, "COPY") && 
+                     strcmp(log_line_parsed->req_method, "DELETE") && 
+                     strcmp(log_line_parsed->req_method, "GET") && 
+                     strcmp(log_line_parsed->req_method, "HEAD") && 
+                     strcmp(log_line_parsed->req_method, "LABEL") && 
+                     strcmp(log_line_parsed->req_method, "LINK") && 
+                     strcmp(log_line_parsed->req_method, "LOCK") && 
+                     strcmp(log_line_parsed->req_method, "MERGE") && 
+                     strcmp(log_line_parsed->req_method, "MKACTIVITY") && 
+                     strcmp(log_line_parsed->req_method, "MKCALENDAR") && 
+                     strcmp(log_line_parsed->req_method, "MKCOL") && 
+                     strcmp(log_line_parsed->req_method, "MKREDIRECTREF") && 
+                     strcmp(log_line_parsed->req_method, "MKWORKSPACE") && 
+                     strcmp(log_line_parsed->req_method, "MOVE") && 
+                     strcmp(log_line_parsed->req_method, "OPTIONS") && 
+                     strcmp(log_line_parsed->req_method, "ORDERPATCH") && 
+                     strcmp(log_line_parsed->req_method, "PATCH") && 
+                     strcmp(log_line_parsed->req_method, "POST") && 
+                     strcmp(log_line_parsed->req_method, "PRI") && 
+                     strcmp(log_line_parsed->req_method, "PROPFIND") && 
+                     strcmp(log_line_parsed->req_method, "PROPPATCH") && 
+                     strcmp(log_line_parsed->req_method, "PUT") && 
+                     strcmp(log_line_parsed->req_method, "REBIND") && 
+                     strcmp(log_line_parsed->req_method, "REPORT") && 
+                     strcmp(log_line_parsed->req_method, "SEARCH") && 
+                     strcmp(log_line_parsed->req_method, "TRACE") && 
+                     strcmp(log_line_parsed->req_method, "UNBIND") && 
+                     strcmp(log_line_parsed->req_method, "UNCHECKOUT") && 
+                     strcmp(log_line_parsed->req_method, "UNLINK") && 
+                     strcmp(log_line_parsed->req_method, "UNLOCK") && 
+                     strcmp(log_line_parsed->req_method, "UPDATE") && 
+                     strcmp(log_line_parsed->req_method, "UPDATEREDIRECTREF"))){
+                    fprintf(stderr, "REQ_METHOD is invalid\n");
+                    log_line_parsed->req_method[0] = '\0';
+                }
+            }
+            fprintf(stderr, "Extracted REQ_METHOD:%s\n", log_line_parsed->req_method);
+        }
+
+        if((fields_format[i] == REQ || fields_format[i] == REQ_URL) && strcmp(parsed[i], "-")){
+            if(fields_format[i] == REQ){ 
+                log_line_parsed->req_URL = req_first_sep ? strdup(req_first_sep + 1) : NULL;
+            }   
+            else log_line_parsed->req_URL = strdup(parsed[i]);
+            fprintf(stderr, "Item %d (type: REQ_URL):%s\n", i, log_line_parsed->req_URL);   
+            //if(verify){} ??
+            fprintf(stderr, "Extracted REQ_URL:%s\n", log_line_parsed->req_URL);
+        }
+
+        if((fields_format[i] == REQ || fields_format[i] == REQ_PROTO) && strcmp(parsed[i], "-")){
+            char *req_proto = NULL;
+            if(fields_format[i] == REQ){ 
+                req_proto = req_last_sep ? req_last_sep + 1 : NULL;
+            }
+            else req_proto = parsed[i];
+            if(verify){
+                if(!req_proto || !*req_proto || strlen(req_proto) < 6 || strncmp(req_proto, "HTTP/", 5) || 
+                    (strcmp(&req_proto[5], "1") && 
+                     strcmp(&req_proto[5], "1.0") && 
+                     strcmp(&req_proto[5], "1.1") && 
+                     strcmp(&req_proto[5], "2") && 
+                     strcmp(&req_proto[5], "2.0"))){
+                    fprintf(stderr, "REQ_PROTO is invalid\n");
+                    log_line_parsed->req_proto[0] = '\0';
+                }
+                else snprintf(log_line_parsed->req_proto, REQ_PROTO_MAX_LEN, "%s", &req_proto[5]); 
+            }
+            else snprintf(log_line_parsed->req_proto, REQ_PROTO_MAX_LEN, "%s", &req_proto[5]); 
+            fprintf(stderr, "Item %d (type: REQ_PROTO):%s\n", i, req_proto);
+            fprintf(stderr, "Extracted REQ_PROTO:%s\n", log_line_parsed->req_proto);
+        }
+
+        if(fields_format[i] == REQ_SIZE){
+            /* TODO: Differentiate between '-' or 0 and an invalid request size. 
+             * right now, all these will set req_size == 0 */
+            fprintf(stderr, "Item %d (type: REQ_SIZE):%s\n", i, parsed[i]);
+            if(!strcmp(parsed[i], "-")) log_line_parsed->req_size = 0; // Request size can be '-' 
+            else if(str2int(&log_line_parsed->req_size, parsed[i], 10) == STR2XX_SUCCESS){
+                if(verify){
+                    if(log_line_parsed->req_size < 0){
+                        log_line_parsed->req_size = 0;
+                        fprintf(stderr, "REQ_SIZE is invalid (<0)\n");
+                    }
+                }
+            }
+            else fprintf(stderr, "Error while extracting REQ_SIZE from string\n");
+            fprintf(stderr, "Extracted REQ_SIZE:%d\n", log_line_parsed->req_size);
+        }
+
+        if(fields_format[i] == REQ_PROC_TIME && strcmp(parsed[i], "-")){
+            fprintf(stderr, "Item %d (type: REQ_PROC_TIME):%s\n", i, parsed[i]);
+            if(strchr(parsed[i], '.')){ // nginx time is in seconds with a milliseconds resolution.
+                float f = 0;
+                if(str2float(&f, parsed[i]) == STR2XX_SUCCESS) log_line_parsed->req_proc_time = (int) (f * 1.0E6);
+                else fprintf(stderr, "Error while extracting REQ_PROC_TIME from string\n");
+            }
+            else{ // apache time is in microseconds
+                if(str2int(&log_line_parsed->req_proc_time, parsed[i], 10) != STR2XX_SUCCESS)
+                    fprintf(stderr, "Error while extracting REQ_PROC_TIME from string\n");
+            }
+            if(verify){
+                if(log_line_parsed->req_proc_time < 0){
+                    log_line_parsed->req_proc_time = 0;
+                    fprintf(stderr, "REQ_PROC_TIME is invalid (<0)\n");
+                }
+            }
+            fprintf(stderr, "Extracted REQ_PROC_TIME:%d\n", log_line_parsed->req_proc_time);
+        }
+
+        if(fields_format[i] == RESP_CODE && strcmp(parsed[i], "-")){
+            fprintf(stderr, "Item %d (type: RESP_CODE):%s\n", i, parsed[i]);
+            if(str2int(&log_line_parsed->resp_code, parsed[i], 10) == STR2XX_SUCCESS){  
+                if(verify){
+                    // rfc7231
+                    // Informational responses (100–199),
+                    // Successful responses (200–299),
+                    // Redirects (300–399),
+                    // Client errors (400–499),
+                    // Server errors (500–599).
+                    if(log_line_parsed->resp_code < 100 || log_line_parsed->resp_code > 599){
+                        log_line_parsed->resp_code = 0;
+                        fprintf(stderr, "RESP_CODE is invalid (<100 or >600)\n");
+                    }
+                }
+            }
+            else fprintf(stderr, "Error while extracting RESP_CODE from string\n");
+            fprintf(stderr, "Extracted RESP_CODE:%d\n", log_line_parsed->resp_code);
+        }
+
+        if(fields_format[i] == RESP_SIZE){
+            /* TODO: Differentiate between '-' or 0 and an invalid request size. 
+             * right now, all these will set resp_size == 0 */
+            fprintf(stderr, "Item %d (type: RESP_SIZE):%s\n", i, parsed[i]);
+            if(!strcmp(parsed[i], "-")) log_line_parsed->resp_size = 0; // Request size can be '-' 
+            else if(str2int(&log_line_parsed->resp_size, parsed[i], 10) == STR2XX_SUCCESS){
+                if(verify){
+                    if(log_line_parsed->resp_size < 0){
+                        log_line_parsed->resp_size = 0;
+                        fprintf(stderr, "RESP_SIZE is invalid (<0)\n");
+                    }
+                }
+            }
+            else fprintf(stderr, "Error while extracting RESP_SIZE from string\n");
+            fprintf(stderr, "Extracted RESP_SIZE:%d\n", log_line_parsed->resp_size);
+        }
+
+        if(fields_format[i] == UPS_RESP_TIME && strcmp(parsed[i], "-")){
+            fprintf(stderr, "Item %d (type: UPS_RESP_TIME):%s\n", i, parsed[i]);
+            /* Times of several responses are separated by commas and colons. Following the 
+             * Go parser implementation, where only the first one is kept, the others are 
+             * discarded. Also, there must be no space in between them. Needs testing... */
+            char *pch = strchr(parsed[i], ',');
+            if(pch) *pch = '\0';
+
+            if(strchr(parsed[i], '.')){ // nginx time is in seconds with a milliseconds resolution.
+                float f = 0;
+                if(str2float(&f, parsed[i]) == STR2XX_SUCCESS) log_line_parsed->ups_resp_time = (int) (f * 1.0E6);
+                else fprintf(stderr, "Error while extracting UPS_RESP_TIME from string\n");
+            }
+            else{ // unlike in the REQ_PROC_TIME case, apache doesn't have an equivalent here
+                fprintf(stderr, "Error while extracting UPS_RESP_TIME from string\n");
+            }
+            if(verify){
+                if(log_line_parsed->ups_resp_time < 0){
+                    log_line_parsed->ups_resp_time = 0;
+                    fprintf(stderr, "UPS_RESP_TIME is invalid (<0)\n");
+                }
+            }
+            fprintf(stderr, "Extracted UPS_RESP_TIME:%d\n", log_line_parsed->ups_resp_time);
+        }
+
+        if(fields_format[i] == SSL_PROTO && strcmp(parsed[i], "-")){
+            fprintf(stderr, "Item %d (type: SSL_PROTO):%s\n", i, parsed[i]);
+            if(verify){
+                if(strcmp(parsed[i], "TLSv1") && 
+                     strcmp(parsed[i], "TLSv1.1") &&
+                     strcmp(parsed[i], "TLSv1.2") &&
+                     strcmp(parsed[i], "TLSv1.3") &&
+                     strcmp(parsed[i], "SSLv2") &&
+                     strcmp(parsed[i], "SSLv3")){
+                    fprintf(stderr, "SSL_PROTO is invalid\n");
+                    log_line_parsed->ssl_proto[0] = '\0';
+                }
+                else snprintf(log_line_parsed->ssl_proto, REQ_PROTO_MAX_LEN, "%s", parsed[i]); 
+            }
+            else snprintf(log_line_parsed->ssl_proto, REQ_PROTO_MAX_LEN, "%s", parsed[i]); 
+            fprintf(stderr, "Extracted SSL_PROTO:%s\n", log_line_parsed->ssl_proto);
+        }
+
+        if(fields_format[i] == SSL_CIPHER_SUITE && strcmp(parsed[i], "-")){
+            fprintf(stderr, "Item %d (type: SSL_CIPHER_SUITE):%s\n", i, parsed[i]);
+            if(verify){
+                if(!strchr(parsed[i], '-') && !strchr(parsed[i], '_')){
+                    fprintf(stderr, "SSL_CIPHER_SUITE is invalid\n");
+                    log_line_parsed->ssl_cipher_suite[0] = '\0';
+                } 
+                else snprintf(log_line_parsed->ssl_cipher_suite, SSL_CIPHER_SUITE_MAX_LEN, "%s", parsed[i]); 
+            }
+            else snprintf(log_line_parsed->ssl_cipher_suite, SSL_CIPHER_SUITE_MAX_LEN, "%s", parsed[i]); 
+            fprintf(stderr, "Extracted SSL_CIPHER_SUITE:%s\n", log_line_parsed->ssl_cipher_suite);
+        }
+
+        if(fields_format[i] == TIME && strcmp(parsed[i], "-")){
+            fprintf(stderr, "Items %d + %d (type: TIME - 2 fields):%s %s\n", i, i+1, parsed[i], parsed[i+1]);
+            char *pch = strchr(parsed[i], '[');
+            if(pch) memmove(parsed[i], parsed[i]+1, strlen(parsed[i])); //%d/%b/%Y:%H:%M:%S %z
+
+            struct tm ltm = {0};
+            strptime(parsed[i], "%d/%b/%Y:%H:%M:%S", &ltm);
+            log_line_parsed->timestamp = mktime(&ltm);
+
+
+            // Deal with 2nd part of datetime i.e. timezone
+            //TODO: Error handling in case of parsed[++i] is not timezone??
+            pch = strchr(parsed[++i], ']');
+            if(pch) *pch = '\0';
+            int timezone = strtol(parsed[i], NULL, 10);
+            int timezone_h = timezone / 100;
+            int timezone_m = timezone % 100;
+            fprintf(stderr, "Timezone: int:%d, hrs:%d, mins:%d\n", timezone, timezone_h, timezone_m);
+
+            log_line_parsed->timestamp = mktime(&ltm) + timezone_h * 3600 + timezone_m * 60;
+            fprintf(stderr, "Extracted TIME:%lu\n", log_line_parsed->timestamp);
+
+            //if(verify){} ??
+        }
+
+
+
+        //parsed_offset++;
+    }
+
+    free_csv_line(parsed);
+    return log_line_parsed;
+}
+
+Log_parser_metrics_t parse_text_buf(char *text, size_t text_size, log_line_field_t *fields, int num_fields, const char delimiter, const int verify){
     Log_parser_metrics_t metrics = {0};
     if(!text_size || !text || !*text) return metrics;
 
-    char *pch = text;
-    while(pch = strchr(pch, '\n')){
-        pch++;
+    char *line_start = text, *line_end = text;
+    while(line_end = strchr(line_start, '\n')){
+
+        char *line = strndup(line_start, (size_t) (line_end - line_start));
+        if(!line) fatal("Fatal when extracting line from text buffer in parse_text_buf()");
+        Log_line_parsed_t *line_parsed = parse_log_line(fields, num_fields, line, delimiter, verify);
+        // TODO: Refactor the following, can be done inside parse_log_line() function to save a strcmp() call.
+        if(!strcmp(line_parsed->req_method, "GET")) metrics.req_method.get++;
+        if(!strcmp(line_parsed->req_method, "POST")) metrics.req_method.post++;
+        freez(line_parsed->vhost);
+        freez(line_parsed->req_client);
+        freez(line_parsed->req_URL);
+        freez(line_parsed);
+        free(line); // WARNING! use free() not freez() here!
+
+        line_start = line_end + 1;
         metrics.num_lines++;
+        
     }
 
     fprintf(stderr, "NDLGS Total numLines: %lld\n", metrics.num_lines);

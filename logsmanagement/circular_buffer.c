@@ -38,10 +38,14 @@ static void msg_parser(uv_work_t *req){
     Message_t *buff_msg_current = &buff->msgs[(buff->parsed_index) & BUFF_SIZE_MASK];  
     uv_mutex_unlock(&buff->mut);
 
-    Log_parser_metrics_t parser_metrics = parse_text_buf(buff_msg_current->text, buff_msg_current->text_size);
+    // TODO: verify bool should be set through log source configuration.
+    Log_parser_metrics_t parser_metrics = parse_text_buf(buff_msg_current->text, buff_msg_current->text_size, 
+        p_file_info->parser_config->fields, p_file_info->parser_config->num_fields, p_file_info->parser_config->delimiter, 1);
     if(parser_metrics.num_lines == 0) fatal("Parsed buffer did not contain any text or was of 0 size.");
     uv_mutex_lock(p_file_info->parser_mut);
     p_file_info->parser_metrics->num_lines = parser_metrics.num_lines;
+    p_file_info->parser_metrics->req_method.get = parser_metrics.req_method.get;
+    p_file_info->parser_metrics->req_method.post = parser_metrics.req_method.post;
     uv_mutex_unlock(p_file_info->parser_mut);
 
     compress_text(buff_msg_current);
