@@ -316,12 +316,12 @@ void search_keyword(char *src, char *dest, const char *keyword, const int ignore
 Log_parser_config_t *read_parse_config(char *log_format, const char delimiter){
 	int num_fields = count_fields(log_format, delimiter);
     if(num_fields <= 0) return NULL;
-    Log_parser_config_t *parser_config = mallocz(sizeof(Log_parser_config_t));
+    Log_parser_config_t *parser_config = callocz(1, sizeof(Log_parser_config_t));
     parser_config->num_fields = num_fields;
     parser_config->delimiter = delimiter;
     
     char **parsed_format = parse_csv(log_format, delimiter, num_fields); // parsed_format is NULL-terminated
-    parser_config->fields = calloc(num_fields, sizeof(log_line_field_t));
+    parser_config->fields = callocz(num_fields, sizeof(log_line_field_t));
     unsigned int fields_off = 0;
 
     for(int i = 0; i < num_fields; i++ ){
@@ -456,4 +456,19 @@ Log_parser_config_t *read_parse_config(char *log_format, const char delimiter){
 
     freez(log_format);
     for(int i = 0; parsed_format[i] != NULL; i++) freez(parsed_format[i]);
+    return parser_config;
+}
+
+Log_parser_metrics_t parse_text_buf(char *text, size_t text_size){
+    Log_parser_metrics_t metrics = {0};
+    if(!text_size || !text || !*text) return metrics;
+
+    char *pch = text;
+    while(pch = strchr(pch, '\n')){
+        pch++;
+        metrics.num_lines++;
+    }
+
+    fprintf(stderr, "NDLGS Total numLines: %lld\n", metrics.num_lines);
+    return metrics;
 }

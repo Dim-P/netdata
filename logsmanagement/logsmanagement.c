@@ -27,6 +27,7 @@
 #if LOGS_MANAGEMENT_STRESS_TEST
 #include "query_test.h"
 #endif  // LOGS_MANAGEMENT_STRESS_TEST
+#include "parser.h"
 
 static struct config log_management_config = {
     .first_section = NULL,
@@ -41,7 +42,7 @@ static struct config log_management_config = {
     }
 };
 
-struct File_infos_arr *p_file_infos_arr;
+struct File_infos_arr *p_file_infos_arr = NULL;
 static uv_thread_t fs_events_reenable_thread_id;
 static uv_loop_t *main_loop; 
 
@@ -537,14 +538,10 @@ static struct File_info *monitor_log_file_init(const char *filename) {
                 "Initialising file monitoring: %s\n",
                 filename);
 
-    struct File_info *p_file_info = mallocz(sizeof(struct File_info));
+    struct File_info *p_file_info = callocz(1, sizeof(struct File_info));
 
     p_file_info->filename = filename;            // NOTE: file_basename uses strdup which uses mallocz. freez() if necessary!
     p_file_info->file_basename = get_basename(filename);  // buff pointer must be NULL before first reallocz call
-    p_file_info->buff = NULL;
-    p_file_info->buff_size = p_file_info->buff_size_max = 0;
-    p_file_info->access_lock = 0;
-    p_file_info->force_file_changed_cb = 0;
 
     if ((rc = file_open(p_file_info)) < 0) {
         freez(p_file_info);
@@ -645,6 +642,14 @@ static void config_init(){
                     const char delimiter = ' '; // TODO!!: TO READ FROM CONFIG
                     if(log_format){
                         p_file_info->parser_config = read_parse_config(log_format, delimiter);
+                        if(p_file_info) fprintf(stderr, "NDLGS Read parser_config for %s\n", p_file_info->filename);
+                        if(p_file_info->parser_config){ 
+                            p_file_info->parser_metrics = callocz(1, sizeof(Log_parser_metrics_t));
+                            p_file_info->parser_mut = mallocz(sizeof(uv_mutex_t));
+                            rc = uv_mutex_init(p_file_info->parser_mut);
+                            if(rc) fatal("Failed to initialise parser_mut for %s\n", p_file_info->filename);
+                            fprintf(stderr, "NDLGS parser_mut initialised for %s\n", p_file_info->filename);
+                        }
                     }
                 }
             }

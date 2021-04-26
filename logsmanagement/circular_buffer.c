@@ -9,6 +9,7 @@
 #include "circular_buffer.h"
 #include "compression.h"
 #include "helper.h"
+#include "parser.h"
 
 static uv_loop_t *circ_buff_loop = NULL;
 
@@ -25,7 +26,8 @@ static void msg_parser_cleanup(uv_work_t *req, int status){
  * future, additional processing (such as parsing and/or streaming) will be performed.
  */
 static void msg_parser(uv_work_t *req){
-    Circ_buff_t *buff = (Circ_buff_t *) req->data;
+    struct File_info *p_file_info = (struct File_info *) req->data;
+    Circ_buff_t *buff = p_file_info->msg_buff;
 
     uv_mutex_lock(&buff->mut);
     m_assert(buff->parsed_index != buff->head_index, 
@@ -35,6 +37,12 @@ static void msg_parser(uv_work_t *req){
      * (albeit unlikely) could be changing parsed_index at the same time as this thread */
     Message_t *buff_msg_current = &buff->msgs[(buff->parsed_index) & BUFF_SIZE_MASK];  
     uv_mutex_unlock(&buff->mut);
+
+    Log_parser_metrics_t parser_metrics = parse_text_buf(buff_msg_current->text, buff_msg_current->text_size);
+    if(parser_metrics.num_lines == 0) fatal("Parsed buffer did not contain any text or was of 0 size.");
+    uv_mutex_lock(p_file_info->parser_mut);
+    p_file_info->parser_metrics->num_lines = parser_metrics.num_lines;
+    uv_mutex_unlock(p_file_info->parser_mut);
 
     compress_text(buff_msg_current);
 #if VALIDATE_COMPRESSION
@@ -110,7 +118,7 @@ void circ_buff_write(struct File_info *p_file_info) {
 
     // TODO: Can we get rid of malloc here?
     uv_work_t *req = mallocz(sizeof(uv_work_t));
-    req->data = (void *) buff; 
+    req->data = (void *) p_file_info; 
     uv_queue_work(circ_buff_loop, req, msg_parser, msg_parser_cleanup);
 
     end_time = get_unix_time_ms();
@@ -177,7 +185,7 @@ void circ_buff_search(Circ_buff_t *buff, logs_query_params_t *p_query_params, si
 
             if(p_query_params->results_buff->len >= max_query_page_size){
                 p_query_params->end_timestamp = buff->msgs[i].timestamp;
-                // p_p_query_params->results_buff->len++; // In this case keep NUL char
+                // p_query_params->results_buff->len++; // In this case keep NUL char
                 break;
             }
         }

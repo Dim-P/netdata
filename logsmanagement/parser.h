@@ -65,7 +65,22 @@ typedef struct log_parser_config{
     char delimiter;       /**< Delimiter that separates the fields in the log format. */
 } Log_parser_config_t;
 
+struct log_parser_metrics_req_method{
+	int acl, baseline_control, bind, checkin, checkout, connect, copy, delet, get,
+	head, label, link, lock, merge, mkactivity, mkcalendar, mkcol, mkredirectref,
+	mkworkspace, move, options, orderpatch, patch, post, pri, propfind, proppatch,
+	put, rebind, report, search, trace, unbind, uncheckout, unlink, unlock, update,
+	updateredirectref;
+};
+
+// IMPORTANT! Ensure no pointer are contained inside log_parser_metrics as there are shallow copy operations used on this struct.
+typedef struct log_parser_metrics{
+    unsigned long long num_lines; /**< Number of total lines parsed in log source file. */
+    struct log_parser_metrics_req_method req_method; 
+} Log_parser_metrics_t;
+
 void search_keyword(char *src, char *dest, const char *keyword, const int ignore_case);
 Log_parser_config_t *read_parse_config(char *log_format, const char delimiter);
+Log_parser_metrics_t parse_text_buf(char *text, size_t text_size);
 
 #endif  // PARSER_H_

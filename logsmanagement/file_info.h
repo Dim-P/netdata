@@ -37,6 +37,8 @@ struct File_info {
     char *signature;                               /**< Signature using #signature_size bytes from the beginning of the log to uniquely identify a log file */
     size_t signature_size;                         /**< Size of #signature. */
     Log_parser_config_t *parser_config;            /**< Configuration to be user by log parser - read from XX.conf */ 
+    Log_parser_metrics_t *parser_metrics;
+    uv_mutex_t *parser_mut;
 };
 
 struct File_infos_arr {
