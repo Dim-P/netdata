@@ -1,5 +1,10 @@
 #!/bin/bash
-read -p "Enter number of log sources to generate: " number_log_sources
+if [ $# -eq 0 ]
+then
+	num_log_sources=1
+else
+	num_log_sources=$1
+fi
 
 echo "=========================================="
 echo "Killing existing netdata instances and stress tests..."
@@ -30,7 +35,7 @@ cd logsmanagement/stress_test
 sudo cp log_management.conf /tmp/netdata/etc/netdata
 
 sudo -u netdata -g netdata mkdir /tmp/netdata_log_management_stress_test_data
-#for (( i = 0; i < $number_log_sources; i++ )) 
+#for (( i = 0; i < $num_log_sources; i++ )) 
 #do
 #	sudo -u netdata -g netdata echo -e "First line dummy data!!\n" > /tmp/netdata_log_management_stress_test_data/"$i".log
 #done
@@ -40,7 +45,7 @@ echo "Building and executing stress_test..."
 echo "=========================================="
 
 gcc stress_test.c -luv -o stress_test 
-sudo -u netdata -g netdata ./stress_test "$number_log_sources" &
+sudo -u netdata -g netdata ./stress_test "$num_log_sources" &
 sleep 2
 #sudo systemctl start netdata
 sudo -u netdata -g netdata -s gdb -ex=run --args /tmp/netdata/usr/sbin/netdata -D

@@ -18,7 +18,7 @@
 #include "stress_test.h"
 
 #define SIMULATED_LOGS_DIR "/tmp/netdata_log_management_stress_test_data"
-#define MSGS_TO_PRODUCE 200000U /**< Messages to be produced per log source **/
+#define MSGS_TO_PRODUCE 20000U /**< Messages to be produced per log source **/
 #define QUERIES_DELAY 1 /**< Delay before executing queries once log producer threads have finished. Must be > LOG_FILE_READ_INTERVAL to ensure netdata-logs had chance to read in all produced logs. **/
 #define DELAY_OPEN_TO_WRITE_SEC 6U /**< Give Netdata some time to startup and register a listener to the log source **/
 #define DELAY_BETWEEN_MSG_WRITE 1U /**< Sleep delay (in us) in between consequent messages writes to a file **/
@@ -274,7 +274,7 @@ int main(int argc, const char *argv[]) {
     // Start threads that produce log messages
     char *ptr;
     log_files_no = (int) strtol(argv[1], &ptr, 10);
-    fprintf(stdout, "Number of log files to simulate: %d", log_files_no);
+    fprintf(stdout, "Number of log files to simulate: %d\n", log_files_no);
     //scanf("%d", &log_files_no);
     uv_thread_t *log_producer_threads = malloc(log_files_no * sizeof(uv_thread_t));
     int *log_producer_thread_no = malloc(log_files_no * sizeof(int));
