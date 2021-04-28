@@ -18,10 +18,10 @@
 #include "stress_test.h"
 
 #define SIMULATED_LOGS_DIR "/tmp/netdata_log_management_stress_test_data"
-#define MSGS_TO_PRODUCE 20000U /**< Messages to be produced per log source **/
+#define MSGS_TO_PRODUCE 100000U /**< Messages to be produced per log source **/
 #define QUERIES_DELAY 1 /**< Delay before executing queries once log producer threads have finished. Must be > LOG_FILE_READ_INTERVAL to ensure netdata-logs had chance to read in all produced logs. **/
 #define DELAY_OPEN_TO_WRITE_SEC 6U /**< Give Netdata some time to startup and register a listener to the log source **/
-#define DELAY_BETWEEN_MSG_WRITE 1U /**< Sleep delay (in us) in between consequent messages writes to a file **/
+#define DELAY_BETWEEN_MSG_WRITE 10U /**< Sleep delay (in us) in between consequent messages writes to a file **/
 
 #ifdef _WIN32
 # define PIPENAME "\\\\?\\pipe\\netdata-logs-stress-test"
@@ -96,6 +96,11 @@ static const char *log_msgs_arr[] = {
     "5000 GET 202", /* common log format */
     "5000 POST 303", /* common log format */
     "5000 OPTIONS 404", /* common log format */
+    "5000 PATCH 404", /* common log format */
+    "5000 PUT 1027", /* common log format */
+    "5000 PUT 403", /* common log format */
+    "5000 UNBIND 304", /* common log format */
+    "5000 WRONGMETHOD 504", /* common log format */
     "",
 };
 

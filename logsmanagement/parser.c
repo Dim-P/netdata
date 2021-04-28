@@ -932,7 +932,6 @@ static inline void extract_metrics(Log_line_parsed_t *line_parsed, Log_parser_me
     if(!strcmp(line_parsed->req_method, "UPDATEREDIRECTREF")) metrics->req_method.updateredirectref++;
 
     /* Extract response code family */
-    fprintf(stderr, "HERE!%d\n", line_parsed->resp_code);
     switch(line_parsed->resp_code / 100){
         case 1:
             metrics->resp_code_family.resp_1xx++;
