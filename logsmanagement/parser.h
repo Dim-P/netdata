@@ -65,18 +65,22 @@ typedef struct log_parser_config{
     char delimiter;       /**< Delimiter that separates the fields in the log format. */
 } Log_parser_config_t;
 
-struct log_parser_metrics_req_method{
-	int acl, baseline_control, bind, checkin, checkout, connect, copy, delet, get,
-	head, label, link, lock, merge, mkactivity, mkcalendar, mkcol, mkredirectref,
-	mkworkspace, move, options, orderpatch, patch, post, pri, propfind, proppatch,
-	put, rebind, report, search, trace, unbind, uncheckout, unlink, unlock, update,
-	updateredirectref;
-};
-
 // IMPORTANT! Ensure no pointer are contained inside log_parser_metrics as there are shallow copy operations used on this struct.
 typedef struct log_parser_metrics{
     unsigned long long num_lines; /**< Number of total lines parsed in log source file. */
-    struct log_parser_metrics_req_method req_method; 
+    struct log_parser_metrics_req_method{
+		int acl, baseline_control, bind, checkin, checkout, connect, copy, delet, get,
+		head, label, link, lock, merge, mkactivity, mkcalendar, mkcol, mkredirectref,
+		mkworkspace, move, options, orderpatch, patch, post, pri, propfind, proppatch,
+		put, rebind, report, search, trace, unbind, uncheckout, unlink, unlock, update,
+		updateredirectref;
+	} req_method; 
+	struct log_parser_metrics_resp_code_type{
+		int resp_success, resp_redirect, resp_bad, resp_error, other; // TODO: Can there be "other"?
+	} resp_code_type; 
+	struct log_parser_metrics_resp_code_family{
+		int resp_1xx, resp_2xx, resp_3xx, resp_4xx, resp_5xx, other; // TODO: Can there be "other"?
+	} resp_code_family; 
 } Log_parser_metrics_t;
 
 void search_keyword(char *src, char *dest, const char *keyword, const int ignore_case);

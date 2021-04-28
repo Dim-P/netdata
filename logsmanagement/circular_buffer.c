@@ -43,9 +43,7 @@ static void msg_parser(uv_work_t *req){
         p_file_info->parser_config->fields, p_file_info->parser_config->num_fields, p_file_info->parser_config->delimiter, 1);
     if(parser_metrics.num_lines == 0) fatal("Parsed buffer did not contain any text or was of 0 size.");
     uv_mutex_lock(p_file_info->parser_mut);
-    p_file_info->parser_metrics->num_lines = parser_metrics.num_lines;
-    p_file_info->parser_metrics->req_method.get = parser_metrics.req_method.get;
-    p_file_info->parser_metrics->req_method.post = parser_metrics.req_method.post;
+    *p_file_info->parser_metrics = parser_metrics;
     uv_mutex_unlock(p_file_info->parser_mut);
 
     compress_text(buff_msg_current);
