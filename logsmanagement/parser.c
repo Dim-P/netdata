@@ -482,25 +482,36 @@ Log_parser_config_t *read_parse_config(char *log_format, const char delimiter){
     return parser_config;
 }
 
+#define DISABLE_PARSE_LOG_LINE_FPRINTS 0
 static Log_line_parsed_t *parse_log_line(log_line_field_t *fields_format, const int num_fields_format, const char *line, const char delimiter, const int verify){
     Log_line_parsed_t *log_line_parsed = callocz(1, sizeof(Log_line_parsed_t));
+#if DISABLE_PARSE_LOG_LINE_FPRINTS
     fprintf(stderr, "Original line: %s\n", line);
+#endif
     int num_fields = count_fields(line, delimiter);
     char **parsed = parse_csv(line, delimiter, num_fields);
+#if DISABLE_PARSE_LOG_LINE_FPRINTS
     fprintf(stderr, "Number of items: %d\n", num_fields);
+#endif
     // int parsed_offset = 0;
     for(int i = 0; i < num_fields_format; i++ ){
+        #if DISABLE_PARSE_LOG_LINE_FPRINTS
         fprintf(stderr, "===\nField %d:%s\n", i, parsed[i]);
+        #endif
 
         if(fields_format[i] == VHOST_WITH_PORT && strcmp(parsed[i], "-")){
+            #if DISABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Item %d (type: VHOST_WITH_PORT):%s\n", i, parsed[i]);
+            #endif
             char *sep = strrchr(parsed[i], ':');
             if(sep) *sep = '\0';
             else parsed[i][0] = '\0';
         }
 
         if((fields_format[i] == VHOST_WITH_PORT || fields_format[i] == VHOST) && strcmp(parsed[i], "-")){
+            #if DISABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Item %d (type: VHOST):%s\n", i, parsed[i]);
+            #endif
             // nginx $host and $http_host return ipv6 in [], apache doesn't
             // TODO: TEST! This case hasn't been tested!
             char *pch = strchr(parsed[i], ']');
@@ -516,14 +527,18 @@ static Log_line_parsed_t *parse_log_line(log_line_field_t *fields_format, const 
                 else assert(0); 
             }
             else log_line_parsed->vhost = strdup(parsed[i]);
+            #if DISABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Extracted VHOST:%s\n", log_line_parsed->vhost);
+            #endif
         }
 
         if((fields_format[i] == VHOST_WITH_PORT || fields_format[i] == PORT) && strcmp(parsed[i], "-")){
             char *port;
             if(fields_format[i] == VHOST_WITH_PORT) port = &parsed[i][strlen(parsed[i]) + 1];
             else port = parsed[i];
+            #if DISABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Item %d (type: PORT):%s\n", i, port);
+            #endif
             if(str2int(&log_line_parsed->port, port, 10) == STR2XX_SUCCESS){
                 if(verify){
                     if(log_line_parsed->port < 80 || log_line_parsed->port > 49151){
@@ -533,11 +548,15 @@ static Log_line_parsed_t *parse_log_line(log_line_field_t *fields_format, const 
                 }
             }
             else fprintf(stderr, "Error while extracting PORT from string\n");
+            #if DISABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Extracted PORT:%d\n", log_line_parsed->port);
+            #endif
         }
 
         if(fields_format[i] == REQ_SCHEME && strcmp(parsed[i], "-")){
+            #if DISABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Item %d (type: REQ_SCHEME):%s\n", i, parsed[i]);
+            #endif
             snprintf(log_line_parsed->req_scheme, REQ_SCHEME_MAX_LEN, "%s", parsed[i]); 
             if(verify){
                 if(strlen(parsed[i]) >= REQ_SCHEME_MAX_LEN || 
@@ -547,11 +566,15 @@ static Log_line_parsed_t *parse_log_line(log_line_field_t *fields_format, const 
                     log_line_parsed->req_scheme[0] = '\0';
                 }
             }
+            #if DISABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Extracted REQ_SCHEME:%s\n", log_line_parsed->req_scheme);
+            #endif
         }
 
         if(fields_format[i] == REQ_CLIENT && strcmp(parsed[i], "-")){
+            #if DISABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Item %d (type: REQ_CLIENT):%s\n", i, parsed[i]);
+            #endif
             if(verify){
                 int rc = regexec(&req_client_regex, parsed[i], 0, NULL, 0);
                 if(!rc) log_line_parsed->req_client = strdup(parsed[i]);
@@ -559,12 +582,16 @@ static Log_line_parsed_t *parse_log_line(log_line_field_t *fields_format, const 
                 else assert(0); // Can also use: regerror(rc, &req_client_regex, msgbuf, sizeof(msgbuf));
             }
             else log_line_parsed->req_client = strdup(parsed[i]);
+            #if DISABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Extracted REQ_CLIENT:%s\n", log_line_parsed->req_client);
+            #endif
         }
 
         char *req_first_sep, *req_last_sep = NULL;
         if(fields_format[i] == REQ && strcmp(parsed[i], "-")){
+            #if DISABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Item %d (type: REQ):%s\n", i, parsed[i]);
+            #endif
             req_first_sep = strchr(parsed[i], ' ');
             req_last_sep = strrchr(parsed[i], ' ');
             if(!req_first_sep || req_first_sep == req_last_sep) parsed[i][0] = '\0';
@@ -572,7 +599,9 @@ static Log_line_parsed_t *parse_log_line(log_line_field_t *fields_format, const 
         }
 
         if((fields_format[i] == REQ || fields_format[i] == REQ_METHOD) && strcmp(parsed[i], "-")){
+            #if DISABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Item %d (type: REQ_METHOD):%s\n", i, parsed[i]);
+            #endif
             snprintf(log_line_parsed->req_method, REQ_METHOD_MAX_LEN, "%s", parsed[i]); 
             if(verify){
                 if(strlen(parsed[i]) >= REQ_METHOD_MAX_LEN || 
@@ -618,7 +647,9 @@ static Log_line_parsed_t *parse_log_line(log_line_field_t *fields_format, const 
                     log_line_parsed->req_method[0] = '\0';
                 }
             }
+            #if DISABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Extracted REQ_METHOD:%s\n", log_line_parsed->req_method);
+            #endif
         }
 
         if((fields_format[i] == REQ || fields_format[i] == REQ_URL) && strcmp(parsed[i], "-")){
@@ -626,9 +657,11 @@ static Log_line_parsed_t *parse_log_line(log_line_field_t *fields_format, const 
                 log_line_parsed->req_URL = req_first_sep ? strdup(req_first_sep + 1) : NULL;
             }   
             else log_line_parsed->req_URL = strdup(parsed[i]);
+            #if DISABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Item %d (type: REQ_URL):%s\n", i, log_line_parsed->req_URL);   
             //if(verify){} ??
             fprintf(stderr, "Extracted REQ_URL:%s\n", log_line_parsed->req_URL);
+            #endif
         }
 
         if((fields_format[i] == REQ || fields_format[i] == REQ_PROTO) && strcmp(parsed[i], "-")){
@@ -650,14 +683,18 @@ static Log_line_parsed_t *parse_log_line(log_line_field_t *fields_format, const 
                 else snprintf(log_line_parsed->req_proto, REQ_PROTO_MAX_LEN, "%s", &req_proto[5]); 
             }
             else snprintf(log_line_parsed->req_proto, REQ_PROTO_MAX_LEN, "%s", &req_proto[5]); 
+            #if DISABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Item %d (type: REQ_PROTO):%s\n", i, req_proto);
             fprintf(stderr, "Extracted REQ_PROTO:%s\n", log_line_parsed->req_proto);
+            #endif
         }
 
         if(fields_format[i] == REQ_SIZE){
             /* TODO: Differentiate between '-' or 0 and an invalid request size. 
              * right now, all these will set req_size == 0 */
+            #if DISABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Item %d (type: REQ_SIZE):%s\n", i, parsed[i]);
+            #endif
             if(!strcmp(parsed[i], "-")) log_line_parsed->req_size = 0; // Request size can be '-' 
             else if(str2int(&log_line_parsed->req_size, parsed[i], 10) == STR2XX_SUCCESS){
                 if(verify){
@@ -668,11 +705,15 @@ static Log_line_parsed_t *parse_log_line(log_line_field_t *fields_format, const 
                 }
             }
             else fprintf(stderr, "Error while extracting REQ_SIZE from string\n");
+            #if DISABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Extracted REQ_SIZE:%d\n", log_line_parsed->req_size);
+            #endif
         }
 
         if(fields_format[i] == REQ_PROC_TIME && strcmp(parsed[i], "-")){
+            #if DISABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Item %d (type: REQ_PROC_TIME):%s\n", i, parsed[i]);
+            #endif
             if(strchr(parsed[i], '.')){ // nginx time is in seconds with a milliseconds resolution.
                 float f = 0;
                 if(str2float(&f, parsed[i]) == STR2XX_SUCCESS) log_line_parsed->req_proc_time = (int) (f * 1.0E6);
@@ -688,11 +729,15 @@ static Log_line_parsed_t *parse_log_line(log_line_field_t *fields_format, const 
                     fprintf(stderr, "REQ_PROC_TIME is invalid (<0)\n");
                 }
             }
+            #if DISABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Extracted REQ_PROC_TIME:%d\n", log_line_parsed->req_proc_time);
+            #endif
         }
 
         if(fields_format[i] == RESP_CODE && strcmp(parsed[i], "-")){
+            #if DISABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Item %d (type: RESP_CODE):%s\n", i, parsed[i]);
+            #endif
             if(str2int(&log_line_parsed->resp_code, parsed[i], 10) == STR2XX_SUCCESS){  
                 if(verify){
                     // rfc7231
@@ -708,13 +753,17 @@ static Log_line_parsed_t *parse_log_line(log_line_field_t *fields_format, const 
                 }
             }
             else fprintf(stderr, "Error while extracting RESP_CODE from string\n");
+            #if DISABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Extracted RESP_CODE:%d\n", log_line_parsed->resp_code);
+            #endif
         }
 
         if(fields_format[i] == RESP_SIZE){
             /* TODO: Differentiate between '-' or 0 and an invalid request size. 
              * right now, all these will set resp_size == 0 */
+            #if DISABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Item %d (type: RESP_SIZE):%s\n", i, parsed[i]);
+            #endif
             if(!strcmp(parsed[i], "-")) log_line_parsed->resp_size = 0; // Request size can be '-' 
             else if(str2int(&log_line_parsed->resp_size, parsed[i], 10) == STR2XX_SUCCESS){
                 if(verify){
@@ -725,11 +774,15 @@ static Log_line_parsed_t *parse_log_line(log_line_field_t *fields_format, const 
                 }
             }
             else fprintf(stderr, "Error while extracting RESP_SIZE from string\n");
+            #if DISABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Extracted RESP_SIZE:%d\n", log_line_parsed->resp_size);
+            #endif
         }
 
         if(fields_format[i] == UPS_RESP_TIME && strcmp(parsed[i], "-")){
+            #if DISABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Item %d (type: UPS_RESP_TIME):%s\n", i, parsed[i]);
+            #endif
             /* Times of several responses are separated by commas and colons. Following the 
              * Go parser implementation, where only the first one is kept, the others are 
              * discarded. Also, there must be no space in between them. Needs testing... */
@@ -750,11 +803,15 @@ static Log_line_parsed_t *parse_log_line(log_line_field_t *fields_format, const 
                     fprintf(stderr, "UPS_RESP_TIME is invalid (<0)\n");
                 }
             }
+            #if DISABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Extracted UPS_RESP_TIME:%d\n", log_line_parsed->ups_resp_time);
+            #endif
         }
 
         if(fields_format[i] == SSL_PROTO && strcmp(parsed[i], "-")){
+            #if DISABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Item %d (type: SSL_PROTO):%s\n", i, parsed[i]);
+            #endif
             if(verify){
                 if(strcmp(parsed[i], "TLSv1") && 
                      strcmp(parsed[i], "TLSv1.1") &&
@@ -768,11 +825,15 @@ static Log_line_parsed_t *parse_log_line(log_line_field_t *fields_format, const 
                 else snprintf(log_line_parsed->ssl_proto, REQ_PROTO_MAX_LEN, "%s", parsed[i]); 
             }
             else snprintf(log_line_parsed->ssl_proto, REQ_PROTO_MAX_LEN, "%s", parsed[i]); 
+            #if DISABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Extracted SSL_PROTO:%s\n", log_line_parsed->ssl_proto);
+            #endif
         }
 
         if(fields_format[i] == SSL_CIPHER_SUITE && strcmp(parsed[i], "-")){
+            #if DISABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Item %d (type: SSL_CIPHER_SUITE):%s\n", i, parsed[i]);
+            #endif
             if(verify){
                 if(!strchr(parsed[i], '-') && !strchr(parsed[i], '_')){
                     fprintf(stderr, "SSL_CIPHER_SUITE is invalid\n");
@@ -781,11 +842,15 @@ static Log_line_parsed_t *parse_log_line(log_line_field_t *fields_format, const 
                 else snprintf(log_line_parsed->ssl_cipher_suite, SSL_CIPHER_SUITE_MAX_LEN, "%s", parsed[i]); 
             }
             else snprintf(log_line_parsed->ssl_cipher_suite, SSL_CIPHER_SUITE_MAX_LEN, "%s", parsed[i]); 
+            #if DISABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Extracted SSL_CIPHER_SUITE:%s\n", log_line_parsed->ssl_cipher_suite);
+            #endif
         }
 
         if(fields_format[i] == TIME && strcmp(parsed[i], "-")){
+            #if DISABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Items %d + %d (type: TIME - 2 fields):%s %s\n", i, i+1, parsed[i], parsed[i+1]);
+            #endif
             char *pch = strchr(parsed[i], '[');
             if(pch) memmove(parsed[i], parsed[i]+1, strlen(parsed[i])); //%d/%b/%Y:%H:%M:%S %z
 
@@ -801,10 +866,14 @@ static Log_line_parsed_t *parse_log_line(log_line_field_t *fields_format, const 
             int timezone = strtol(parsed[i], NULL, 10);
             int timezone_h = timezone / 100;
             int timezone_m = timezone % 100;
+            #if DISABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Timezone: int:%d, hrs:%d, mins:%d\n", timezone, timezone_h, timezone_m);
+            #endif
 
             log_line_parsed->timestamp = mktime(&ltm) + timezone_h * 3600 + timezone_m * 60;
+            #if DISABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Extracted TIME:%lu\n", log_line_parsed->timestamp);
+            #endif
 
             //if(verify){} ??
         }

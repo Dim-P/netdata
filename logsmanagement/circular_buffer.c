@@ -50,10 +50,11 @@ static void msg_parser(uv_work_t *req){
 
     compress_text(buff_msg_current);
 #if VALIDATE_COMPRESSION
-    Message_t *temp_msg = mallocz(sizeof(Message_t));
+    Message_t *temp_msg = callocz(1, sizeof(Message_t));
     temp_msg->text_compressed_size = buff_msg_current->text_compressed_size;
-    temp_msg->text_compressed = mallocz(temp_msg->text_compressed_size);
+    temp_msg->text_compressed = callocz(1, temp_msg->text_compressed_size);
     memcpy(temp_msg->text_compressed, buff_msg_current->text_compressed, buff_msg_current->text_compressed_size);
+    temp_msg->text_size = buff_msg_current->text_size;
     decompress_text(temp_msg, NULL);
     int cmp_res = memcmp(buff_msg_current->text, temp_msg->text, buff_msg_current->text_size);
     m_assert(!cmp_res, "Decompressed text != compressed text!");

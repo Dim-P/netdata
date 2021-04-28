@@ -2,8 +2,9 @@
 read -p "Enter number of log sources to generate: " number_log_sources
 
 echo "=========================================="
-echo "Killing existing netdata instances..."
+echo "Killing existing netdata instances and stress tests..."
 sudo systemctl stop netdata
+sudo killall stress_test
 
 echo "=========================================="
 echo "Removing existing simulated netdata logs-management files..."
@@ -22,7 +23,7 @@ cd ../../..
 yes | sudo ./netdata-uninstaller.sh --yes --env /tmp/netdata/etc/netdata/.environment
 sudo rm -rf /tmp/netdata/etc/netdata # Remove /etc/netdata if it persists for some reason
 cd netdata
-sudo CFLAGS="-O1 -ggdb -DNETDATA_INTERNAL_CHECKS=1 -DDEBUG_LEV=2 -DLOGS_MANAGEMENT_STRESS_TEST=1" ./netdata-installer.sh --dont-start-it --disable-cloud --disable-ebpf --disable-go --enable-logsmanagement --install /tmp
+sudo CFLAGS="-O1 -ggdb -DNETDATA_INTERNAL_CHECKS=1 -DDEBUG_LEV=2 -DLOGS_MANAGEMENT_STRESS_TEST=1" ./netdata-installer.sh --dont-start-it --disable-cloud --disable-ebpf --disable-go --disable-lto --enable-logsmanagement --install /tmp
 # make && sudo make install
 
 cd logsmanagement/stress_test

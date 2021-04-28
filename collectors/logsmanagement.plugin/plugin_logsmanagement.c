@@ -78,11 +78,19 @@ void *logsmanagement_plugin_main(void *ptr){
     rrddim_set_by_pointer(st_req_methods, req_method_post_per_sec, req_method_post);
     rrdset_done(st_req_methods);
 
+    usec_t step = localhost->rrd_update_every * USEC_PER_SEC;
+    heartbeat_t hb;
+    heartbeat_init(&hb);
+
 	while(!netdata_exit){
+
+        usec_t hb_dt = heartbeat_next(&hb, step);
+
+        if(unlikely(netdata_exit)) break;
 
 		uv_mutex_lock(p_file_info->parser_mut);
 
-        num_lines = p_file_info->parser_metrics->num_lines;
+        num_lines += p_file_info->parser_metrics->num_lines;
         p_file_info->parser_metrics->num_lines = 0;
         req_method_get = p_file_info->parser_metrics->req_method.get;
         p_file_info->parser_metrics->req_method.get = 0;
@@ -104,7 +112,7 @@ void *logsmanagement_plugin_main(void *ptr){
         rrdset_done(st_req_methods);
 
 
-		sleep_usec(1000000);
+		//sleep_usec(1000000);
 	}
 
     netdata_thread_cleanup_pop(1);

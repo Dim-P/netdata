@@ -1,4 +1,5 @@
 #!/bin/bash
+sudo killall stress_test
 sudo killall netdata
 sudo rm -f /tmp/netdata/var/log/netdata/error.log
 sudo rm -rf /tmp/netdata/var/cache/netdata/logs_management_db 
