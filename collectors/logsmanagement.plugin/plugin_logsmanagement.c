@@ -29,10 +29,15 @@ struct Chart_data{
     num_req_method_rebind, num_req_method_report, num_req_method_search, num_req_method_trace, num_req_method_unbind, num_req_method_uncheckout,
     num_req_method_unlink, num_req_method_unlock, num_req_method_update, num_req_method_updateredirectref;
 
-    /* Request methods */
+    /* Response code family */
     RRDSET *st_resp_code_family;
     RRDDIM *dim_resp_code_1xx, *dim_resp_code_2xx, *dim_resp_code_3xx, *dim_resp_code_4xx, *dim_resp_code_5xx, *dim_resp_code_other;
     collected_number num_resp_code_1xx, num_resp_code_2xx, num_resp_code_3xx, num_resp_code_4xx, num_resp_code_5xx, num_resp_code_other;
+
+    /* Response code */
+    RRDSET *st_resp_code;
+    RRDDIM *dim_resp_code[501];
+    collected_number num_resp_code[501];
 };
 
 static struct Chart_data **chart_data_arr;
@@ -159,6 +164,27 @@ void *logsmanagement_plugin_main(void *ptr){
         chart_data_arr[i]->dim_resp_code_5xx = rrddim_add(chart_data_arr[i]->st_resp_code_family, "5xx", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE); 
         chart_data_arr[i]->dim_resp_code_other = rrddim_add(chart_data_arr[i]->st_resp_code_family, "other", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);        
 
+        /* Response code - initialise */
+        chart_data_arr[i]->st_resp_code = rrdset_create_localhost(
+                chart_data_arr[i]->rrd_type
+                , "detailed responses"
+                , NULL
+                , "detailed responses"
+                , NULL
+                , "Detailed Response Codes"
+                , "requests/s"
+                , "logsmanagement.plugin"
+                , NULL
+                , 132200
+                , localhost->rrd_update_every
+                , RRDSET_TYPE_AREA
+        );
+        for(int j = 0; j < 500; j++){
+            char dim_resp_code_name[4];
+            sprintf(dim_resp_code_name, "%d", j + 100);
+            chart_data_arr[i]->dim_resp_code[j] = rrddim_add(chart_data_arr[i]->st_resp_code, dim_resp_code_name, NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
+        }
+        chart_data_arr[i]->dim_resp_code[500] = rrddim_add(chart_data_arr[i]->st_resp_code, "other", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
 
         uv_mutex_lock(p_file_info->parser_mut);
 
@@ -258,6 +284,12 @@ void *logsmanagement_plugin_main(void *ptr){
         p_file_info->parser_metrics->resp_code_family.resp_5xx = 0;
         chart_data_arr[i]->num_resp_code_other = p_file_info->parser_metrics->resp_code_family.other;
         p_file_info->parser_metrics->resp_code_family.other = 0;
+
+        /* Response code - collect first time */
+        for(int j = 0; j < 501; j++){
+            chart_data_arr[i]->num_resp_code[j] = p_file_info->parser_metrics->resp_code[j];
+            p_file_info->parser_metrics->resp_code[j] = 0;
+        }
         
         uv_mutex_unlock(p_file_info->parser_mut);
 
@@ -316,6 +348,10 @@ void *logsmanagement_plugin_main(void *ptr){
         rrddim_set_by_pointer(chart_data_arr[i]->st_resp_code_family, chart_data_arr[i]->dim_resp_code_5xx, chart_data_arr[i]->num_resp_code_5xx);
         rrddim_set_by_pointer(chart_data_arr[i]->st_resp_code_family, chart_data_arr[i]->dim_resp_code_other, chart_data_arr[i]->num_resp_code_other);
         rrdset_done(chart_data_arr[i]->st_resp_code_family);
+
+        /* Response code - update chart first time */
+        for(int j = 0; j < 501; j++) rrddim_set_by_pointer(chart_data_arr[i]->st_resp_code, chart_data_arr[i]->dim_resp_code[j], chart_data_arr[i]->num_resp_code[j]);
+        rrdset_done(chart_data_arr[i]->st_resp_code);
         
     }
 
@@ -430,6 +466,12 @@ void *logsmanagement_plugin_main(void *ptr){
             p_file_info->parser_metrics->resp_code_family.resp_5xx = 0;
             chart_data_arr[i]->num_resp_code_other = p_file_info->parser_metrics->resp_code_family.other;
             p_file_info->parser_metrics->resp_code_family.other = 0;
+
+            /* Response code - collect */
+            for(int j = 0; j < 501; j++){
+                chart_data_arr[i]->num_resp_code[j] = p_file_info->parser_metrics->resp_code[j];
+                p_file_info->parser_metrics->resp_code[j] = 0;
+            }
             
             uv_mutex_unlock(p_file_info->parser_mut);
 
@@ -491,6 +533,11 @@ void *logsmanagement_plugin_main(void *ptr){
             rrddim_set_by_pointer(chart_data_arr[i]->st_resp_code_family, chart_data_arr[i]->dim_resp_code_5xx, chart_data_arr[i]->num_resp_code_5xx);
             rrddim_set_by_pointer(chart_data_arr[i]->st_resp_code_family, chart_data_arr[i]->dim_resp_code_other, chart_data_arr[i]->num_resp_code_other);
             rrdset_done(chart_data_arr[i]->st_resp_code_family);
+
+            /* Response code - update chart first time */
+            rrdset_next(chart_data_arr[i]->st_resp_code);
+            for(int j = 0; j < 501; j++) rrddim_set_by_pointer(chart_data_arr[i]->st_resp_code, chart_data_arr[i]->dim_resp_code[j], chart_data_arr[i]->num_resp_code[j]);
+            rrdset_done(chart_data_arr[i]->st_resp_code);
             
         }
 	}

@@ -95,6 +95,8 @@ static void msg_parser(uv_work_t *req){
     p_file_info->parser_metrics->resp_code_family.resp_5xx += parser_metrics.resp_code_family.resp_5xx;
     p_file_info->parser_metrics->resp_code_family.other += parser_metrics.resp_code_family.other;
 
+    for(int i = 0; i < 501; i++) p_file_info->parser_metrics->resp_code[i] += parser_metrics.resp_code[i];
+
     uv_mutex_unlock(p_file_info->parser_mut);
 
     compress_text(buff_msg_current);

@@ -81,6 +81,7 @@ typedef struct log_parser_metrics{
 	struct log_parser_metrics_resp_code_family{
 		int resp_1xx, resp_2xx, resp_3xx, resp_4xx, resp_5xx, other; // TODO: Can there be "other"?
 	} resp_code_family; 
+	unsigned int resp_code[501]; /**< Array counting occurences of response codes. Each item represents the respective response code by adding 100 to its index, e.g. resp_code[102] counts how many 202 codes were detected. 501st item represents "other" */  
 } Log_parser_metrics_t;
 
 void search_keyword(char *src, char *dest, const char *keyword, const int ignore_case);

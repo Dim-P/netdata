@@ -645,7 +645,9 @@ static Log_line_parsed_t *parse_log_line(log_line_field_t *fields_format, const 
                      strcmp(log_line_parsed->req_method, "UNLOCK") && 
                      strcmp(log_line_parsed->req_method, "UPDATE") && 
                      strcmp(log_line_parsed->req_method, "UPDATEREDIRECTREF"))){
+                    #if ENABLE_PARSE_LOG_LINE_FPRINTS
                     fprintf(stderr, "REQ_METHOD is invalid\n");
+                    #endif
                     log_line_parsed->req_method[0] = '\0';
                 }
             }
@@ -750,7 +752,9 @@ static Log_line_parsed_t *parse_log_line(log_line_field_t *fields_format, const 
                     // Server errors (500–599).
                     if(log_line_parsed->resp_code < 100 || log_line_parsed->resp_code > 599){
                         log_line_parsed->resp_code = 0;
+                        #if ENABLE_PARSE_LOG_LINE_FPRINTS
                         fprintf(stderr, "RESP_CODE is invalid (<100 or >600)\n");
+                        #endif
                     }
                 }
             }
@@ -931,25 +935,32 @@ static inline void extract_metrics(Log_line_parsed_t *line_parsed, Log_parser_me
     if(!strcmp(line_parsed->req_method, "UPDATE")) metrics->req_method.update++;
     if(!strcmp(line_parsed->req_method, "UPDATEREDIRECTREF")) metrics->req_method.updateredirectref++;
 
-    /* Extract response code family */
+    /* Extract response code & response code family */
     switch(line_parsed->resp_code / 100){
         case 1:
             metrics->resp_code_family.resp_1xx++;
+            metrics->resp_code[line_parsed->resp_code - 100]++;
             break;
         case 2:
             metrics->resp_code_family.resp_2xx++;
+            metrics->resp_code[line_parsed->resp_code - 100]++;
             break;
         case 3:
             metrics->resp_code_family.resp_3xx++;
+            metrics->resp_code[line_parsed->resp_code - 100]++;
             break;
         case 4:
             metrics->resp_code_family.resp_4xx++;
+            metrics->resp_code[line_parsed->resp_code - 100]++;
             break;
         case 5:
             metrics->resp_code_family.resp_5xx++;
+            metrics->resp_code[line_parsed->resp_code - 100]++;
             break;
         default:
             metrics->resp_code_family.other++;
+            metrics->resp_code[500]++;
+            break;
     }
     
     metrics->num_lines++;
