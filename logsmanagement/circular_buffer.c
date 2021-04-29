@@ -24,18 +24,17 @@ static void msg_parser_cleanup(uv_work_t *req, int status){
  * @brief Performs all the processing required for a raw log message
  * @details For the time being, this function compresses a raw log message. In the
  * future, additional processing (such as parsing and/or streaming) will be performed.
+ * @todo Metrics addition part needs refactoring.
  */
 static void msg_parser(uv_work_t *req){
     struct File_info *p_file_info = (struct File_info *) req->data;
     Circ_buff_t *buff = p_file_info->msg_buff;
 
     uv_mutex_lock(&buff->mut);
-    m_assert(buff->parsed_index != buff->head_index, 
-        "More msg_parser() called than Message_t items in buff that need parsing");
-
+    m_assert(buff->parse_next_index != buff->head_index, "More msg_parser() called than Message_t items in buff that need parsing");
     /* This needs to be within mut lock as another msg_parser() in different thread 
      * (albeit unlikely) could be changing parsed_index at the same time as this thread */
-    Message_t *buff_msg_current = &buff->msgs[(buff->parsed_index) & BUFF_SIZE_MASK];  
+    Message_t *buff_msg_current = &buff->msgs[(buff->parse_next_index++) & BUFF_SIZE_MASK];  
     uv_mutex_unlock(&buff->mut);
 
     // TODO: verify bool should be set through log source configuration.
@@ -43,7 +42,59 @@ static void msg_parser(uv_work_t *req){
         p_file_info->parser_config->fields, p_file_info->parser_config->num_fields, p_file_info->parser_config->delimiter, 1);
     if(parser_metrics.num_lines == 0) fatal("Parsed buffer did not contain any text or was of 0 size.");
     uv_mutex_lock(p_file_info->parser_mut);
-    *p_file_info->parser_metrics = parser_metrics;
+    // This part needs refactoring
+    p_file_info->parser_metrics->num_lines += parser_metrics.num_lines;
+
+    p_file_info->parser_metrics->req_method.acl += parser_metrics.req_method.acl;
+    p_file_info->parser_metrics->req_method.baseline_control += parser_metrics.req_method.baseline_control;
+    p_file_info->parser_metrics->req_method.bind += parser_metrics.req_method.bind;
+    p_file_info->parser_metrics->req_method.checkin += parser_metrics.req_method.checkin;
+    p_file_info->parser_metrics->req_method.checkout += parser_metrics.req_method.checkout;
+    p_file_info->parser_metrics->req_method.connect += parser_metrics.req_method.copy;
+    p_file_info->parser_metrics->req_method.delet += parser_metrics.req_method.get;
+    p_file_info->parser_metrics->req_method.head += parser_metrics.req_method.head;
+    p_file_info->parser_metrics->req_method.label += parser_metrics.req_method.label;
+    p_file_info->parser_metrics->req_method.link += parser_metrics.req_method.link;
+    p_file_info->parser_metrics->req_method.lock += parser_metrics.req_method.lock;
+    p_file_info->parser_metrics->req_method.merge += parser_metrics.req_method.merge;
+    p_file_info->parser_metrics->req_method.mkactivity += parser_metrics.req_method.mkactivity;
+    p_file_info->parser_metrics->req_method.mkcalendar += parser_metrics.req_method.mkcalendar;
+    p_file_info->parser_metrics->req_method.mkcol += parser_metrics.req_method.mkcol;
+    p_file_info->parser_metrics->req_method.mkredirectref += parser_metrics.req_method.mkredirectref;
+    p_file_info->parser_metrics->req_method.mkworkspace += parser_metrics.req_method.mkworkspace;
+    p_file_info->parser_metrics->req_method.move += parser_metrics.req_method.move;
+    p_file_info->parser_metrics->req_method.options += parser_metrics.req_method.options;
+    p_file_info->parser_metrics->req_method.orderpatch += parser_metrics.req_method.orderpatch;
+    p_file_info->parser_metrics->req_method.patch += parser_metrics.req_method.patch;
+    p_file_info->parser_metrics->req_method.post += parser_metrics.req_method.post;
+    p_file_info->parser_metrics->req_method.pri += parser_metrics.req_method.pri;
+    p_file_info->parser_metrics->req_method.propfind += parser_metrics.req_method.propfind;
+    p_file_info->parser_metrics->req_method.proppatch += parser_metrics.req_method.proppatch;
+    p_file_info->parser_metrics->req_method.put += parser_metrics.req_method.put;
+    p_file_info->parser_metrics->req_method.rebind += parser_metrics.req_method.rebind;
+    p_file_info->parser_metrics->req_method.report += parser_metrics.req_method.report;
+    p_file_info->parser_metrics->req_method.search += parser_metrics.req_method.search;
+    p_file_info->parser_metrics->req_method.trace += parser_metrics.req_method.trace;
+    p_file_info->parser_metrics->req_method.unbind += parser_metrics.req_method.unbind;
+    p_file_info->parser_metrics->req_method.uncheckout += parser_metrics.req_method.uncheckout;
+    p_file_info->parser_metrics->req_method.unlink += parser_metrics.req_method.unlink;
+    p_file_info->parser_metrics->req_method.unlock += parser_metrics.req_method.unlock;
+    p_file_info->parser_metrics->req_method.update += parser_metrics.req_method.update;
+    p_file_info->parser_metrics->req_method.updateredirectref += parser_metrics.req_method.updateredirectref;
+
+    p_file_info->parser_metrics->resp_code_type.resp_success += parser_metrics.resp_code_type.resp_success;
+    p_file_info->parser_metrics->resp_code_type.resp_redirect += parser_metrics.resp_code_type.resp_redirect;
+    p_file_info->parser_metrics->resp_code_type.resp_bad += parser_metrics.resp_code_type.resp_bad;
+    p_file_info->parser_metrics->resp_code_type.resp_error += parser_metrics.resp_code_type.resp_error;
+    p_file_info->parser_metrics->resp_code_type.other += parser_metrics.resp_code_type.other;
+
+    p_file_info->parser_metrics->resp_code_family.resp_1xx += parser_metrics.resp_code_family.resp_1xx;
+    p_file_info->parser_metrics->resp_code_family.resp_2xx += parser_metrics.resp_code_family.resp_2xx;
+    p_file_info->parser_metrics->resp_code_family.resp_3xx += parser_metrics.resp_code_family.resp_3xx;
+    p_file_info->parser_metrics->resp_code_family.resp_4xx += parser_metrics.resp_code_family.resp_4xx;
+    p_file_info->parser_metrics->resp_code_family.resp_5xx += parser_metrics.resp_code_family.resp_5xx;
+    p_file_info->parser_metrics->resp_code_family.other += parser_metrics.resp_code_family.other;
+
     uv_mutex_unlock(p_file_info->parser_mut);
 
     compress_text(buff_msg_current);
@@ -219,7 +270,7 @@ Circ_buff_t *circ_buff_init() {
     int rc = 0;
     Circ_buff_t *buff = mallocz(sizeof(Circ_buff_t));
     *buff = (Circ_buff_t){0};
-    buff->tail_index = buff->read_index = buff->parsed_index = buff->head_index = 0;
+    buff->tail_index = buff->read_index = buff->parsed_index = buff->parse_next_index = buff->head_index = 0;
     buff->size = 0;
     rc = uv_mutex_init(&buff->mut);
     if (unlikely(rc)){

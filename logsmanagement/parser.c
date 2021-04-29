@@ -951,7 +951,6 @@ static inline void extract_metrics(Log_line_parsed_t *line_parsed, Log_parser_me
         default:
             metrics->resp_code_family.other++;
     }
-
     
     metrics->num_lines++;
 

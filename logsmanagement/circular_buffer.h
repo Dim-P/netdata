@@ -40,6 +40,7 @@ typedef struct Circ_buff {
     uint8_t tail_index;                 /**< Index pointing at the oldest valid msg in the buffer */
     uint8_t read_index;                 /**< Index pointing at one item after the last read msg */
     uint8_t parsed_index;               /**< Index pointing at one item after the last parsed (i.e. ready to be read) msg */
+    uint8_t parse_next_index;           /**< Index pointing at the next item to be parsed. Required due to asynchronous logic of parser. */
     uint8_t size;
     uv_mutex_t mut;
 } Circ_buff_t;
