@@ -31,13 +31,18 @@ struct Chart_data{
 
     /* Response code family */
     RRDSET *st_resp_code_family;
-    RRDDIM *dim_resp_code_1xx, *dim_resp_code_2xx, *dim_resp_code_3xx, *dim_resp_code_4xx, *dim_resp_code_5xx, *dim_resp_code_other;
-    collected_number num_resp_code_1xx, num_resp_code_2xx, num_resp_code_3xx, num_resp_code_4xx, num_resp_code_5xx, num_resp_code_other;
+    RRDDIM *dim_resp_code_family_1xx, *dim_resp_code_family_2xx, *dim_resp_code_family_3xx, *dim_resp_code_family_4xx, *dim_resp_code_family_5xx, *dim_resp_code_family_other;
+    collected_number num_resp_code_family_1xx, num_resp_code_family_2xx, num_resp_code_family_3xx, num_resp_code_family_4xx, num_resp_code_family_5xx, num_resp_code_family_other;
 
     /* Response code */
     RRDSET *st_resp_code;
     RRDDIM *dim_resp_code[501];
     collected_number num_resp_code[501];
+
+    /* Response code type */
+    RRDSET *st_resp_code_type;
+    RRDDIM *dim_resp_code_type_success, *dim_resp_code_type_redirect, *dim_resp_code_type_bad, *dim_resp_code_type_error, *dim_resp_code_type_other;
+    collected_number num_resp_code_type_success, num_resp_code_type_redirect, num_resp_code_type_bad, num_resp_code_type_error, num_resp_code_type_other;
 };
 
 static struct Chart_data **chart_data_arr;
@@ -99,7 +104,7 @@ void *logsmanagement_plugin_main(void *ptr){
                 , "requests/s"
                 , "logsmanagement.plugin"
                 , NULL
-                , 132200
+                , 132201
                 , localhost->rrd_update_every
                 , RRDSET_TYPE_AREA
         );
@@ -153,16 +158,16 @@ void *logsmanagement_plugin_main(void *ptr){
                 , "requests/s"
                 , "logsmanagement.plugin"
                 , NULL
-                , 132200
+                , 132202
                 , localhost->rrd_update_every
                 , RRDSET_TYPE_AREA
         );
-        chart_data_arr[i]->dim_resp_code_1xx = rrddim_add(chart_data_arr[i]->st_resp_code_family, "1xx", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
-        chart_data_arr[i]->dim_resp_code_2xx = rrddim_add(chart_data_arr[i]->st_resp_code_family, "2xx", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
-        chart_data_arr[i]->dim_resp_code_3xx = rrddim_add(chart_data_arr[i]->st_resp_code_family, "3xx", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE); 
-        chart_data_arr[i]->dim_resp_code_4xx = rrddim_add(chart_data_arr[i]->st_resp_code_family, "4xx", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE); 
-        chart_data_arr[i]->dim_resp_code_5xx = rrddim_add(chart_data_arr[i]->st_resp_code_family, "5xx", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE); 
-        chart_data_arr[i]->dim_resp_code_other = rrddim_add(chart_data_arr[i]->st_resp_code_family, "other", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);        
+        chart_data_arr[i]->dim_resp_code_family_1xx = rrddim_add(chart_data_arr[i]->st_resp_code_family, "1xx", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
+        chart_data_arr[i]->dim_resp_code_family_2xx = rrddim_add(chart_data_arr[i]->st_resp_code_family, "2xx", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
+        chart_data_arr[i]->dim_resp_code_family_3xx = rrddim_add(chart_data_arr[i]->st_resp_code_family, "3xx", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE); 
+        chart_data_arr[i]->dim_resp_code_family_4xx = rrddim_add(chart_data_arr[i]->st_resp_code_family, "4xx", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE); 
+        chart_data_arr[i]->dim_resp_code_family_5xx = rrddim_add(chart_data_arr[i]->st_resp_code_family, "5xx", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE); 
+        chart_data_arr[i]->dim_resp_code_family_other = rrddim_add(chart_data_arr[i]->st_resp_code_family, "other", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);        
 
         /* Response code - initialise */
         chart_data_arr[i]->st_resp_code = rrdset_create_localhost(
@@ -175,7 +180,7 @@ void *logsmanagement_plugin_main(void *ptr){
                 , "requests/s"
                 , "logsmanagement.plugin"
                 , NULL
-                , 132200
+                , 132203
                 , localhost->rrd_update_every
                 , RRDSET_TYPE_AREA
         );
@@ -186,7 +191,31 @@ void *logsmanagement_plugin_main(void *ptr){
         }
         chart_data_arr[i]->dim_resp_code[500] = rrddim_add(chart_data_arr[i]->st_resp_code, "other", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
 
+        /* Response code type - initialise */
+        chart_data_arr[i]->st_resp_code_type = rrdset_create_localhost(
+                chart_data_arr[i]->rrd_type
+                , "response types"
+                , NULL
+                , "response types"
+                , NULL
+                , "Response Statuses"
+                , "requests/s"
+                , "logsmanagement.plugin"
+                , NULL
+                , 132204
+                , localhost->rrd_update_every
+                , RRDSET_TYPE_AREA
+        );
+        chart_data_arr[i]->dim_resp_code_type_success = rrddim_add(chart_data_arr[i]->st_resp_code_type, "success", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
+        chart_data_arr[i]->dim_resp_code_type_redirect = rrddim_add(chart_data_arr[i]->st_resp_code_type, "redirect", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
+        chart_data_arr[i]->dim_resp_code_type_bad = rrddim_add(chart_data_arr[i]->st_resp_code_type, "bad", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE); 
+        chart_data_arr[i]->dim_resp_code_type_error = rrddim_add(chart_data_arr[i]->st_resp_code_type, "error", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE); 
+        chart_data_arr[i]->dim_resp_code_type_other = rrddim_add(chart_data_arr[i]->st_resp_code_type, "other", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE); 
+
         uv_mutex_lock(p_file_info->parser_mut);
+
+
+
 
         /* Number of lines - collect first time */
         chart_data_arr[i]->num_lines = p_file_info->parser_metrics->num_lines;
@@ -272,17 +301,17 @@ void *logsmanagement_plugin_main(void *ptr){
 
 
         /* Response code family - collect first time */
-        chart_data_arr[i]->num_resp_code_1xx = p_file_info->parser_metrics->resp_code_family.resp_1xx;
+        chart_data_arr[i]->num_resp_code_family_1xx = p_file_info->parser_metrics->resp_code_family.resp_1xx;
         p_file_info->parser_metrics->resp_code_family.resp_1xx = 0;
-        chart_data_arr[i]->num_resp_code_2xx = p_file_info->parser_metrics->resp_code_family.resp_2xx;
+        chart_data_arr[i]->num_resp_code_family_2xx = p_file_info->parser_metrics->resp_code_family.resp_2xx;
         p_file_info->parser_metrics->resp_code_family.resp_2xx = 0;
-        chart_data_arr[i]->num_resp_code_3xx = p_file_info->parser_metrics->resp_code_family.resp_3xx;
+        chart_data_arr[i]->num_resp_code_family_3xx = p_file_info->parser_metrics->resp_code_family.resp_3xx;
         p_file_info->parser_metrics->resp_code_family.resp_3xx = 0;
-        chart_data_arr[i]->num_resp_code_4xx = p_file_info->parser_metrics->resp_code_family.resp_4xx;
+        chart_data_arr[i]->num_resp_code_family_4xx = p_file_info->parser_metrics->resp_code_family.resp_4xx;
         p_file_info->parser_metrics->resp_code_family.resp_4xx = 0;
-        chart_data_arr[i]->num_resp_code_5xx = p_file_info->parser_metrics->resp_code_family.resp_5xx;
+        chart_data_arr[i]->num_resp_code_family_5xx = p_file_info->parser_metrics->resp_code_family.resp_5xx;
         p_file_info->parser_metrics->resp_code_family.resp_5xx = 0;
-        chart_data_arr[i]->num_resp_code_other = p_file_info->parser_metrics->resp_code_family.other;
+        chart_data_arr[i]->num_resp_code_family_other = p_file_info->parser_metrics->resp_code_family.other;
         p_file_info->parser_metrics->resp_code_family.other = 0;
 
         /* Response code - collect first time */
@@ -290,6 +319,18 @@ void *logsmanagement_plugin_main(void *ptr){
             chart_data_arr[i]->num_resp_code[j] = p_file_info->parser_metrics->resp_code[j];
             p_file_info->parser_metrics->resp_code[j] = 0;
         }
+
+        /* Response code type - collect first time */
+        chart_data_arr[i]->num_resp_code_type_success = p_file_info->parser_metrics->resp_code_type.resp_success;
+        p_file_info->parser_metrics->resp_code_type.resp_success = 0;
+        chart_data_arr[i]->num_resp_code_type_redirect = p_file_info->parser_metrics->resp_code_type.resp_redirect;
+        p_file_info->parser_metrics->resp_code_type.resp_redirect = 0;
+        chart_data_arr[i]->num_resp_code_type_bad = p_file_info->parser_metrics->resp_code_type.resp_bad;
+        p_file_info->parser_metrics->resp_code_type.resp_bad = 0;
+        chart_data_arr[i]->num_resp_code_type_error = p_file_info->parser_metrics->resp_code_type.resp_error;
+        p_file_info->parser_metrics->resp_code_type.resp_error = 0;
+        chart_data_arr[i]->num_resp_code_type_other = p_file_info->parser_metrics->resp_code_type.other;
+        p_file_info->parser_metrics->resp_code_type.other = 0;
         
         uv_mutex_unlock(p_file_info->parser_mut);
 
@@ -341,17 +382,25 @@ void *logsmanagement_plugin_main(void *ptr){
         rrdset_done(chart_data_arr[i]->st_req_methods);
 
         /* Response code family - update chart first time */
-        rrddim_set_by_pointer(chart_data_arr[i]->st_resp_code_family, chart_data_arr[i]->dim_resp_code_1xx, chart_data_arr[i]->num_resp_code_1xx);
-        rrddim_set_by_pointer(chart_data_arr[i]->st_resp_code_family, chart_data_arr[i]->dim_resp_code_2xx, chart_data_arr[i]->num_resp_code_2xx);
-        rrddim_set_by_pointer(chart_data_arr[i]->st_resp_code_family, chart_data_arr[i]->dim_resp_code_3xx, chart_data_arr[i]->num_resp_code_3xx);
-        rrddim_set_by_pointer(chart_data_arr[i]->st_resp_code_family, chart_data_arr[i]->dim_resp_code_4xx, chart_data_arr[i]->num_resp_code_4xx);
-        rrddim_set_by_pointer(chart_data_arr[i]->st_resp_code_family, chart_data_arr[i]->dim_resp_code_5xx, chart_data_arr[i]->num_resp_code_5xx);
-        rrddim_set_by_pointer(chart_data_arr[i]->st_resp_code_family, chart_data_arr[i]->dim_resp_code_other, chart_data_arr[i]->num_resp_code_other);
+        rrddim_set_by_pointer(chart_data_arr[i]->st_resp_code_family, chart_data_arr[i]->dim_resp_code_family_1xx, chart_data_arr[i]->num_resp_code_family_1xx);
+        rrddim_set_by_pointer(chart_data_arr[i]->st_resp_code_family, chart_data_arr[i]->dim_resp_code_family_2xx, chart_data_arr[i]->num_resp_code_family_2xx);
+        rrddim_set_by_pointer(chart_data_arr[i]->st_resp_code_family, chart_data_arr[i]->dim_resp_code_family_3xx, chart_data_arr[i]->num_resp_code_family_3xx);
+        rrddim_set_by_pointer(chart_data_arr[i]->st_resp_code_family, chart_data_arr[i]->dim_resp_code_family_4xx, chart_data_arr[i]->num_resp_code_family_4xx);
+        rrddim_set_by_pointer(chart_data_arr[i]->st_resp_code_family, chart_data_arr[i]->dim_resp_code_family_5xx, chart_data_arr[i]->num_resp_code_family_5xx);
+        rrddim_set_by_pointer(chart_data_arr[i]->st_resp_code_family, chart_data_arr[i]->dim_resp_code_family_other, chart_data_arr[i]->num_resp_code_family_other);
         rrdset_done(chart_data_arr[i]->st_resp_code_family);
 
         /* Response code - update chart first time */
         for(int j = 0; j < 501; j++) rrddim_set_by_pointer(chart_data_arr[i]->st_resp_code, chart_data_arr[i]->dim_resp_code[j], chart_data_arr[i]->num_resp_code[j]);
         rrdset_done(chart_data_arr[i]->st_resp_code);
+
+        /* Response code type - update chart first time */
+        rrddim_set_by_pointer(chart_data_arr[i]->st_resp_code_type, chart_data_arr[i]->dim_resp_code_type_success, chart_data_arr[i]->num_resp_code_type_success);
+        rrddim_set_by_pointer(chart_data_arr[i]->st_resp_code_type, chart_data_arr[i]->dim_resp_code_type_redirect, chart_data_arr[i]->num_resp_code_type_redirect);
+        rrddim_set_by_pointer(chart_data_arr[i]->st_resp_code_type, chart_data_arr[i]->dim_resp_code_type_bad, chart_data_arr[i]->num_resp_code_type_bad);
+        rrddim_set_by_pointer(chart_data_arr[i]->st_resp_code_type, chart_data_arr[i]->dim_resp_code_type_error, chart_data_arr[i]->num_resp_code_type_error);
+        rrddim_set_by_pointer(chart_data_arr[i]->st_resp_code_type, chart_data_arr[i]->dim_resp_code_type_other, chart_data_arr[i]->num_resp_code_type_other);
+        rrdset_done(chart_data_arr[i]->st_resp_code_type);
         
     }
 
@@ -454,17 +503,17 @@ void *logsmanagement_plugin_main(void *ptr){
             p_file_info->parser_metrics->req_method.updateredirectref = 0;
 
             /* Response code family - collect */
-            chart_data_arr[i]->num_resp_code_1xx = p_file_info->parser_metrics->resp_code_family.resp_1xx;
+            chart_data_arr[i]->num_resp_code_family_1xx = p_file_info->parser_metrics->resp_code_family.resp_1xx;
             p_file_info->parser_metrics->resp_code_family.resp_1xx = 0;
-            chart_data_arr[i]->num_resp_code_2xx = p_file_info->parser_metrics->resp_code_family.resp_2xx;
+            chart_data_arr[i]->num_resp_code_family_2xx = p_file_info->parser_metrics->resp_code_family.resp_2xx;
             p_file_info->parser_metrics->resp_code_family.resp_2xx = 0;
-            chart_data_arr[i]->num_resp_code_3xx = p_file_info->parser_metrics->resp_code_family.resp_3xx;
+            chart_data_arr[i]->num_resp_code_family_3xx = p_file_info->parser_metrics->resp_code_family.resp_3xx;
             p_file_info->parser_metrics->resp_code_family.resp_3xx = 0;
-            chart_data_arr[i]->num_resp_code_4xx = p_file_info->parser_metrics->resp_code_family.resp_4xx;
+            chart_data_arr[i]->num_resp_code_family_4xx = p_file_info->parser_metrics->resp_code_family.resp_4xx;
             p_file_info->parser_metrics->resp_code_family.resp_4xx = 0;
-            chart_data_arr[i]->num_resp_code_5xx = p_file_info->parser_metrics->resp_code_family.resp_5xx;
+            chart_data_arr[i]->num_resp_code_family_5xx = p_file_info->parser_metrics->resp_code_family.resp_5xx;
             p_file_info->parser_metrics->resp_code_family.resp_5xx = 0;
-            chart_data_arr[i]->num_resp_code_other = p_file_info->parser_metrics->resp_code_family.other;
+            chart_data_arr[i]->num_resp_code_family_other = p_file_info->parser_metrics->resp_code_family.other;
             p_file_info->parser_metrics->resp_code_family.other = 0;
 
             /* Response code - collect */
@@ -472,6 +521,18 @@ void *logsmanagement_plugin_main(void *ptr){
                 chart_data_arr[i]->num_resp_code[j] = p_file_info->parser_metrics->resp_code[j];
                 p_file_info->parser_metrics->resp_code[j] = 0;
             }
+
+            /* Response code type - collect */
+            chart_data_arr[i]->num_resp_code_type_success = p_file_info->parser_metrics->resp_code_type.resp_success;
+            p_file_info->parser_metrics->resp_code_type.resp_success = 0;
+            chart_data_arr[i]->num_resp_code_type_redirect = p_file_info->parser_metrics->resp_code_type.resp_redirect;
+            p_file_info->parser_metrics->resp_code_type.resp_redirect = 0;
+            chart_data_arr[i]->num_resp_code_type_bad = p_file_info->parser_metrics->resp_code_type.resp_bad;
+            p_file_info->parser_metrics->resp_code_type.resp_bad = 0;
+            chart_data_arr[i]->num_resp_code_type_error = p_file_info->parser_metrics->resp_code_type.resp_error;
+            p_file_info->parser_metrics->resp_code_type.resp_error = 0;
+            chart_data_arr[i]->num_resp_code_type_other = p_file_info->parser_metrics->resp_code_type.other;
+            p_file_info->parser_metrics->resp_code_type.other = 0;
             
             uv_mutex_unlock(p_file_info->parser_mut);
 
@@ -526,19 +587,27 @@ void *logsmanagement_plugin_main(void *ptr){
 
             /* Response code family - update chart */
             rrdset_next(chart_data_arr[i]->st_resp_code_family);
-            rrddim_set_by_pointer(chart_data_arr[i]->st_resp_code_family, chart_data_arr[i]->dim_resp_code_1xx, chart_data_arr[i]->num_resp_code_1xx);
-            rrddim_set_by_pointer(chart_data_arr[i]->st_resp_code_family, chart_data_arr[i]->dim_resp_code_2xx, chart_data_arr[i]->num_resp_code_2xx);
-            rrddim_set_by_pointer(chart_data_arr[i]->st_resp_code_family, chart_data_arr[i]->dim_resp_code_3xx, chart_data_arr[i]->num_resp_code_3xx);
-            rrddim_set_by_pointer(chart_data_arr[i]->st_resp_code_family, chart_data_arr[i]->dim_resp_code_4xx, chart_data_arr[i]->num_resp_code_4xx);
-            rrddim_set_by_pointer(chart_data_arr[i]->st_resp_code_family, chart_data_arr[i]->dim_resp_code_5xx, chart_data_arr[i]->num_resp_code_5xx);
-            rrddim_set_by_pointer(chart_data_arr[i]->st_resp_code_family, chart_data_arr[i]->dim_resp_code_other, chart_data_arr[i]->num_resp_code_other);
+            rrddim_set_by_pointer(chart_data_arr[i]->st_resp_code_family, chart_data_arr[i]->dim_resp_code_family_1xx, chart_data_arr[i]->num_resp_code_family_1xx);
+            rrddim_set_by_pointer(chart_data_arr[i]->st_resp_code_family, chart_data_arr[i]->dim_resp_code_family_2xx, chart_data_arr[i]->num_resp_code_family_2xx);
+            rrddim_set_by_pointer(chart_data_arr[i]->st_resp_code_family, chart_data_arr[i]->dim_resp_code_family_3xx, chart_data_arr[i]->num_resp_code_family_3xx);
+            rrddim_set_by_pointer(chart_data_arr[i]->st_resp_code_family, chart_data_arr[i]->dim_resp_code_family_4xx, chart_data_arr[i]->num_resp_code_family_4xx);
+            rrddim_set_by_pointer(chart_data_arr[i]->st_resp_code_family, chart_data_arr[i]->dim_resp_code_family_5xx, chart_data_arr[i]->num_resp_code_family_5xx);
+            rrddim_set_by_pointer(chart_data_arr[i]->st_resp_code_family, chart_data_arr[i]->dim_resp_code_family_other, chart_data_arr[i]->num_resp_code_family_other);
             rrdset_done(chart_data_arr[i]->st_resp_code_family);
 
-            /* Response code - update chart first time */
+            /* Response code - update chart */
             rrdset_next(chart_data_arr[i]->st_resp_code);
             for(int j = 0; j < 501; j++) rrddim_set_by_pointer(chart_data_arr[i]->st_resp_code, chart_data_arr[i]->dim_resp_code[j], chart_data_arr[i]->num_resp_code[j]);
             rrdset_done(chart_data_arr[i]->st_resp_code);
             
+            /* Response code family - update chart */
+            rrdset_next(chart_data_arr[i]->st_resp_code_type);
+            rrddim_set_by_pointer(chart_data_arr[i]->st_resp_code_type, chart_data_arr[i]->dim_resp_code_type_success, chart_data_arr[i]->num_resp_code_type_success);
+            rrddim_set_by_pointer(chart_data_arr[i]->st_resp_code_type, chart_data_arr[i]->dim_resp_code_type_redirect, chart_data_arr[i]->num_resp_code_type_redirect);
+            rrddim_set_by_pointer(chart_data_arr[i]->st_resp_code_type, chart_data_arr[i]->dim_resp_code_type_bad, chart_data_arr[i]->num_resp_code_type_bad);
+            rrddim_set_by_pointer(chart_data_arr[i]->st_resp_code_type, chart_data_arr[i]->dim_resp_code_type_error, chart_data_arr[i]->num_resp_code_type_error);
+            rrddim_set_by_pointer(chart_data_arr[i]->st_resp_code_type, chart_data_arr[i]->dim_resp_code_type_other, chart_data_arr[i]->num_resp_code_type_other);
+            rrdset_done(chart_data_arr[i]->st_resp_code_type);
         }
 	}
 

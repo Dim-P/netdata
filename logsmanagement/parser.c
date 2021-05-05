@@ -937,29 +937,38 @@ static inline void extract_metrics(Log_line_parsed_t *line_parsed, Log_parser_me
 
     /* Extract response code & response code family */
     switch(line_parsed->resp_code / 100){
+        /* Note: 304 and 401 should be treated as resp_success */
         case 1:
             metrics->resp_code_family.resp_1xx++;
             metrics->resp_code[line_parsed->resp_code - 100]++;
+            metrics->resp_code_type.resp_success++;
             break;
         case 2:
             metrics->resp_code_family.resp_2xx++;
             metrics->resp_code[line_parsed->resp_code - 100]++;
+            metrics->resp_code_type.resp_success++;
             break;
         case 3:
             metrics->resp_code_family.resp_3xx++;
             metrics->resp_code[line_parsed->resp_code - 100]++;
+            if(line_parsed->resp_code == 304) metrics->resp_code_type.resp_success++;
+            else metrics->resp_code_type.resp_redirect++;
             break;
         case 4:
             metrics->resp_code_family.resp_4xx++;
             metrics->resp_code[line_parsed->resp_code - 100]++;
+            if(line_parsed->resp_code == 401) metrics->resp_code_type.resp_success++;
+            else metrics->resp_code_type.resp_bad++;
             break;
         case 5:
             metrics->resp_code_family.resp_5xx++;
             metrics->resp_code[line_parsed->resp_code - 100]++;
+            metrics->resp_code_type.resp_error++;
             break;
         default:
             metrics->resp_code_family.other++;
             metrics->resp_code[500]++;
+            metrics->resp_code_type.other++;
             break;
     }
     

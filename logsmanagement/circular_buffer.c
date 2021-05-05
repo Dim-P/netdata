@@ -82,12 +82,6 @@ static void msg_parser(uv_work_t *req){
     p_file_info->parser_metrics->req_method.update += parser_metrics.req_method.update;
     p_file_info->parser_metrics->req_method.updateredirectref += parser_metrics.req_method.updateredirectref;
 
-    p_file_info->parser_metrics->resp_code_type.resp_success += parser_metrics.resp_code_type.resp_success;
-    p_file_info->parser_metrics->resp_code_type.resp_redirect += parser_metrics.resp_code_type.resp_redirect;
-    p_file_info->parser_metrics->resp_code_type.resp_bad += parser_metrics.resp_code_type.resp_bad;
-    p_file_info->parser_metrics->resp_code_type.resp_error += parser_metrics.resp_code_type.resp_error;
-    p_file_info->parser_metrics->resp_code_type.other += parser_metrics.resp_code_type.other;
-
     p_file_info->parser_metrics->resp_code_family.resp_1xx += parser_metrics.resp_code_family.resp_1xx;
     p_file_info->parser_metrics->resp_code_family.resp_2xx += parser_metrics.resp_code_family.resp_2xx;
     p_file_info->parser_metrics->resp_code_family.resp_3xx += parser_metrics.resp_code_family.resp_3xx;
@@ -96,6 +90,12 @@ static void msg_parser(uv_work_t *req){
     p_file_info->parser_metrics->resp_code_family.other += parser_metrics.resp_code_family.other;
 
     for(int i = 0; i < 501; i++) p_file_info->parser_metrics->resp_code[i] += parser_metrics.resp_code[i];
+
+    p_file_info->parser_metrics->resp_code_type.resp_success += parser_metrics.resp_code_type.resp_success;
+    p_file_info->parser_metrics->resp_code_type.resp_redirect += parser_metrics.resp_code_type.resp_redirect;
+    p_file_info->parser_metrics->resp_code_type.resp_bad += parser_metrics.resp_code_type.resp_bad;
+    p_file_info->parser_metrics->resp_code_type.resp_error += parser_metrics.resp_code_type.resp_error;
+    p_file_info->parser_metrics->resp_code_type.other += parser_metrics.resp_code_type.other;
 
     uv_mutex_unlock(p_file_info->parser_mut);
 
