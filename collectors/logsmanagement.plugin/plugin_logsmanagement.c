@@ -29,6 +29,11 @@ struct Chart_data{
     num_req_method_rebind, num_req_method_report, num_req_method_search, num_req_method_trace, num_req_method_unbind, num_req_method_uncheckout,
     num_req_method_unlink, num_req_method_unlock, num_req_method_update, num_req_method_updateredirectref;
 
+    /* Request protocol */
+    RRDSET *st_req_proto;
+    RRDDIM *dim_req_proto_http_1, *dim_req_proto_http_1_1, *dim_req_proto_http_2, *dim_req_proto_other;
+    collected_number num_req_proto_http_1, num_req_proto_http_1_1, num_req_proto_http_2, num_req_proto_other;
+
     /* Response code family */
     RRDSET *st_resp_code_family;
     RRDDIM *dim_resp_code_family_1xx, *dim_resp_code_family_2xx, *dim_resp_code_family_3xx, *dim_resp_code_family_4xx, *dim_resp_code_family_5xx, *dim_resp_code_family_other;
@@ -147,6 +152,26 @@ void *logsmanagement_plugin_main(void *ptr){
         chart_data_arr[i]->dim_req_method_update = rrddim_add(chart_data_arr[i]->st_req_methods, "UPDATE", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
         chart_data_arr[i]->dim_req_method_updateredirectref = rrddim_add(chart_data_arr[i]->st_req_methods, "UPDATEREDIRECTREF", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
         
+        /* Request protocol - initialise */
+        chart_data_arr[i]->st_req_proto = rrdset_create_localhost(
+                chart_data_arr[i]->rrd_type
+                , "http versions"
+                , NULL
+                , "http versions"
+                , NULL
+                , "Requests Per HTTP Version"
+                , "requests/s"
+                , "logsmanagement.plugin"
+                , NULL
+                , 132202
+                , localhost->rrd_update_every
+                , RRDSET_TYPE_AREA
+        );
+        chart_data_arr[i]->dim_req_proto_http_1 = rrddim_add(chart_data_arr[i]->st_req_proto, "1.0", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
+        chart_data_arr[i]->dim_req_proto_http_1_1 = rrddim_add(chart_data_arr[i]->st_req_proto, "1.1", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
+        chart_data_arr[i]->dim_req_proto_http_2 = rrddim_add(chart_data_arr[i]->st_req_proto, "2.0", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
+        chart_data_arr[i]->dim_req_proto_other = rrddim_add(chart_data_arr[i]->st_req_proto, "other", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
+
         /* Response code family - initialise */
         chart_data_arr[i]->st_resp_code_family = rrdset_create_localhost(
                 chart_data_arr[i]->rrd_type
@@ -158,7 +183,7 @@ void *logsmanagement_plugin_main(void *ptr){
                 , "requests/s"
                 , "logsmanagement.plugin"
                 , NULL
-                , 132202
+                , 132203
                 , localhost->rrd_update_every
                 , RRDSET_TYPE_AREA
         );
@@ -180,7 +205,7 @@ void *logsmanagement_plugin_main(void *ptr){
                 , "requests/s"
                 , "logsmanagement.plugin"
                 , NULL
-                , 132203
+                , 132204
                 , localhost->rrd_update_every
                 , RRDSET_TYPE_AREA
         );
@@ -202,7 +227,7 @@ void *logsmanagement_plugin_main(void *ptr){
                 , "requests/s"
                 , "logsmanagement.plugin"
                 , NULL
-                , 132204
+                , 132205
                 , localhost->rrd_update_every
                 , RRDSET_TYPE_AREA
         );
@@ -299,6 +324,15 @@ void *logsmanagement_plugin_main(void *ptr){
         chart_data_arr[i]->num_req_method_updateredirectref = p_file_info->parser_metrics->req_method.updateredirectref;
         p_file_info->parser_metrics->req_method.updateredirectref = 0;
 
+        /* Request protocol - collect first time */
+        chart_data_arr[i]->num_req_proto_http_1 = p_file_info->parser_metrics->req_proto.http_1;
+        p_file_info->parser_metrics->req_proto.http_1 = 0;
+        chart_data_arr[i]->num_req_proto_http_1_1 = p_file_info->parser_metrics->req_proto.http_1_1;
+        p_file_info->parser_metrics->req_proto.http_1_1 = 0;
+        chart_data_arr[i]->num_req_proto_http_2 = p_file_info->parser_metrics->req_proto.http_2;
+        p_file_info->parser_metrics->req_proto.http_2 = 0;
+        chart_data_arr[i]->num_req_proto_other = p_file_info->parser_metrics->req_proto.other;
+        p_file_info->parser_metrics->req_proto.other = 0;
 
         /* Response code family - collect first time */
         chart_data_arr[i]->num_resp_code_family_1xx = p_file_info->parser_metrics->resp_code_family.resp_1xx;
@@ -380,6 +414,13 @@ void *logsmanagement_plugin_main(void *ptr){
         rrddim_set_by_pointer(chart_data_arr[i]->st_req_methods, chart_data_arr[i]->dim_req_method_update, chart_data_arr[i]->num_req_method_update);
         rrddim_set_by_pointer(chart_data_arr[i]->st_req_methods, chart_data_arr[i]->dim_req_method_updateredirectref, chart_data_arr[i]->num_req_method_updateredirectref);
         rrdset_done(chart_data_arr[i]->st_req_methods);
+
+        /* Request protocol - update chart first time */
+        rrddim_set_by_pointer(chart_data_arr[i]->st_req_proto, chart_data_arr[i]->dim_req_proto_http_1, chart_data_arr[i]->num_req_proto_http_1);
+        rrddim_set_by_pointer(chart_data_arr[i]->st_req_proto, chart_data_arr[i]->dim_req_proto_http_1_1, chart_data_arr[i]->num_req_proto_http_1_1);
+        rrddim_set_by_pointer(chart_data_arr[i]->st_req_proto, chart_data_arr[i]->dim_req_proto_http_2, chart_data_arr[i]->num_req_proto_http_2);
+        rrddim_set_by_pointer(chart_data_arr[i]->st_req_proto, chart_data_arr[i]->dim_req_proto_other, chart_data_arr[i]->num_req_proto_other);
+        rrdset_done(chart_data_arr[i]->st_req_proto);
 
         /* Response code family - update chart first time */
         rrddim_set_by_pointer(chart_data_arr[i]->st_resp_code_family, chart_data_arr[i]->dim_resp_code_family_1xx, chart_data_arr[i]->num_resp_code_family_1xx);
@@ -502,6 +543,16 @@ void *logsmanagement_plugin_main(void *ptr){
             chart_data_arr[i]->num_req_method_updateredirectref = p_file_info->parser_metrics->req_method.updateredirectref;
             p_file_info->parser_metrics->req_method.updateredirectref = 0;
 
+            /* Request protocol - collect */
+            chart_data_arr[i]->num_req_proto_http_1 = p_file_info->parser_metrics->req_proto.http_1;
+            p_file_info->parser_metrics->req_proto.http_1 = 0;
+            chart_data_arr[i]->num_req_proto_http_1_1 = p_file_info->parser_metrics->req_proto.http_1_1;
+            p_file_info->parser_metrics->req_proto.http_1_1 = 0;
+            chart_data_arr[i]->num_req_proto_http_2 = p_file_info->parser_metrics->req_proto.http_2;
+            p_file_info->parser_metrics->req_proto.http_2 = 0;
+            chart_data_arr[i]->num_req_proto_other = p_file_info->parser_metrics->req_proto.other;
+            p_file_info->parser_metrics->req_proto.other = 0;
+
             /* Response code family - collect */
             chart_data_arr[i]->num_resp_code_family_1xx = p_file_info->parser_metrics->resp_code_family.resp_1xx;
             p_file_info->parser_metrics->resp_code_family.resp_1xx = 0;
@@ -584,6 +635,14 @@ void *logsmanagement_plugin_main(void *ptr){
             rrddim_set_by_pointer(chart_data_arr[i]->st_req_methods, chart_data_arr[i]->dim_req_method_update, chart_data_arr[i]->num_req_method_update);
             rrddim_set_by_pointer(chart_data_arr[i]->st_req_methods, chart_data_arr[i]->dim_req_method_updateredirectref, chart_data_arr[i]->num_req_method_updateredirectref);
             rrdset_done(chart_data_arr[i]->st_req_methods);
+
+            /* Request protocol - update chart */
+            rrdset_next(chart_data_arr[i]->st_req_proto);
+            rrddim_set_by_pointer(chart_data_arr[i]->st_req_proto, chart_data_arr[i]->dim_req_proto_http_1, chart_data_arr[i]->num_req_proto_http_1);
+            rrddim_set_by_pointer(chart_data_arr[i]->st_req_proto, chart_data_arr[i]->dim_req_proto_http_1_1, chart_data_arr[i]->num_req_proto_http_1_1);
+            rrddim_set_by_pointer(chart_data_arr[i]->st_req_proto, chart_data_arr[i]->dim_req_proto_http_2, chart_data_arr[i]->num_req_proto_http_2);
+            rrddim_set_by_pointer(chart_data_arr[i]->st_req_proto, chart_data_arr[i]->dim_req_proto_other, chart_data_arr[i]->num_req_proto_other);
+            rrdset_done(chart_data_arr[i]->st_req_proto);
 
             /* Response code family - update chart */
             rrdset_next(chart_data_arr[i]->st_resp_code_family);

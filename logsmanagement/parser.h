@@ -75,6 +75,9 @@ typedef struct log_parser_metrics{
 		put, rebind, report, search, trace, unbind, uncheckout, unlink, unlock, update,
 		updateredirectref;
 	} req_method;  
+	struct log_parser_metrics_req_proto{
+		int http_1, http_1_1, http_2, other;
+	} req_proto;
 	struct log_parser_metrics_resp_code_family{
 		int resp_1xx, resp_2xx, resp_3xx, resp_4xx, resp_5xx, other; // TODO: Can there be "other"?
 	} resp_code_family; 

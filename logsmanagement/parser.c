@@ -935,6 +935,12 @@ static inline void extract_metrics(Log_line_parsed_t *line_parsed, Log_parser_me
     if(!strcmp(line_parsed->req_method, "UPDATE")) metrics->req_method.update++;
     if(!strcmp(line_parsed->req_method, "UPDATEREDIRECTREF")) metrics->req_method.updateredirectref++;
 
+    /* Extract request protocol */
+    if(!strcmp(line_parsed->req_proto, "1") || !strcmp(line_parsed->req_proto, "1.0")) metrics->req_proto.http_1++;
+    else if(!strcmp(line_parsed->req_proto, "1.1")) metrics->req_proto.http_1_1++;
+    else if(!strcmp(line_parsed->req_proto, "2") || !strcmp(line_parsed->req_proto, "2.0")) metrics->req_proto.http_2++;
+    else metrics->req_proto.other++;
+
     /* Extract response code & response code family */
     switch(line_parsed->resp_code / 100){
         /* Note: 304 and 401 should be treated as resp_success */

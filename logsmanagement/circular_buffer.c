@@ -82,6 +82,11 @@ static void msg_parser(uv_work_t *req){
     p_file_info->parser_metrics->req_method.update += parser_metrics.req_method.update;
     p_file_info->parser_metrics->req_method.updateredirectref += parser_metrics.req_method.updateredirectref;
 
+    p_file_info->parser_metrics->req_proto.http_1 += parser_metrics.req_proto.http_1;
+    p_file_info->parser_metrics->req_proto.http_1_1 += parser_metrics.req_proto.http_1_1;
+    p_file_info->parser_metrics->req_proto.http_2 += parser_metrics.req_proto.http_2;
+    p_file_info->parser_metrics->req_proto.other += parser_metrics.req_proto.other;
+
     p_file_info->parser_metrics->resp_code_family.resp_1xx += parser_metrics.resp_code_family.resp_1xx;
     p_file_info->parser_metrics->resp_code_family.resp_2xx += parser_metrics.resp_code_family.resp_2xx;
     p_file_info->parser_metrics->resp_code_family.resp_3xx += parser_metrics.resp_code_family.resp_3xx;
