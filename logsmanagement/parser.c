@@ -414,7 +414,7 @@ Log_parser_config_t *read_parse_config(char *log_format, const char delimiter){
 		}
 
 		if(strcmp(parsed_format[i], "$request_length") == 0 || 
-		   strcmp(parsed_format[i], "%i") == 0) {
+		   strcmp(parsed_format[i], "%I") == 0) {
 			fprintf(stderr, "REQ_SIZE\n");
 			parser_config->fields[fields_off++] = REQ_SIZE;
 			continue;
@@ -940,6 +940,10 @@ static inline void extract_metrics(Log_line_parsed_t *line_parsed, Log_parser_me
     else if(!strcmp(line_parsed->req_proto, "1.1")) metrics->req_proto.http_1_1++;
     else if(!strcmp(line_parsed->req_proto, "2") || !strcmp(line_parsed->req_proto, "2.0")) metrics->req_proto.http_2++;
     else metrics->req_proto.other++;
+
+    /* Extract bytes received and sent */
+    metrics->bandwidth.req_size += line_parsed->req_size;
+    metrics->bandwidth.resp_size += line_parsed->resp_size;
 
     /* Extract response code & response code family */
     switch(line_parsed->resp_code / 100){

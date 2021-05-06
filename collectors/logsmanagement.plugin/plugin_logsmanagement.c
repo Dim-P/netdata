@@ -34,6 +34,11 @@ struct Chart_data{
     RRDDIM *dim_req_proto_http_1, *dim_req_proto_http_1_1, *dim_req_proto_http_2, *dim_req_proto_other;
     collected_number num_req_proto_http_1, num_req_proto_http_1_1, num_req_proto_http_2, num_req_proto_other;
 
+    /* Request bandwidth */
+    RRDSET *st_bandwidth;
+    RRDDIM *dim_bandwidth_req_size, *dim_bandwidth_resp_size;
+    collected_number num_bandwidth_req_size, num_bandwidth_resp_size;
+
     /* Response code family */
     RRDSET *st_resp_code_family;
     RRDDIM *dim_resp_code_family_1xx, *dim_resp_code_family_2xx, *dim_resp_code_family_3xx, *dim_resp_code_family_4xx, *dim_resp_code_family_5xx, *dim_resp_code_family_other;
@@ -172,6 +177,24 @@ void *logsmanagement_plugin_main(void *ptr){
         chart_data_arr[i]->dim_req_proto_http_2 = rrddim_add(chart_data_arr[i]->st_req_proto, "2.0", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
         chart_data_arr[i]->dim_req_proto_other = rrddim_add(chart_data_arr[i]->st_req_proto, "other", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
 
+        /* Request bandwidth - initialise */
+        chart_data_arr[i]->st_bandwidth = rrdset_create_localhost(
+                chart_data_arr[i]->rrd_type
+                , "bandwidth"
+                , NULL
+                , "bandwidth"
+                , NULL
+                , "Bandwidth"
+                , "kilobits/s"
+                , "logsmanagement.plugin"
+                , NULL
+                , 132203
+                , localhost->rrd_update_every
+                , RRDSET_TYPE_AREA
+        );
+        chart_data_arr[i]->dim_bandwidth_req_size = rrddim_add(chart_data_arr[i]->st_bandwidth, "received", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
+        chart_data_arr[i]->dim_bandwidth_resp_size = rrddim_add(chart_data_arr[i]->st_bandwidth, "sent", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
+
         /* Response code family - initialise */
         chart_data_arr[i]->st_resp_code_family = rrdset_create_localhost(
                 chart_data_arr[i]->rrd_type
@@ -183,7 +206,7 @@ void *logsmanagement_plugin_main(void *ptr){
                 , "requests/s"
                 , "logsmanagement.plugin"
                 , NULL
-                , 132203
+                , 132204
                 , localhost->rrd_update_every
                 , RRDSET_TYPE_AREA
         );
@@ -205,7 +228,7 @@ void *logsmanagement_plugin_main(void *ptr){
                 , "requests/s"
                 , "logsmanagement.plugin"
                 , NULL
-                , 132204
+                , 132205
                 , localhost->rrd_update_every
                 , RRDSET_TYPE_AREA
         );
@@ -227,7 +250,7 @@ void *logsmanagement_plugin_main(void *ptr){
                 , "requests/s"
                 , "logsmanagement.plugin"
                 , NULL
-                , 132205
+                , 132206
                 , localhost->rrd_update_every
                 , RRDSET_TYPE_AREA
         );
@@ -334,6 +357,12 @@ void *logsmanagement_plugin_main(void *ptr){
         chart_data_arr[i]->num_req_proto_other = p_file_info->parser_metrics->req_proto.other;
         p_file_info->parser_metrics->req_proto.other = 0;
 
+        /* Request bandwidth - collect first time */ // Note negative sign in response size
+        chart_data_arr[i]->num_bandwidth_req_size = p_file_info->parser_metrics->bandwidth.req_size;
+        p_file_info->parser_metrics->bandwidth.req_size = 0;
+        chart_data_arr[i]->num_bandwidth_resp_size = - p_file_info->parser_metrics->bandwidth.resp_size;
+        p_file_info->parser_metrics->bandwidth.resp_size = 0;
+
         /* Response code family - collect first time */
         chart_data_arr[i]->num_resp_code_family_1xx = p_file_info->parser_metrics->resp_code_family.resp_1xx;
         p_file_info->parser_metrics->resp_code_family.resp_1xx = 0;
@@ -421,6 +450,11 @@ void *logsmanagement_plugin_main(void *ptr){
         rrddim_set_by_pointer(chart_data_arr[i]->st_req_proto, chart_data_arr[i]->dim_req_proto_http_2, chart_data_arr[i]->num_req_proto_http_2);
         rrddim_set_by_pointer(chart_data_arr[i]->st_req_proto, chart_data_arr[i]->dim_req_proto_other, chart_data_arr[i]->num_req_proto_other);
         rrdset_done(chart_data_arr[i]->st_req_proto);
+
+        /* Request bandwidth - update chart first time */
+        rrddim_set_by_pointer(chart_data_arr[i]->st_bandwidth, chart_data_arr[i]->dim_bandwidth_req_size, chart_data_arr[i]->num_bandwidth_req_size);
+        rrddim_set_by_pointer(chart_data_arr[i]->st_bandwidth, chart_data_arr[i]->dim_bandwidth_resp_size, chart_data_arr[i]->num_bandwidth_resp_size);
+        rrdset_done(chart_data_arr[i]->st_bandwidth);
 
         /* Response code family - update chart first time */
         rrddim_set_by_pointer(chart_data_arr[i]->st_resp_code_family, chart_data_arr[i]->dim_resp_code_family_1xx, chart_data_arr[i]->num_resp_code_family_1xx);
@@ -553,6 +587,12 @@ void *logsmanagement_plugin_main(void *ptr){
             chart_data_arr[i]->num_req_proto_other = p_file_info->parser_metrics->req_proto.other;
             p_file_info->parser_metrics->req_proto.other = 0;
 
+            /* Request bandwidth - collect */ // Note negative sign in response size
+            chart_data_arr[i]->num_bandwidth_req_size = p_file_info->parser_metrics->bandwidth.req_size;
+            p_file_info->parser_metrics->bandwidth.req_size = 0;
+            chart_data_arr[i]->num_bandwidth_resp_size = - p_file_info->parser_metrics->bandwidth.resp_size;
+            p_file_info->parser_metrics->bandwidth.resp_size = 0;
+
             /* Response code family - collect */
             chart_data_arr[i]->num_resp_code_family_1xx = p_file_info->parser_metrics->resp_code_family.resp_1xx;
             p_file_info->parser_metrics->resp_code_family.resp_1xx = 0;
@@ -643,6 +683,12 @@ void *logsmanagement_plugin_main(void *ptr){
             rrddim_set_by_pointer(chart_data_arr[i]->st_req_proto, chart_data_arr[i]->dim_req_proto_http_2, chart_data_arr[i]->num_req_proto_http_2);
             rrddim_set_by_pointer(chart_data_arr[i]->st_req_proto, chart_data_arr[i]->dim_req_proto_other, chart_data_arr[i]->num_req_proto_other);
             rrdset_done(chart_data_arr[i]->st_req_proto);
+
+            /* Request bandwidth - update chart */
+            rrdset_next(chart_data_arr[i]->st_bandwidth);
+            rrddim_set_by_pointer(chart_data_arr[i]->st_bandwidth, chart_data_arr[i]->dim_bandwidth_req_size, chart_data_arr[i]->num_bandwidth_req_size);
+            rrddim_set_by_pointer(chart_data_arr[i]->st_bandwidth, chart_data_arr[i]->dim_bandwidth_resp_size, chart_data_arr[i]->num_bandwidth_resp_size);
+            rrdset_done(chart_data_arr[i]->st_bandwidth);
 
             /* Response code family - update chart */
             rrdset_next(chart_data_arr[i]->st_resp_code_family);

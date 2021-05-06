@@ -25,7 +25,7 @@ typedef enum{
 	REQ_METHOD,       // nginx: $request_method         apache: %m
 	REQ_URL,          // nginx: $request_uri            apache: %U
 	REQ_PROTO,        // nginx: $server_protocol        apache: %H
-	REQ_SIZE,         // nginx: $request_length         apache: %i
+	REQ_SIZE,         // nginx: $request_length         apache: %I
 	REQ_PROC_TIME,    // nginx: $request_time           apache: %D  
 	RESP_CODE,        // nginx: $status                 apache: %s, %>s
 	RESP_SIZE,        // nginx: $bytes_sent, $body_bytes_sent apache: %b, %O, %B // Should separate %b from %O ?
@@ -78,6 +78,9 @@ typedef struct log_parser_metrics{
 	struct log_parser_metrics_req_proto{
 		int http_1, http_1_1, http_2, other;
 	} req_proto;
+	struct log_parser_metrics_bandwidth{
+		long long int req_size, resp_size;
+	} bandwidth;
 	struct log_parser_metrics_resp_code_family{
 		int resp_1xx, resp_2xx, resp_3xx, resp_4xx, resp_5xx, other; // TODO: Can there be "other"?
 	} resp_code_family; 

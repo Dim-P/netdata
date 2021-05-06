@@ -87,6 +87,9 @@ static void msg_parser(uv_work_t *req){
     p_file_info->parser_metrics->req_proto.http_2 += parser_metrics.req_proto.http_2;
     p_file_info->parser_metrics->req_proto.other += parser_metrics.req_proto.other;
 
+    p_file_info->parser_metrics->bandwidth.req_size += parser_metrics.bandwidth.req_size;
+    p_file_info->parser_metrics->bandwidth.resp_size += parser_metrics.bandwidth.resp_size;
+
     p_file_info->parser_metrics->resp_code_family.resp_1xx += parser_metrics.resp_code_family.resp_1xx;
     p_file_info->parser_metrics->resp_code_family.resp_2xx += parser_metrics.resp_code_family.resp_2xx;
     p_file_info->parser_metrics->resp_code_family.resp_3xx += parser_metrics.resp_code_family.resp_3xx;
