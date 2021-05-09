@@ -101,7 +101,7 @@ void *logsmanagement_plugin_main(void *ptr){
                 , localhost->rrd_update_every
                 , RRDSET_TYPE_AREA
         );
-        chart_data_arr[i]->dim_lines = rrddim_add(chart_data_arr[i]->st_lines, "lines/s", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
+        chart_data_arr[i]->dim_lines = rrddim_add(chart_data_arr[i]->st_lines, "lines/s", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
 
         /* Request methods - initialise */
         chart_data_arr[i]->st_req_methods = rrdset_create_localhost(
@@ -118,44 +118,44 @@ void *logsmanagement_plugin_main(void *ptr){
                 , localhost->rrd_update_every
                 , RRDSET_TYPE_AREA
         );
-        chart_data_arr[i]->dim_req_method_acl = rrddim_add(chart_data_arr[i]->st_req_methods, "ACL", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
-        chart_data_arr[i]->dim_req_method_baseline_control = rrddim_add(chart_data_arr[i]->st_req_methods, "BASELINE-CONTROL", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
-        chart_data_arr[i]->dim_req_method_bind = rrddim_add(chart_data_arr[i]->st_req_methods, "BIND", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
-        chart_data_arr[i]->dim_req_method_checkin = rrddim_add(chart_data_arr[i]->st_req_methods, "CHECKIN", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
-        chart_data_arr[i]->dim_req_method_checkout = rrddim_add(chart_data_arr[i]->st_req_methods, "CHECKOUT", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
-        chart_data_arr[i]->dim_req_method_connect = rrddim_add(chart_data_arr[i]->st_req_methods, "CONNECT", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
-        chart_data_arr[i]->dim_req_method_copy = rrddim_add(chart_data_arr[i]->st_req_methods, "COPY", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
-        chart_data_arr[i]->dim_req_method_delet = rrddim_add(chart_data_arr[i]->st_req_methods, "DELETE", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
-        chart_data_arr[i]->dim_req_method_get = rrddim_add(chart_data_arr[i]->st_req_methods, "GET", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
-        chart_data_arr[i]->dim_req_method_head = rrddim_add(chart_data_arr[i]->st_req_methods, "HEAD", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
-        chart_data_arr[i]->dim_req_method_label = rrddim_add(chart_data_arr[i]->st_req_methods, "LABEL", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
-        chart_data_arr[i]->dim_req_method_link = rrddim_add(chart_data_arr[i]->st_req_methods, "LINK", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
-        chart_data_arr[i]->dim_req_method_lock = rrddim_add(chart_data_arr[i]->st_req_methods, "LOCK", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
-        chart_data_arr[i]->dim_req_method_merge = rrddim_add(chart_data_arr[i]->st_req_methods, "MERGE", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
-        chart_data_arr[i]->dim_req_method_mkactivity = rrddim_add(chart_data_arr[i]->st_req_methods, "MKACTIVITY", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
-        chart_data_arr[i]->dim_req_method_mkcalendar = rrddim_add(chart_data_arr[i]->st_req_methods, "MKCALENDAR", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
-        chart_data_arr[i]->dim_req_method_mkcol = rrddim_add(chart_data_arr[i]->st_req_methods, "MKCOL", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
-        chart_data_arr[i]->dim_req_method_mkredirectref = rrddim_add(chart_data_arr[i]->st_req_methods, "MKREDIRECTREF", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
-        chart_data_arr[i]->dim_req_method_mkworkspace = rrddim_add(chart_data_arr[i]->st_req_methods, "MKWORKSPACE", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
-        chart_data_arr[i]->dim_req_method_move = rrddim_add(chart_data_arr[i]->st_req_methods, "MOVE", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
-        chart_data_arr[i]->dim_req_method_options = rrddim_add(chart_data_arr[i]->st_req_methods, "OPTIONS", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
-        chart_data_arr[i]->dim_req_method_orderpatch = rrddim_add(chart_data_arr[i]->st_req_methods, "ORDERPATCH", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
-        chart_data_arr[i]->dim_req_method_patch = rrddim_add(chart_data_arr[i]->st_req_methods, "PATCH", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
-        chart_data_arr[i]->dim_req_method_post = rrddim_add(chart_data_arr[i]->st_req_methods, "POST", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
-        chart_data_arr[i]->dim_req_method_pri = rrddim_add(chart_data_arr[i]->st_req_methods, "PRI", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
-        chart_data_arr[i]->dim_req_method_propfind = rrddim_add(chart_data_arr[i]->st_req_methods, "PROPFIND", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
-        chart_data_arr[i]->dim_req_method_proppatch = rrddim_add(chart_data_arr[i]->st_req_methods, "PROPPATCH", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
-        chart_data_arr[i]->dim_req_method_put = rrddim_add(chart_data_arr[i]->st_req_methods, "PUT", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
-        chart_data_arr[i]->dim_req_method_rebind = rrddim_add(chart_data_arr[i]->st_req_methods, "REBIND", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
-        chart_data_arr[i]->dim_req_method_report = rrddim_add(chart_data_arr[i]->st_req_methods, "REPORT", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
-        chart_data_arr[i]->dim_req_method_search = rrddim_add(chart_data_arr[i]->st_req_methods, "SEARCH", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
-        chart_data_arr[i]->dim_req_method_trace = rrddim_add(chart_data_arr[i]->st_req_methods, "TRACE", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
-        chart_data_arr[i]->dim_req_method_unbind = rrddim_add(chart_data_arr[i]->st_req_methods, "UNBIND", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
-        chart_data_arr[i]->dim_req_method_uncheckout = rrddim_add(chart_data_arr[i]->st_req_methods, "UNCHECKOUT", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
-        chart_data_arr[i]->dim_req_method_unlink = rrddim_add(chart_data_arr[i]->st_req_methods, "UNLINK", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
-        chart_data_arr[i]->dim_req_method_unlock = rrddim_add(chart_data_arr[i]->st_req_methods, "UNLOCK", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
-        chart_data_arr[i]->dim_req_method_update = rrddim_add(chart_data_arr[i]->st_req_methods, "UPDATE", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
-        chart_data_arr[i]->dim_req_method_updateredirectref = rrddim_add(chart_data_arr[i]->st_req_methods, "UPDATEREDIRECTREF", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
+        chart_data_arr[i]->dim_req_method_acl = rrddim_add(chart_data_arr[i]->st_req_methods, "ACL", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        chart_data_arr[i]->dim_req_method_baseline_control = rrddim_add(chart_data_arr[i]->st_req_methods, "BASELINE-CONTROL", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        chart_data_arr[i]->dim_req_method_bind = rrddim_add(chart_data_arr[i]->st_req_methods, "BIND", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        chart_data_arr[i]->dim_req_method_checkin = rrddim_add(chart_data_arr[i]->st_req_methods, "CHECKIN", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        chart_data_arr[i]->dim_req_method_checkout = rrddim_add(chart_data_arr[i]->st_req_methods, "CHECKOUT", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        chart_data_arr[i]->dim_req_method_connect = rrddim_add(chart_data_arr[i]->st_req_methods, "CONNECT", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        chart_data_arr[i]->dim_req_method_copy = rrddim_add(chart_data_arr[i]->st_req_methods, "COPY", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        chart_data_arr[i]->dim_req_method_delet = rrddim_add(chart_data_arr[i]->st_req_methods, "DELETE", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        chart_data_arr[i]->dim_req_method_get = rrddim_add(chart_data_arr[i]->st_req_methods, "GET", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        chart_data_arr[i]->dim_req_method_head = rrddim_add(chart_data_arr[i]->st_req_methods, "HEAD", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        chart_data_arr[i]->dim_req_method_label = rrddim_add(chart_data_arr[i]->st_req_methods, "LABEL", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        chart_data_arr[i]->dim_req_method_link = rrddim_add(chart_data_arr[i]->st_req_methods, "LINK", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        chart_data_arr[i]->dim_req_method_lock = rrddim_add(chart_data_arr[i]->st_req_methods, "LOCK", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        chart_data_arr[i]->dim_req_method_merge = rrddim_add(chart_data_arr[i]->st_req_methods, "MERGE", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        chart_data_arr[i]->dim_req_method_mkactivity = rrddim_add(chart_data_arr[i]->st_req_methods, "MKACTIVITY", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        chart_data_arr[i]->dim_req_method_mkcalendar = rrddim_add(chart_data_arr[i]->st_req_methods, "MKCALENDAR", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        chart_data_arr[i]->dim_req_method_mkcol = rrddim_add(chart_data_arr[i]->st_req_methods, "MKCOL", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        chart_data_arr[i]->dim_req_method_mkredirectref = rrddim_add(chart_data_arr[i]->st_req_methods, "MKREDIRECTREF", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        chart_data_arr[i]->dim_req_method_mkworkspace = rrddim_add(chart_data_arr[i]->st_req_methods, "MKWORKSPACE", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        chart_data_arr[i]->dim_req_method_move = rrddim_add(chart_data_arr[i]->st_req_methods, "MOVE", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        chart_data_arr[i]->dim_req_method_options = rrddim_add(chart_data_arr[i]->st_req_methods, "OPTIONS", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        chart_data_arr[i]->dim_req_method_orderpatch = rrddim_add(chart_data_arr[i]->st_req_methods, "ORDERPATCH", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        chart_data_arr[i]->dim_req_method_patch = rrddim_add(chart_data_arr[i]->st_req_methods, "PATCH", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        chart_data_arr[i]->dim_req_method_post = rrddim_add(chart_data_arr[i]->st_req_methods, "POST", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        chart_data_arr[i]->dim_req_method_pri = rrddim_add(chart_data_arr[i]->st_req_methods, "PRI", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        chart_data_arr[i]->dim_req_method_propfind = rrddim_add(chart_data_arr[i]->st_req_methods, "PROPFIND", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        chart_data_arr[i]->dim_req_method_proppatch = rrddim_add(chart_data_arr[i]->st_req_methods, "PROPPATCH", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        chart_data_arr[i]->dim_req_method_put = rrddim_add(chart_data_arr[i]->st_req_methods, "PUT", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        chart_data_arr[i]->dim_req_method_rebind = rrddim_add(chart_data_arr[i]->st_req_methods, "REBIND", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        chart_data_arr[i]->dim_req_method_report = rrddim_add(chart_data_arr[i]->st_req_methods, "REPORT", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        chart_data_arr[i]->dim_req_method_search = rrddim_add(chart_data_arr[i]->st_req_methods, "SEARCH", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        chart_data_arr[i]->dim_req_method_trace = rrddim_add(chart_data_arr[i]->st_req_methods, "TRACE", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        chart_data_arr[i]->dim_req_method_unbind = rrddim_add(chart_data_arr[i]->st_req_methods, "UNBIND", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        chart_data_arr[i]->dim_req_method_uncheckout = rrddim_add(chart_data_arr[i]->st_req_methods, "UNCHECKOUT", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        chart_data_arr[i]->dim_req_method_unlink = rrddim_add(chart_data_arr[i]->st_req_methods, "UNLINK", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        chart_data_arr[i]->dim_req_method_unlock = rrddim_add(chart_data_arr[i]->st_req_methods, "UNLOCK", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        chart_data_arr[i]->dim_req_method_update = rrddim_add(chart_data_arr[i]->st_req_methods, "UPDATE", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        chart_data_arr[i]->dim_req_method_updateredirectref = rrddim_add(chart_data_arr[i]->st_req_methods, "UPDATEREDIRECTREF", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
         
         /* Request protocol - initialise */
         chart_data_arr[i]->st_req_proto = rrdset_create_localhost(
@@ -172,10 +172,10 @@ void *logsmanagement_plugin_main(void *ptr){
                 , localhost->rrd_update_every
                 , RRDSET_TYPE_AREA
         );
-        chart_data_arr[i]->dim_req_proto_http_1 = rrddim_add(chart_data_arr[i]->st_req_proto, "1.0", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
-        chart_data_arr[i]->dim_req_proto_http_1_1 = rrddim_add(chart_data_arr[i]->st_req_proto, "1.1", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
-        chart_data_arr[i]->dim_req_proto_http_2 = rrddim_add(chart_data_arr[i]->st_req_proto, "2.0", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
-        chart_data_arr[i]->dim_req_proto_other = rrddim_add(chart_data_arr[i]->st_req_proto, "other", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
+        chart_data_arr[i]->dim_req_proto_http_1 = rrddim_add(chart_data_arr[i]->st_req_proto, "1.0", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        chart_data_arr[i]->dim_req_proto_http_1_1 = rrddim_add(chart_data_arr[i]->st_req_proto, "1.1", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        chart_data_arr[i]->dim_req_proto_http_2 = rrddim_add(chart_data_arr[i]->st_req_proto, "2.0", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        chart_data_arr[i]->dim_req_proto_other = rrddim_add(chart_data_arr[i]->st_req_proto, "other", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
 
         /* Request bandwidth - initialise */
         chart_data_arr[i]->st_bandwidth = rrdset_create_localhost(
@@ -192,8 +192,8 @@ void *logsmanagement_plugin_main(void *ptr){
                 , localhost->rrd_update_every
                 , RRDSET_TYPE_AREA
         );
-        chart_data_arr[i]->dim_bandwidth_req_size = rrddim_add(chart_data_arr[i]->st_bandwidth, "received", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
-        chart_data_arr[i]->dim_bandwidth_resp_size = rrddim_add(chart_data_arr[i]->st_bandwidth, "sent", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
+        chart_data_arr[i]->dim_bandwidth_req_size = rrddim_add(chart_data_arr[i]->st_bandwidth, "received", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        chart_data_arr[i]->dim_bandwidth_resp_size = rrddim_add(chart_data_arr[i]->st_bandwidth, "sent", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
 
         /* Response code family - initialise */
         chart_data_arr[i]->st_resp_code_family = rrdset_create_localhost(
@@ -210,12 +210,12 @@ void *logsmanagement_plugin_main(void *ptr){
                 , localhost->rrd_update_every
                 , RRDSET_TYPE_AREA
         );
-        chart_data_arr[i]->dim_resp_code_family_1xx = rrddim_add(chart_data_arr[i]->st_resp_code_family, "1xx", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
-        chart_data_arr[i]->dim_resp_code_family_2xx = rrddim_add(chart_data_arr[i]->st_resp_code_family, "2xx", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
-        chart_data_arr[i]->dim_resp_code_family_3xx = rrddim_add(chart_data_arr[i]->st_resp_code_family, "3xx", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE); 
-        chart_data_arr[i]->dim_resp_code_family_4xx = rrddim_add(chart_data_arr[i]->st_resp_code_family, "4xx", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE); 
-        chart_data_arr[i]->dim_resp_code_family_5xx = rrddim_add(chart_data_arr[i]->st_resp_code_family, "5xx", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE); 
-        chart_data_arr[i]->dim_resp_code_family_other = rrddim_add(chart_data_arr[i]->st_resp_code_family, "other", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);        
+        chart_data_arr[i]->dim_resp_code_family_1xx = rrddim_add(chart_data_arr[i]->st_resp_code_family, "1xx", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        chart_data_arr[i]->dim_resp_code_family_2xx = rrddim_add(chart_data_arr[i]->st_resp_code_family, "2xx", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        chart_data_arr[i]->dim_resp_code_family_3xx = rrddim_add(chart_data_arr[i]->st_resp_code_family, "3xx", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL); 
+        chart_data_arr[i]->dim_resp_code_family_4xx = rrddim_add(chart_data_arr[i]->st_resp_code_family, "4xx", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL); 
+        chart_data_arr[i]->dim_resp_code_family_5xx = rrddim_add(chart_data_arr[i]->st_resp_code_family, "5xx", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL); 
+        chart_data_arr[i]->dim_resp_code_family_other = rrddim_add(chart_data_arr[i]->st_resp_code_family, "other", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);        
 
         /* Response code - initialise */
         chart_data_arr[i]->st_resp_code = rrdset_create_localhost(
@@ -235,9 +235,9 @@ void *logsmanagement_plugin_main(void *ptr){
         for(int j = 0; j < 500; j++){
             char dim_resp_code_name[4];
             sprintf(dim_resp_code_name, "%d", j + 100);
-            chart_data_arr[i]->dim_resp_code[j] = rrddim_add(chart_data_arr[i]->st_resp_code, dim_resp_code_name, NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
+            chart_data_arr[i]->dim_resp_code[j] = rrddim_add(chart_data_arr[i]->st_resp_code, dim_resp_code_name, NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
         }
-        chart_data_arr[i]->dim_resp_code[500] = rrddim_add(chart_data_arr[i]->st_resp_code, "other", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
+        chart_data_arr[i]->dim_resp_code[500] = rrddim_add(chart_data_arr[i]->st_resp_code, "other", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
 
         /* Response code type - initialise */
         chart_data_arr[i]->st_resp_code_type = rrdset_create_localhost(
@@ -254,11 +254,11 @@ void *logsmanagement_plugin_main(void *ptr){
                 , localhost->rrd_update_every
                 , RRDSET_TYPE_AREA
         );
-        chart_data_arr[i]->dim_resp_code_type_success = rrddim_add(chart_data_arr[i]->st_resp_code_type, "success", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
-        chart_data_arr[i]->dim_resp_code_type_redirect = rrddim_add(chart_data_arr[i]->st_resp_code_type, "redirect", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
-        chart_data_arr[i]->dim_resp_code_type_bad = rrddim_add(chart_data_arr[i]->st_resp_code_type, "bad", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE); 
-        chart_data_arr[i]->dim_resp_code_type_error = rrddim_add(chart_data_arr[i]->st_resp_code_type, "error", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE); 
-        chart_data_arr[i]->dim_resp_code_type_other = rrddim_add(chart_data_arr[i]->st_resp_code_type, "other", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE); 
+        chart_data_arr[i]->dim_resp_code_type_success = rrddim_add(chart_data_arr[i]->st_resp_code_type, "success", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        chart_data_arr[i]->dim_resp_code_type_redirect = rrddim_add(chart_data_arr[i]->st_resp_code_type, "redirect", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        chart_data_arr[i]->dim_resp_code_type_bad = rrddim_add(chart_data_arr[i]->st_resp_code_type, "bad", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL); 
+        chart_data_arr[i]->dim_resp_code_type_error = rrddim_add(chart_data_arr[i]->st_resp_code_type, "error", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL); 
+        chart_data_arr[i]->dim_resp_code_type_other = rrddim_add(chart_data_arr[i]->st_resp_code_type, "other", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL); 
 
         uv_mutex_lock(p_file_info->parser_mut);
 
@@ -360,7 +360,7 @@ void *logsmanagement_plugin_main(void *ptr){
         /* Request bandwidth - collect first time */ // Note negative sign in response size
         chart_data_arr[i]->num_bandwidth_req_size = p_file_info->parser_metrics->bandwidth.req_size;
         p_file_info->parser_metrics->bandwidth.req_size = 0;
-        chart_data_arr[i]->num_bandwidth_resp_size = - p_file_info->parser_metrics->bandwidth.resp_size;
+        chart_data_arr[i]->num_bandwidth_resp_size = p_file_info->parser_metrics->bandwidth.resp_size;
         p_file_info->parser_metrics->bandwidth.resp_size = 0;
 
         /* Response code family - collect first time */
@@ -497,132 +497,132 @@ void *logsmanagement_plugin_main(void *ptr){
 
             /* Number of lines - collect */
             chart_data_arr[i]->num_lines += p_file_info->parser_metrics->num_lines;
-            p_file_info->parser_metrics->num_lines = 0;
+            //p_file_info->parser_metrics->num_lines = 0;
 
             /* Request methods - collect */
-            chart_data_arr[i]->num_req_method_acl = p_file_info->parser_metrics->req_method.acl;
+            chart_data_arr[i]->num_req_method_acl += p_file_info->parser_metrics->req_method.acl;
             p_file_info->parser_metrics->req_method.acl = 0;
-            chart_data_arr[i]->num_req_method_baseline_control = p_file_info->parser_metrics->req_method.baseline_control;
+            chart_data_arr[i]->num_req_method_baseline_control += p_file_info->parser_metrics->req_method.baseline_control;
             p_file_info->parser_metrics->req_method.baseline_control = 0;
-            chart_data_arr[i]->num_req_method_bind = p_file_info->parser_metrics->req_method.bind;
+            chart_data_arr[i]->num_req_method_bind += p_file_info->parser_metrics->req_method.bind;
             p_file_info->parser_metrics->req_method.bind = 0;
-            chart_data_arr[i]->num_req_method_checkin = p_file_info->parser_metrics->req_method.checkin;
+            chart_data_arr[i]->num_req_method_checkin += p_file_info->parser_metrics->req_method.checkin;
             p_file_info->parser_metrics->req_method.checkin = 0;
-            chart_data_arr[i]->num_req_method_checkout = p_file_info->parser_metrics->req_method.checkout;
+            chart_data_arr[i]->num_req_method_checkout += p_file_info->parser_metrics->req_method.checkout;
             p_file_info->parser_metrics->req_method.checkout = 0;
-            chart_data_arr[i]->num_req_method_connect = p_file_info->parser_metrics->req_method.connect;
+            chart_data_arr[i]->num_req_method_connect += p_file_info->parser_metrics->req_method.connect;
             p_file_info->parser_metrics->req_method.connect = 0;
-            chart_data_arr[i]->num_req_method_copy = p_file_info->parser_metrics->req_method.copy;
+            chart_data_arr[i]->num_req_method_copy += p_file_info->parser_metrics->req_method.copy;
             p_file_info->parser_metrics->req_method.copy = 0;
-            chart_data_arr[i]->num_req_method_delet = p_file_info->parser_metrics->req_method.delet;
+            chart_data_arr[i]->num_req_method_delet += p_file_info->parser_metrics->req_method.delet;
             p_file_info->parser_metrics->req_method.delet = 0;
-            chart_data_arr[i]->num_req_method_get = p_file_info->parser_metrics->req_method.get;
+            chart_data_arr[i]->num_req_method_get += p_file_info->parser_metrics->req_method.get;
             p_file_info->parser_metrics->req_method.get = 0;
-            chart_data_arr[i]->num_req_method_head = p_file_info->parser_metrics->req_method.head;
+            chart_data_arr[i]->num_req_method_head += p_file_info->parser_metrics->req_method.head;
             p_file_info->parser_metrics->req_method.head = 0;
-            chart_data_arr[i]->num_req_method_label = p_file_info->parser_metrics->req_method.label;
+            chart_data_arr[i]->num_req_method_label += p_file_info->parser_metrics->req_method.label;
             p_file_info->parser_metrics->req_method.label = 0;
-            chart_data_arr[i]->num_req_method_link = p_file_info->parser_metrics->req_method.link;
+            chart_data_arr[i]->num_req_method_link += p_file_info->parser_metrics->req_method.link;
             p_file_info->parser_metrics->req_method.link = 0;
-            chart_data_arr[i]->num_req_method_lock = p_file_info->parser_metrics->req_method.lock;
+            chart_data_arr[i]->num_req_method_lock += p_file_info->parser_metrics->req_method.lock;
             p_file_info->parser_metrics->req_method.lock = 0;
-            chart_data_arr[i]->num_req_method_merge = p_file_info->parser_metrics->req_method.merge;
+            chart_data_arr[i]->num_req_method_merge += p_file_info->parser_metrics->req_method.merge;
             p_file_info->parser_metrics->req_method.merge = 0;
-            chart_data_arr[i]->num_req_method_mkactivity = p_file_info->parser_metrics->req_method.mkactivity;
+            chart_data_arr[i]->num_req_method_mkactivity += p_file_info->parser_metrics->req_method.mkactivity;
             p_file_info->parser_metrics->req_method.mkactivity = 0;
-            chart_data_arr[i]->num_req_method_mkcalendar = p_file_info->parser_metrics->req_method.mkcalendar;
+            chart_data_arr[i]->num_req_method_mkcalendar += p_file_info->parser_metrics->req_method.mkcalendar;
             p_file_info->parser_metrics->req_method.mkcalendar = 0;
-            chart_data_arr[i]->num_req_method_mkcol = p_file_info->parser_metrics->req_method.mkcol;
+            chart_data_arr[i]->num_req_method_mkcol += p_file_info->parser_metrics->req_method.mkcol;
             p_file_info->parser_metrics->req_method.mkcol = 0;
-            chart_data_arr[i]->num_req_method_mkredirectref = p_file_info->parser_metrics->req_method.mkredirectref;
+            chart_data_arr[i]->num_req_method_mkredirectref += p_file_info->parser_metrics->req_method.mkredirectref;
             p_file_info->parser_metrics->req_method.mkredirectref = 0;
-            chart_data_arr[i]->num_req_method_mkworkspace = p_file_info->parser_metrics->req_method.mkworkspace;
+            chart_data_arr[i]->num_req_method_mkworkspace += p_file_info->parser_metrics->req_method.mkworkspace;
             p_file_info->parser_metrics->req_method.mkworkspace = 0;
-            chart_data_arr[i]->num_req_method_move = p_file_info->parser_metrics->req_method.move;
+            chart_data_arr[i]->num_req_method_move += p_file_info->parser_metrics->req_method.move;
             p_file_info->parser_metrics->req_method.move = 0;
-            chart_data_arr[i]->num_req_method_options = p_file_info->parser_metrics->req_method.options;
+            chart_data_arr[i]->num_req_method_options += p_file_info->parser_metrics->req_method.options;
             p_file_info->parser_metrics->req_method.options = 0;
-            chart_data_arr[i]->num_req_method_orderpatch = p_file_info->parser_metrics->req_method.orderpatch;
+            chart_data_arr[i]->num_req_method_orderpatch += p_file_info->parser_metrics->req_method.orderpatch;
             p_file_info->parser_metrics->req_method.orderpatch = 0;
-            chart_data_arr[i]->num_req_method_patch = p_file_info->parser_metrics->req_method.patch;
+            chart_data_arr[i]->num_req_method_patch += p_file_info->parser_metrics->req_method.patch;
             p_file_info->parser_metrics->req_method.patch = 0;
-            chart_data_arr[i]->num_req_method_post = p_file_info->parser_metrics->req_method.post;
+            chart_data_arr[i]->num_req_method_post += p_file_info->parser_metrics->req_method.post;
             p_file_info->parser_metrics->req_method.post = 0;
-            chart_data_arr[i]->num_req_method_pri = p_file_info->parser_metrics->req_method.pri;
+            chart_data_arr[i]->num_req_method_pri += p_file_info->parser_metrics->req_method.pri;
             p_file_info->parser_metrics->req_method.pri = 0;
-            chart_data_arr[i]->num_req_method_propfind = p_file_info->parser_metrics->req_method.propfind;
+            chart_data_arr[i]->num_req_method_propfind += p_file_info->parser_metrics->req_method.propfind;
             p_file_info->parser_metrics->req_method.propfind = 0;
-            chart_data_arr[i]->num_req_method_proppatch = p_file_info->parser_metrics->req_method.proppatch;
+            chart_data_arr[i]->num_req_method_proppatch += p_file_info->parser_metrics->req_method.proppatch;
             p_file_info->parser_metrics->req_method.proppatch = 0;
-            chart_data_arr[i]->num_req_method_put = p_file_info->parser_metrics->req_method.put;
+            chart_data_arr[i]->num_req_method_put += p_file_info->parser_metrics->req_method.put;
             p_file_info->parser_metrics->req_method.put = 0;
-            chart_data_arr[i]->num_req_method_rebind = p_file_info->parser_metrics->req_method.rebind;
+            chart_data_arr[i]->num_req_method_rebind += p_file_info->parser_metrics->req_method.rebind;
             p_file_info->parser_metrics->req_method.rebind = 0;
-            chart_data_arr[i]->num_req_method_report = p_file_info->parser_metrics->req_method.report;
+            chart_data_arr[i]->num_req_method_report += p_file_info->parser_metrics->req_method.report;
             p_file_info->parser_metrics->req_method.report = 0;
-            chart_data_arr[i]->num_req_method_search = p_file_info->parser_metrics->req_method.search;
+            chart_data_arr[i]->num_req_method_search += p_file_info->parser_metrics->req_method.search;
             p_file_info->parser_metrics->req_method.search = 0;
-            chart_data_arr[i]->num_req_method_trace = p_file_info->parser_metrics->req_method.trace;
+            chart_data_arr[i]->num_req_method_trace += p_file_info->parser_metrics->req_method.trace;
             p_file_info->parser_metrics->req_method.trace = 0;
-            chart_data_arr[i]->num_req_method_unbind = p_file_info->parser_metrics->req_method.unbind;
+            chart_data_arr[i]->num_req_method_unbind += p_file_info->parser_metrics->req_method.unbind;
             p_file_info->parser_metrics->req_method.unbind = 0;
-            chart_data_arr[i]->num_req_method_uncheckout = p_file_info->parser_metrics->req_method.uncheckout;
+            chart_data_arr[i]->num_req_method_uncheckout += p_file_info->parser_metrics->req_method.uncheckout;
             p_file_info->parser_metrics->req_method.uncheckout = 0;
-            chart_data_arr[i]->num_req_method_unlink = p_file_info->parser_metrics->req_method.unlink;
+            chart_data_arr[i]->num_req_method_unlink += p_file_info->parser_metrics->req_method.unlink;
             p_file_info->parser_metrics->req_method.unlink = 0;
-            chart_data_arr[i]->num_req_method_unlock = p_file_info->parser_metrics->req_method.unlock;
+            chart_data_arr[i]->num_req_method_unlock += p_file_info->parser_metrics->req_method.unlock;
             p_file_info->parser_metrics->req_method.unlock = 0;
-            chart_data_arr[i]->num_req_method_update = p_file_info->parser_metrics->req_method.update;
+            chart_data_arr[i]->num_req_method_update += p_file_info->parser_metrics->req_method.update;
             p_file_info->parser_metrics->req_method.update = 0;
-            chart_data_arr[i]->num_req_method_updateredirectref = p_file_info->parser_metrics->req_method.updateredirectref;
+            chart_data_arr[i]->num_req_method_updateredirectref += p_file_info->parser_metrics->req_method.updateredirectref;
             p_file_info->parser_metrics->req_method.updateredirectref = 0;
 
             /* Request protocol - collect */
-            chart_data_arr[i]->num_req_proto_http_1 = p_file_info->parser_metrics->req_proto.http_1;
+            chart_data_arr[i]->num_req_proto_http_1 += p_file_info->parser_metrics->req_proto.http_1;
             p_file_info->parser_metrics->req_proto.http_1 = 0;
-            chart_data_arr[i]->num_req_proto_http_1_1 = p_file_info->parser_metrics->req_proto.http_1_1;
+            chart_data_arr[i]->num_req_proto_http_1_1 += p_file_info->parser_metrics->req_proto.http_1_1;
             p_file_info->parser_metrics->req_proto.http_1_1 = 0;
-            chart_data_arr[i]->num_req_proto_http_2 = p_file_info->parser_metrics->req_proto.http_2;
+            chart_data_arr[i]->num_req_proto_http_2 += p_file_info->parser_metrics->req_proto.http_2;
             p_file_info->parser_metrics->req_proto.http_2 = 0;
-            chart_data_arr[i]->num_req_proto_other = p_file_info->parser_metrics->req_proto.other;
+            chart_data_arr[i]->num_req_proto_other += p_file_info->parser_metrics->req_proto.other;
             p_file_info->parser_metrics->req_proto.other = 0;
 
             /* Request bandwidth - collect */ // Note negative sign in response size
-            chart_data_arr[i]->num_bandwidth_req_size = p_file_info->parser_metrics->bandwidth.req_size;
+            chart_data_arr[i]->num_bandwidth_req_size += p_file_info->parser_metrics->bandwidth.req_size;
             p_file_info->parser_metrics->bandwidth.req_size = 0;
-            chart_data_arr[i]->num_bandwidth_resp_size = - p_file_info->parser_metrics->bandwidth.resp_size;
+            chart_data_arr[i]->num_bandwidth_resp_size += p_file_info->parser_metrics->bandwidth.resp_size;
             p_file_info->parser_metrics->bandwidth.resp_size = 0;
 
             /* Response code family - collect */
-            chart_data_arr[i]->num_resp_code_family_1xx = p_file_info->parser_metrics->resp_code_family.resp_1xx;
+            chart_data_arr[i]->num_resp_code_family_1xx += p_file_info->parser_metrics->resp_code_family.resp_1xx;
             p_file_info->parser_metrics->resp_code_family.resp_1xx = 0;
-            chart_data_arr[i]->num_resp_code_family_2xx = p_file_info->parser_metrics->resp_code_family.resp_2xx;
+            chart_data_arr[i]->num_resp_code_family_2xx += p_file_info->parser_metrics->resp_code_family.resp_2xx;
             p_file_info->parser_metrics->resp_code_family.resp_2xx = 0;
-            chart_data_arr[i]->num_resp_code_family_3xx = p_file_info->parser_metrics->resp_code_family.resp_3xx;
+            chart_data_arr[i]->num_resp_code_family_3xx += p_file_info->parser_metrics->resp_code_family.resp_3xx;
             p_file_info->parser_metrics->resp_code_family.resp_3xx = 0;
-            chart_data_arr[i]->num_resp_code_family_4xx = p_file_info->parser_metrics->resp_code_family.resp_4xx;
+            chart_data_arr[i]->num_resp_code_family_4xx += p_file_info->parser_metrics->resp_code_family.resp_4xx;
             p_file_info->parser_metrics->resp_code_family.resp_4xx = 0;
-            chart_data_arr[i]->num_resp_code_family_5xx = p_file_info->parser_metrics->resp_code_family.resp_5xx;
+            chart_data_arr[i]->num_resp_code_family_5xx += p_file_info->parser_metrics->resp_code_family.resp_5xx;
             p_file_info->parser_metrics->resp_code_family.resp_5xx = 0;
-            chart_data_arr[i]->num_resp_code_family_other = p_file_info->parser_metrics->resp_code_family.other;
+            chart_data_arr[i]->num_resp_code_family_other += p_file_info->parser_metrics->resp_code_family.other;
             p_file_info->parser_metrics->resp_code_family.other = 0;
 
             /* Response code - collect */
             for(int j = 0; j < 501; j++){
-                chart_data_arr[i]->num_resp_code[j] = p_file_info->parser_metrics->resp_code[j];
+                chart_data_arr[i]->num_resp_code[j] += p_file_info->parser_metrics->resp_code[j];
                 p_file_info->parser_metrics->resp_code[j] = 0;
             }
 
             /* Response code type - collect */
-            chart_data_arr[i]->num_resp_code_type_success = p_file_info->parser_metrics->resp_code_type.resp_success;
+            chart_data_arr[i]->num_resp_code_type_success += p_file_info->parser_metrics->resp_code_type.resp_success;
             p_file_info->parser_metrics->resp_code_type.resp_success = 0;
-            chart_data_arr[i]->num_resp_code_type_redirect = p_file_info->parser_metrics->resp_code_type.resp_redirect;
+            chart_data_arr[i]->num_resp_code_type_redirect += p_file_info->parser_metrics->resp_code_type.resp_redirect;
             p_file_info->parser_metrics->resp_code_type.resp_redirect = 0;
-            chart_data_arr[i]->num_resp_code_type_bad = p_file_info->parser_metrics->resp_code_type.resp_bad;
+            chart_data_arr[i]->num_resp_code_type_bad += p_file_info->parser_metrics->resp_code_type.resp_bad;
             p_file_info->parser_metrics->resp_code_type.resp_bad = 0;
-            chart_data_arr[i]->num_resp_code_type_error = p_file_info->parser_metrics->resp_code_type.resp_error;
+            chart_data_arr[i]->num_resp_code_type_error += p_file_info->parser_metrics->resp_code_type.resp_error;
             p_file_info->parser_metrics->resp_code_type.resp_error = 0;
-            chart_data_arr[i]->num_resp_code_type_other = p_file_info->parser_metrics->resp_code_type.other;
+            chart_data_arr[i]->num_resp_code_type_other += p_file_info->parser_metrics->resp_code_type.other;
             p_file_info->parser_metrics->resp_code_type.other = 0;
             
             uv_mutex_unlock(p_file_info->parser_mut);

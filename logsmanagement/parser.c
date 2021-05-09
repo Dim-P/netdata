@@ -1011,6 +1011,6 @@ Log_parser_metrics_t parse_text_buf(char *text, size_t text_size, log_line_field
         
     }
 
-    fprintf(stderr, "NDLGS Total numLines: %lld\n", metrics.num_lines);
+    //fprintf(stderr, "NDLGS Total numLines: %lld\n", metrics.num_lines);
     return metrics;
 }

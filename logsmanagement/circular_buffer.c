@@ -44,6 +44,7 @@ static void msg_parser(uv_work_t *req){
     uv_mutex_lock(p_file_info->parser_mut);
     // This part needs refactoring
     p_file_info->parser_metrics->num_lines += parser_metrics.num_lines;
+    fprintf(stderr, "NDLGS Total numLines: %lld\n", p_file_info->parser_metrics->num_lines);
 
     p_file_info->parser_metrics->req_method.acl += parser_metrics.req_method.acl;
     p_file_info->parser_metrics->req_method.baseline_control += parser_metrics.req_method.baseline_control;
