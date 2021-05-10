@@ -4,12 +4,14 @@
  *  @author Dimitris Pantazis
  */
 
+//#if !defined(_XOPEN_SOURCE) && !defined(__DARWIN__) && !defined(__APPLE__)
+#define _XOPEN_SOURCE 600
+//#endif // required by strptime
 #include <stdio.h>
 #include <string.h>
 #include "helper.h"
 #include <regex.h> 
 #include "parser.h"
-#define __USE_XOPEN // required by strptime
 #include <time.h>
 #include <sys/time.h>
 
@@ -152,7 +154,7 @@ static inline char **parse_csv( const char *line, const char delimiter, int num_
     tmp = mallocz( strlen(line) + 1 );
 
     if ( !tmp ) {
-        free( buf );
+        freez( buf );
         return NULL;
     }
 
@@ -187,14 +189,14 @@ static inline char **parse_csv( const char *line, const char delimiter, int num_
         else if(*ptr == '\0'){
         	fEnd = 1;
         	*tptr = '\0';
-        	*bptr = strdup( tmp );
+        	*bptr = strdupz( tmp );
 
         	if ( !*bptr ) {
         		for ( bptr--; bptr >= buf; bptr-- ) {
-        			free( *bptr );
+        			freez( *bptr );
         		}
-        		free( buf );
-        		free( tmp );
+        		freez( buf );
+        		freez( tmp );
 
         		return NULL;
         	}
@@ -205,14 +207,14 @@ static inline char **parse_csv( const char *line, const char delimiter, int num_
         }
         else if(*ptr == delimiter){
         	*tptr = '\0';
-        	*bptr = strdup( tmp );
+        	*bptr = strdupz( tmp );
 
         	if ( !*bptr ) {
         		for ( bptr--; bptr >= buf; bptr-- ) {
-        			free( *bptr );
+        			freez( *bptr );
         		}
-        		free( buf );
-        		free( tmp );
+        		freez( buf );
+        		freez( tmp );
 
         		return NULL;
         	}
@@ -235,14 +237,14 @@ static inline char **parse_csv( const char *line, const char delimiter, int num_
                 fEnd = 1;
             case delimiter:
                 *tptr = '\0';
-                *bptr = strdup( tmp );
+                *bptr = strdupz( tmp );
 
                 if ( !*bptr ) {
                     for ( bptr--; bptr >= buf; bptr-- ) {
-                        free( *bptr );
+                        freez( *bptr );
                     }
-                    free( buf );
-                    free( tmp );
+                    freez( buf );
+                    freez( tmp );
 
                     return NULL;
                 }
@@ -267,7 +269,7 @@ static inline char **parse_csv( const char *line, const char delimiter, int num_
     }
 
     *bptr = NULL;
-    free( tmp );
+    freez( tmp );
     return buf;
 }
 
@@ -524,11 +526,11 @@ static Log_line_parsed_t *parse_log_line(log_line_field_t *fields_format, const 
             }
             if(verify){
                 int rc = regexec(&vhost_regex, parsed[i], 0, NULL, 0);
-                if(!rc) log_line_parsed->vhost = strdup(parsed[i]);
+                if(!rc) log_line_parsed->vhost = strdupz(parsed[i]);
                 else if (rc == REG_NOMATCH) fprintf(stderr, "VHOST is invalid\n");
                 else assert(0); 
             }
-            else log_line_parsed->vhost = strdup(parsed[i]);
+            else log_line_parsed->vhost = strdupz(parsed[i]);
             #if ENABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Extracted VHOST:%s\n", log_line_parsed->vhost);
             #endif
@@ -579,11 +581,11 @@ static Log_line_parsed_t *parse_log_line(log_line_field_t *fields_format, const 
             #endif
             if(verify){
                 int rc = regexec(&req_client_regex, parsed[i], 0, NULL, 0);
-                if(!rc) log_line_parsed->req_client = strdup(parsed[i]);
+                if(!rc) log_line_parsed->req_client = strdupz(parsed[i]);
                 else if (rc == REG_NOMATCH) fprintf(stderr, "REQ_CLIENT is invalid\n");
                 else assert(0); // Can also use: regerror(rc, &req_client_regex, msgbuf, sizeof(msgbuf));
             }
-            else log_line_parsed->req_client = strdup(parsed[i]);
+            else log_line_parsed->req_client = strdupz(parsed[i]);
             #if ENABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Extracted REQ_CLIENT:%s\n", log_line_parsed->req_client);
             #endif
@@ -658,9 +660,9 @@ static Log_line_parsed_t *parse_log_line(log_line_field_t *fields_format, const 
 
         if((fields_format[i] == REQ || fields_format[i] == REQ_URL) && strcmp(parsed[i], "-")){
             if(fields_format[i] == REQ){ 
-                log_line_parsed->req_URL = req_first_sep ? strdup(req_first_sep + 1) : NULL;
+                log_line_parsed->req_URL = req_first_sep ? strdupz(req_first_sep + 1) : NULL;
             }   
-            else log_line_parsed->req_URL = strdup(parsed[i]);
+            else log_line_parsed->req_URL = strdupz(parsed[i]);
             #if ENABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Item %d (type: REQ_URL):%s\n", i, log_line_parsed->req_URL);   
             //if(verify){} ??
@@ -681,7 +683,9 @@ static Log_line_parsed_t *parse_log_line(log_line_field_t *fields_format, const 
                      strcmp(&req_proto[5], "1.1") && 
                      strcmp(&req_proto[5], "2") && 
                      strcmp(&req_proto[5], "2.0"))){
+                    #if ENABLE_PARSE_LOG_LINE_FPRINTS
                     fprintf(stderr, "REQ_PROTO is invalid\n");
+                    #endif
                     log_line_parsed->req_proto[0] = '\0';
                 }
                 else snprintf(log_line_parsed->req_proto, REQ_PROTO_MAX_LEN, "%s", &req_proto[5]); 
@@ -862,21 +866,22 @@ static Log_line_parsed_t *parse_log_line(log_line_field_t *fields_format, const 
 
             struct tm ltm = {0};
             strptime(parsed[i], "%d/%b/%Y:%H:%M:%S", &ltm);
-            log_line_parsed->timestamp = mktime(&ltm);
+            //fprintf(stderr, "sec:%d mon:%d year:%d\n", ltm.tm_sec, ltm.tm_mon, ltm.tm_year);
+            //log_line_parsed->timestamp = (long int) mktime(&ltm);
 
 
             // Deal with 2nd part of datetime i.e. timezone
             //TODO: Error handling in case of parsed[++i] is not timezone??
             pch = strchr(parsed[++i], ']');
             if(pch) *pch = '\0';
-            int timezone = strtol(parsed[i], NULL, 10);
-            int timezone_h = timezone / 100;
-            int timezone_m = timezone % 100;
+            long int timezone = strtol(parsed[i], NULL, 10);
+            long int timezone_h = timezone / 100;
+            long int timezone_m = timezone % 100;
             #if ENABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Timezone: int:%d, hrs:%d, mins:%d\n", timezone, timezone_h, timezone_m);
             #endif
 
-            log_line_parsed->timestamp = mktime(&ltm) + timezone_h * 3600 + timezone_m * 60;
+            log_line_parsed->timestamp = (long int) mktime(&ltm) + timezone_h * 3600 + timezone_m * 60;
             #if ENABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Extracted TIME:%lu\n", log_line_parsed->timestamp);
             #endif
@@ -986,6 +991,19 @@ static inline void extract_metrics(Log_line_parsed_t *line_parsed, Log_parser_me
 
 }
 
+static char *strndup_custom(const char *s, size_t n) {
+    char *p;
+    size_t n1;
+    for (n1 = 0; n1 < n && s[n1] != '\0'; n1++)
+        continue;
+    p = mallocz(n + 1);
+    if (p != NULL) {
+        memcpy(p, s, n1);
+        p[n1] = '\0';
+    }
+    return p;
+}
+
 Log_parser_metrics_t parse_text_buf(char *text, size_t text_size, log_line_field_t *fields, int num_fields, const char delimiter, const int verify){
     Log_parser_metrics_t metrics = {0};
     if(!text_size || !text || !*text) return metrics;
@@ -993,7 +1011,7 @@ Log_parser_metrics_t parse_text_buf(char *text, size_t text_size, log_line_field
     char *line_start = text, *line_end = text;
     while(line_end = strchr(line_start, '\n')){
 
-        char *line = strndup(line_start, (size_t) (line_end - line_start));
+        char *line = strndup_custom(line_start, (size_t) (line_end - line_start));
         if(!line) fatal("Fatal when extracting line from text buffer in parse_text_buf()");
         Log_line_parsed_t *line_parsed = parse_log_line(fields, num_fields, line, delimiter, verify);
         // TODO: Refactor the following, can be done inside parse_log_line() function to save a strcmp() call.
@@ -1004,7 +1022,7 @@ Log_parser_metrics_t parse_text_buf(char *text, size_t text_size, log_line_field
         freez(line_parsed->req_client);
         freez(line_parsed->req_URL);
         freez(line_parsed);
-        free(line); // WARNING! use free() not freez() here!
+        freez(line); // WARNING! use free() not freez() here due to strndup()!
 
         line_start = line_end + 1;
         

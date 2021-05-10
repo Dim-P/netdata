@@ -235,10 +235,12 @@ IDLEJITTER_PLUGIN_FILES = \
     collectors/idlejitter.plugin/plugin_idlejitter.h \
     $(NULL)
 
+if ENABLE_LOGSMANAGEMENT
 LOGSMANAGEMENT_PLUGIN_FILES = \
     collectors/logsmanagement.plugin/plugin_logsmanagement.c \
     collectors/logsmanagement.plugin/plugin_logsmanagement.h \
     $(NULL)
+endif
 
 CGROUPS_PLUGIN_FILES = \
     collectors/cgroups.plugin/sys_fs_cgroup.c \
