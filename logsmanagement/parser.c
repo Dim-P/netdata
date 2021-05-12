@@ -830,12 +830,14 @@ static Log_line_parsed_t *parse_log_line(log_line_field_t *fields_format, const 
                      strcmp(parsed[i], "TLSv1.3") &&
                      strcmp(parsed[i], "SSLv2") &&
                      strcmp(parsed[i], "SSLv3")){
+                    #if ENABLE_PARSE_LOG_LINE_FPRINTS
                     fprintf(stderr, "SSL_PROTO is invalid\n");
+                    #endif
                     log_line_parsed->ssl_proto[0] = '\0';
                 }
-                else snprintf(log_line_parsed->ssl_proto, REQ_PROTO_MAX_LEN, "%s", parsed[i]); 
+                else snprintf(log_line_parsed->ssl_proto, SSL_PROTO_MAX_LEN, "%s", parsed[i]); 
             }
-            else snprintf(log_line_parsed->ssl_proto, REQ_PROTO_MAX_LEN, "%s", parsed[i]); 
+            else snprintf(log_line_parsed->ssl_proto, SSL_PROTO_MAX_LEN, "%s", parsed[i]); 
             #if ENABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Extracted SSL_PROTO:%s\n", log_line_parsed->ssl_proto);
             #endif
@@ -990,6 +992,15 @@ static inline void extract_metrics(Log_line_parsed_t *line_parsed, Log_parser_me
             metrics->resp_code_type.other++;
             break;
     }
+
+    /* Extract SSL protocol */
+    if(!strcmp(line_parsed->ssl_proto, "TLSv1")) metrics->ssl_proto.tlsv1++;
+    else if(!strcmp(line_parsed->ssl_proto, "TLSv1.1")) metrics->ssl_proto.tlsv1_1++;
+    else if(!strcmp(line_parsed->ssl_proto, "TLSv1.2")) metrics->ssl_proto.tlsv1_2++;
+    else if(!strcmp(line_parsed->ssl_proto, "TLSv1.3")) metrics->ssl_proto.tlsv1_3++;
+    else if(!strcmp(line_parsed->ssl_proto, "SSLv2")) metrics->ssl_proto.sslv2++;
+    else if(!strcmp(line_parsed->ssl_proto, "SSLv3")) metrics->ssl_proto.sslv3++;
+    else metrics->ssl_proto.other++;
     
     metrics->num_lines++;
 

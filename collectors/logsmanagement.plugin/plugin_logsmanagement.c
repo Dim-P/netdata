@@ -53,6 +53,11 @@ struct Chart_data{
     RRDSET *st_resp_code_type;
     RRDDIM *dim_resp_code_type_success, *dim_resp_code_type_redirect, *dim_resp_code_type_bad, *dim_resp_code_type_error, *dim_resp_code_type_other;
     collected_number num_resp_code_type_success, num_resp_code_type_redirect, num_resp_code_type_bad, num_resp_code_type_error, num_resp_code_type_other;
+
+    /* SSL protocol */
+    RRDSET *st_ssl_proto;
+    RRDDIM *dim_ssl_proto_tlsv1, *dim_ssl_proto_tlsv1_1, *dim_ssl_proto_tlsv1_2, *dim_ssl_proto_tlsv1_3, *dim_ssl_proto_sslv2, *dim_ssl_proto_sslv3, *dim_ssl_proto_other;
+    collected_number num_ssl_proto_tlsv1, num_ssl_proto_tlsv1_1, num_ssl_proto_tlsv1_2, num_ssl_proto_tlsv1_3, num_ssl_proto_sslv2, num_ssl_proto_sslv3, num_ssl_proto_other;
 };
 
 static struct Chart_data **chart_data_arr;
@@ -260,10 +265,32 @@ void *logsmanagement_plugin_main(void *ptr){
         chart_data_arr[i]->dim_resp_code_type_error = rrddim_add(chart_data_arr[i]->st_resp_code_type, "error", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL); 
         chart_data_arr[i]->dim_resp_code_type_other = rrddim_add(chart_data_arr[i]->st_resp_code_type, "other", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL); 
 
+        /* SSL protocol - initialise */
+        chart_data_arr[i]->st_ssl_proto = rrdset_create_localhost(
+                chart_data_arr[i]->rrd_type
+                , "ssl protocol"
+                , NULL
+                , "ssl protocol"
+                , NULL
+                , "Requests Per SSL Protocol"
+                , "requests/s"
+                , "logsmanagement.plugin"
+                , NULL
+                , 132207
+                , localhost->rrd_update_every
+                , RRDSET_TYPE_AREA
+        );
+        chart_data_arr[i]->dim_ssl_proto_tlsv1 = rrddim_add(chart_data_arr[i]->st_ssl_proto, "TLSV1", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        chart_data_arr[i]->dim_ssl_proto_tlsv1_1 = rrddim_add(chart_data_arr[i]->st_ssl_proto, "TLSV1.1", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        chart_data_arr[i]->dim_ssl_proto_tlsv1_2 = rrddim_add(chart_data_arr[i]->st_ssl_proto, "TLSV1.2", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        chart_data_arr[i]->dim_ssl_proto_tlsv1_3 = rrddim_add(chart_data_arr[i]->st_ssl_proto, "TLSV1.3", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        chart_data_arr[i]->dim_ssl_proto_sslv2 = rrddim_add(chart_data_arr[i]->st_ssl_proto, "SSLV2", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        chart_data_arr[i]->dim_ssl_proto_sslv3 = rrddim_add(chart_data_arr[i]->st_ssl_proto, "SSLV3", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        chart_data_arr[i]->dim_ssl_proto_other = rrddim_add(chart_data_arr[i]->st_ssl_proto, "Other", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+
+
+
         uv_mutex_lock(p_file_info->parser_mut);
-
-
-
 
         /* Number of lines - collect first time */
         chart_data_arr[i]->num_lines = p_file_info->parser_metrics->num_lines;
@@ -394,6 +421,23 @@ void *logsmanagement_plugin_main(void *ptr){
         p_file_info->parser_metrics->resp_code_type.resp_error = 0;
         chart_data_arr[i]->num_resp_code_type_other = p_file_info->parser_metrics->resp_code_type.other;
         p_file_info->parser_metrics->resp_code_type.other = 0;
+
+        /* SSL protocol - collect first time */
+        chart_data_arr[i]->num_ssl_proto_tlsv1 = p_file_info->parser_metrics->ssl_proto.tlsv1;
+        p_file_info->parser_metrics->ssl_proto.tlsv1 = 0;
+        chart_data_arr[i]->num_ssl_proto_tlsv1_1 = p_file_info->parser_metrics->ssl_proto.tlsv1_1;
+        p_file_info->parser_metrics->ssl_proto.tlsv1_1 = 0;
+        chart_data_arr[i]->num_ssl_proto_tlsv1_2 = p_file_info->parser_metrics->ssl_proto.tlsv1_2;
+        p_file_info->parser_metrics->ssl_proto.tlsv1_2 = 0;
+        chart_data_arr[i]->num_ssl_proto_tlsv1_3 = p_file_info->parser_metrics->ssl_proto.tlsv1_3;
+        p_file_info->parser_metrics->ssl_proto.tlsv1_3 = 0;
+        chart_data_arr[i]->num_ssl_proto_sslv2 = p_file_info->parser_metrics->ssl_proto.sslv2;
+        p_file_info->parser_metrics->ssl_proto.sslv2 = 0;
+        chart_data_arr[i]->num_ssl_proto_sslv3 = p_file_info->parser_metrics->ssl_proto.sslv3;
+        p_file_info->parser_metrics->ssl_proto.sslv3 = 0;
+        chart_data_arr[i]->num_ssl_proto_other = p_file_info->parser_metrics->ssl_proto.other;
+        p_file_info->parser_metrics->ssl_proto.other = 0;
+
         
         uv_mutex_unlock(p_file_info->parser_mut);
 
@@ -476,7 +520,17 @@ void *logsmanagement_plugin_main(void *ptr){
         rrddim_set_by_pointer(chart_data_arr[i]->st_resp_code_type, chart_data_arr[i]->dim_resp_code_type_error, chart_data_arr[i]->num_resp_code_type_error);
         rrddim_set_by_pointer(chart_data_arr[i]->st_resp_code_type, chart_data_arr[i]->dim_resp_code_type_other, chart_data_arr[i]->num_resp_code_type_other);
         rrdset_done(chart_data_arr[i]->st_resp_code_type);
-        
+
+        /* SSL protocol - update chart first time */
+        rrddim_set_by_pointer(chart_data_arr[i]->st_ssl_proto, chart_data_arr[i]->dim_ssl_proto_tlsv1, chart_data_arr[i]->num_ssl_proto_tlsv1);
+        rrddim_set_by_pointer(chart_data_arr[i]->st_ssl_proto, chart_data_arr[i]->dim_ssl_proto_tlsv1_1, chart_data_arr[i]->num_ssl_proto_tlsv1_1);
+        rrddim_set_by_pointer(chart_data_arr[i]->st_ssl_proto, chart_data_arr[i]->dim_ssl_proto_tlsv1_2, chart_data_arr[i]->num_ssl_proto_tlsv1_2);
+        rrddim_set_by_pointer(chart_data_arr[i]->st_ssl_proto, chart_data_arr[i]->dim_ssl_proto_tlsv1_3, chart_data_arr[i]->num_ssl_proto_tlsv1_3);
+        rrddim_set_by_pointer(chart_data_arr[i]->st_ssl_proto, chart_data_arr[i]->dim_ssl_proto_sslv2, chart_data_arr[i]->num_ssl_proto_sslv2);
+        rrddim_set_by_pointer(chart_data_arr[i]->st_ssl_proto, chart_data_arr[i]->dim_ssl_proto_sslv3, chart_data_arr[i]->num_ssl_proto_sslv3);
+        rrddim_set_by_pointer(chart_data_arr[i]->st_ssl_proto, chart_data_arr[i]->dim_ssl_proto_other, chart_data_arr[i]->num_ssl_proto_other);
+        rrdset_done(chart_data_arr[i]->st_ssl_proto);
+
     }
 
     usec_t step = localhost->rrd_update_every * USEC_PER_SEC;
@@ -624,6 +678,22 @@ void *logsmanagement_plugin_main(void *ptr){
             p_file_info->parser_metrics->resp_code_type.resp_error = 0;
             chart_data_arr[i]->num_resp_code_type_other += p_file_info->parser_metrics->resp_code_type.other;
             p_file_info->parser_metrics->resp_code_type.other = 0;
+
+            /* SSL protocol - collect */
+            chart_data_arr[i]->num_ssl_proto_tlsv1 += p_file_info->parser_metrics->ssl_proto.tlsv1;
+            p_file_info->parser_metrics->ssl_proto.tlsv1 = 0;
+            chart_data_arr[i]->num_ssl_proto_tlsv1_1 += p_file_info->parser_metrics->ssl_proto.tlsv1_1;
+            p_file_info->parser_metrics->ssl_proto.tlsv1_1 = 0;
+            chart_data_arr[i]->num_ssl_proto_tlsv1_2 += p_file_info->parser_metrics->ssl_proto.tlsv1_2;
+            p_file_info->parser_metrics->ssl_proto.tlsv1_2 = 0;
+            chart_data_arr[i]->num_ssl_proto_tlsv1_3 += p_file_info->parser_metrics->ssl_proto.tlsv1_3;
+            p_file_info->parser_metrics->ssl_proto.tlsv1_3 = 0;
+            chart_data_arr[i]->num_ssl_proto_sslv2 += p_file_info->parser_metrics->ssl_proto.sslv2;
+            p_file_info->parser_metrics->ssl_proto.sslv2 = 0;
+            chart_data_arr[i]->num_ssl_proto_sslv3 += p_file_info->parser_metrics->ssl_proto.sslv3;
+            p_file_info->parser_metrics->ssl_proto.sslv3 = 0;
+            chart_data_arr[i]->num_ssl_proto_other += p_file_info->parser_metrics->ssl_proto.other;
+            p_file_info->parser_metrics->ssl_proto.other = 0;
             
             uv_mutex_unlock(p_file_info->parser_mut);
 
@@ -713,6 +783,17 @@ void *logsmanagement_plugin_main(void *ptr){
             rrddim_set_by_pointer(chart_data_arr[i]->st_resp_code_type, chart_data_arr[i]->dim_resp_code_type_error, chart_data_arr[i]->num_resp_code_type_error);
             rrddim_set_by_pointer(chart_data_arr[i]->st_resp_code_type, chart_data_arr[i]->dim_resp_code_type_other, chart_data_arr[i]->num_resp_code_type_other);
             rrdset_done(chart_data_arr[i]->st_resp_code_type);
+
+            /* SSL protocol - update chart first time */
+            rrdset_next(chart_data_arr[i]->st_ssl_proto);
+            rrddim_set_by_pointer(chart_data_arr[i]->st_ssl_proto, chart_data_arr[i]->dim_ssl_proto_tlsv1, chart_data_arr[i]->num_ssl_proto_tlsv1);
+            rrddim_set_by_pointer(chart_data_arr[i]->st_ssl_proto, chart_data_arr[i]->dim_ssl_proto_tlsv1_1, chart_data_arr[i]->num_ssl_proto_tlsv1_1);
+            rrddim_set_by_pointer(chart_data_arr[i]->st_ssl_proto, chart_data_arr[i]->dim_ssl_proto_tlsv1_2, chart_data_arr[i]->num_ssl_proto_tlsv1_2);
+            rrddim_set_by_pointer(chart_data_arr[i]->st_ssl_proto, chart_data_arr[i]->dim_ssl_proto_tlsv1_3, chart_data_arr[i]->num_ssl_proto_tlsv1_3);
+            rrddim_set_by_pointer(chart_data_arr[i]->st_ssl_proto, chart_data_arr[i]->dim_ssl_proto_sslv2, chart_data_arr[i]->num_ssl_proto_sslv2);
+            rrddim_set_by_pointer(chart_data_arr[i]->st_ssl_proto, chart_data_arr[i]->dim_ssl_proto_sslv3, chart_data_arr[i]->num_ssl_proto_sslv3);
+            rrddim_set_by_pointer(chart_data_arr[i]->st_ssl_proto, chart_data_arr[i]->dim_ssl_proto_other, chart_data_arr[i]->num_ssl_proto_other);
+            rrdset_done(chart_data_arr[i]->st_ssl_proto);
         }
 	}
 

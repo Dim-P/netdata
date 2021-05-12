@@ -93,14 +93,14 @@ static const char *log_msgs_arr[] = {
     "hddtemp[localhost] : Failed to connect to '127.0.0.1', port 7634, error: [Errno 111] Connection refused",
     "plugin[main] : memcached[localhost] : check failed",
     */
-    "5000 GET 202 HTTP/1 845 -", /* common log format */
-    "5000 POST 303 HTTP/1 845 698", /* common log format */
-    "5000 OPTIONS 404 HTTP/1 - 236", /* common log format */
-    "5000 PATCH 404 HTTP/2 124 541", /* common log format */
-    "5000 UNBIND 1027 HTTP/3 958 2345", /* common log format */
-    "5000 PUT 403 HTTP/1.0 458 1056", /* common log format */
-    "5000 PUT 304 HTTP/1.0 205 288", /* common log format */
-    "5000 WRONGMETHOD 504 HTTP/1.0 150 130", /* common log format */
+    "5000 GET 202 HTTP/1 845 - TLSv1", /* common log format */
+    "5000 POST 303 HTTP/1 845 698 TLSv1.1", /* common log format */
+    "5000 OPTIONS 404 HTTP/1 - 236 TLSv1.2", /* common log format */
+    "5000 PATCH 404 HTTP/2 124 541 TLSv1.3", /* common log format */
+    "5000 UNBIND 1027 HTTP/3 958 2345 SSLv2", /* common log format */
+    "5000 PUT 403 HTTP/1.0 458 1056 SSLv3", /* common log format */
+    "5000 PUT 304 HTTP/1.0 205 288 wrong_ssl", /* common log format */
+    "5000 WRONGMETHOD 504 HTTP/1.0 150 130 -", /* common log format */
     "",
 };
 

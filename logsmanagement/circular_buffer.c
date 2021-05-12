@@ -106,6 +106,14 @@ static void msg_parser(uv_work_t *req){
     p_file_info->parser_metrics->resp_code_type.resp_error += parser_metrics.resp_code_type.resp_error;
     p_file_info->parser_metrics->resp_code_type.other += parser_metrics.resp_code_type.other;
 
+    p_file_info->parser_metrics->ssl_proto.tlsv1 += parser_metrics.ssl_proto.tlsv1;
+    p_file_info->parser_metrics->ssl_proto.tlsv1_1 += parser_metrics.ssl_proto.tlsv1_1;
+    p_file_info->parser_metrics->ssl_proto.tlsv1_2 += parser_metrics.ssl_proto.tlsv1_2;
+    p_file_info->parser_metrics->ssl_proto.tlsv1_3 += parser_metrics.ssl_proto.tlsv1_3;
+    p_file_info->parser_metrics->ssl_proto.sslv2 += parser_metrics.ssl_proto.sslv2;
+    p_file_info->parser_metrics->ssl_proto.sslv3 += parser_metrics.ssl_proto.sslv3;
+    p_file_info->parser_metrics->ssl_proto.other += parser_metrics.ssl_proto.other;
+
     uv_mutex_unlock(p_file_info->parser_mut);
 
     compress_text(buff_msg_current);

@@ -88,6 +88,9 @@ typedef struct log_parser_metrics{
 	struct log_parser_metrics_resp_code_type{ /* Note: 304 and 401 should be treated as resp_success */
 		int resp_success, resp_redirect, resp_bad, resp_error, other; // TODO: Can there be "other"?
 	} resp_code_type;
+	struct log_parser_metrics_ssl_proto{
+		int tlsv1, tlsv1_1, tlsv1_2, tlsv1_3, sslv2, sslv3, other;
+	} ssl_proto;
 } Log_parser_metrics_t;
 
 void search_keyword(char *src, char *dest, const char *keyword, const int ignore_case);
