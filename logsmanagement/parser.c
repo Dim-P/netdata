@@ -5,8 +5,9 @@
  */
 
 //#if !defined(_XOPEN_SOURCE) && !defined(__DARWIN__) && !defined(__APPLE__)
-#define _XOPEN_SOURCE 600
-//#endif // required by strptime
+#define _XOPEN_SOURCE 600 // required by strptime
+//#endif
+
 #include <stdio.h>
 #include <string.h>
 #include "helper.h"
@@ -863,10 +864,13 @@ static Log_line_parsed_t *parse_log_line(log_line_field_t *fields_format, const 
             #endif
             char *pch = strchr(parsed[i], '[');
             if(pch) memmove(parsed[i], parsed[i]+1, strlen(parsed[i])); //%d/%b/%Y:%H:%M:%S %z
-
             struct tm ltm = {0};
-            strptime(parsed[i], "%d/%b/%Y:%H:%M:%S", &ltm);
-            //fprintf(stderr, "sec:%d mon:%d year:%d\n", ltm.tm_sec, ltm.tm_mon, ltm.tm_year);
+            if(strptime(parsed[i], "%d/%b/%Y:%H:%M:%S", &ltm) == NULL) fatal("Cannot parse time");
+
+            // char month[20];
+            // sscanf(parsed[i], "%d/%[^/]/%d:%d:%d:%d", &ltm.tm_mday, month, &ltm.tm_year, &ltm.tm_hour, &ltm.tm_min, &ltm.tm_sec);            
+            // ltm.tm_mon = 4;
+            //fprintf(stderr, "day:%d month:%s year:%d sec:%d min:%d, hour:%d\n", ltm.tm_mday, month, ltm.tm_year, ltm.tm_sec, ltm.tm_min, ltm.tm_hour);
             //log_line_parsed->timestamp = (long int) mktime(&ltm);
 
 
@@ -881,7 +885,7 @@ static Log_line_parsed_t *parse_log_line(log_line_field_t *fields_format, const 
             fprintf(stderr, "Timezone: int:%d, hrs:%d, mins:%d\n", timezone, timezone_h, timezone_m);
             #endif
 
-            log_line_parsed->timestamp = (long int) mktime(&ltm) + timezone_h * 3600 + timezone_m * 60;
+            log_line_parsed->timestamp = (uint64_t) mktime(&ltm) + (uint64_t) timezone_h * 3600 + (uint64_t) timezone_m * 60;
             #if ENABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Extracted TIME:%lu\n", log_line_parsed->timestamp);
             #endif

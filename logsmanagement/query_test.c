@@ -33,7 +33,9 @@ static void pipe_read_cb(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf
         query_params[i].filename = malloc(100 * sizeof(char));
         query_params[i].filename = strtok(NULL, ",");
         query_params[i].keyword = strtok(NULL, ",");
-        query_params[i].results_buff = buffer_create((size_t)strtoll(strtok(NULL, ","), &pEnd, 10));
+        size_t buff_size = (size_t)strtoll(strtok(NULL, ","), &pEnd, 10);
+        // fprintf_log(LOGS_MANAG_INFO, "size_of_buff in pipe_read_cb(): %zd\n", buff_size);
+        query_params[i].results_buff = buffer_create(buff_size);
 
 
         int rc = uv_thread_create(&test_execute_query_thread_id[i], test_execute_query_thread, &query_params[i]);
@@ -137,8 +139,7 @@ void test_execute_query_thread(void *args) {
         // fprintf_log(LOGS_MANAG_DEBUG, stderr, "\n%.*s\n=====***********=====\n", 1000, query_params.results_buff->buffer);
         // fprintf_log(LOGS_MANAG_DEBUG, stderr, "\n%.*s\n\n", 1000, buf);
         rc = memcmp(buf, query_params.results_buff->buffer, query_params.results_buff->len);
-        if (rc)
-            fprintf_log(LOGS_MANAG_INFO, stderr, "Mismatch between DB and log file data in %s\n", query_params.filename);
+        if (rc) fprintf_log(LOGS_MANAG_ERROR, stderr, "Mismatch between DB and log file data in %s\n", query_params.filename);
         m_assert(!rc, "Mismatch between DB and log file data!");
 
         file_offset += query_params.results_buff->len;

@@ -56,7 +56,7 @@ typedef struct log_line_parsed{
 		int ups_resp_time;
 		char ssl_proto[SSL_PROTO_MAX_LEN];
 		char ssl_cipher_suite[SSL_CIPHER_SUITE_MAX_LEN];
-		long int timestamp;
+		uint64_t timestamp;
 } Log_line_parsed_t;
 
 typedef struct log_parser_config{
