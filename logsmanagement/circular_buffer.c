@@ -41,11 +41,14 @@ static void msg_parser(uv_work_t *req){
     // TODO: verify bool should be set through log source configuration.
     Log_parser_metrics_t parser_metrics = parse_text_buf(parser_buff_current, buff_msg_current->text, buff_msg_current->text_size, 
         p_file_info->parser_config->fields, p_file_info->parser_config->num_fields, p_file_info->parser_config->delimiter, 1);
-    if(parser_metrics.num_lines == 0) fatal("Parsed buffer did not contain any text or was of 0 size.");
+    if(parser_metrics.num_lines_rate == 0) fatal("Parsed buffer did not contain any text or was of 0 size.");
+
     uv_mutex_lock(p_file_info->parser_mut);
     // This part needs refactoring
-    p_file_info->parser_metrics->num_lines += parser_metrics.num_lines;
-    fprintf(stderr, "NDLGS Total numLines: %lld\n", p_file_info->parser_metrics->num_lines);
+
+    p_file_info->parser_metrics->num_lines_total += parser_metrics.num_lines_total;
+    p_file_info->parser_metrics->num_lines_rate += parser_metrics.num_lines_rate;
+    fprintf(stderr, "NDLGS NumLines: Total:%lld Rate:%lld\n", p_file_info->parser_metrics->num_lines_total, p_file_info->parser_metrics->num_lines_rate);
 
     p_file_info->parser_metrics->req_method.acl += parser_metrics.req_method.acl;
     p_file_info->parser_metrics->req_method.baseline_control += parser_metrics.req_method.baseline_control;
@@ -190,10 +193,12 @@ void circ_buff_write(struct File_info *p_file_info) {
     buff->size++;
     uv_mutex_unlock(&buff->mut);
 
+    if(p_file_info->parser_config){
     // TODO: Can we get rid of malloc here?
-    uv_work_t *req = mallocz(sizeof(uv_work_t));
-    req->data = (void *) p_file_info; 
-    uv_queue_work(circ_buff_loop, req, msg_parser, msg_parser_cleanup);
+        uv_work_t *req = mallocz(sizeof(uv_work_t));
+        req->data = (void *) p_file_info; 
+        uv_queue_work(circ_buff_loop, req, msg_parser, msg_parser_cleanup);
+    }
 
     end_time = get_unix_time_ms();
     fprintf_log(LOGS_MANAG_INFO, stderr, "It took %" PRIu64 "ms to insert message into buffer.\n", end_time - start_time);

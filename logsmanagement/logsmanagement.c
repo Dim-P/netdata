@@ -629,7 +629,7 @@ static void config_init(){
         fprintf(stderr, "NDLGS Processing section: %s\n", config_section->name);
         int enabled = appconfig_get_boolean(&log_management_config, config_section->name, "enabled", 0);
         fprintf(stderr, "NDLGS Enabled value: %d for section: %s\n", enabled, config_section->name);
-        fprintf(stderr, "config_section->next NULL? %s\n", config_section->next ? "yes" : "no");
+        fprintf(stderr, "NDLGS config_section->next NULL? %s\n", config_section->next ? "yes" : "no");
 
         if(enabled){ // log monitoring for this section is enabled
             char *log_source_path = appconfig_get(&log_management_config, config_section->name, "log path", NULL);

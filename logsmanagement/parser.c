@@ -907,6 +907,10 @@ static Log_line_parsed_t *parse_log_line(Log_parser_buffs_t *parser_buffs, log_l
 
 static inline void extract_metrics(Log_line_parsed_t *line_parsed, Log_parser_metrics_t *metrics){
 
+    /* Extract number of parsed lines */
+    metrics->num_lines_total++;
+    metrics->num_lines_rate++;
+
     /* Extract request method */
     if(!strcmp(line_parsed->req_method, "ACL")) metrics->req_method.acl++;
     if(!strcmp(line_parsed->req_method, "BASELINE-CONTROL")) metrics->req_method.baseline_control++;
@@ -1002,8 +1006,6 @@ static inline void extract_metrics(Log_line_parsed_t *line_parsed, Log_parser_me
     else if(!strcmp(line_parsed->ssl_proto, "SSLv2")) metrics->ssl_proto.sslv2++;
     else if(!strcmp(line_parsed->ssl_proto, "SSLv3")) metrics->ssl_proto.sslv3++;
     else metrics->ssl_proto.other++;
-    
-    metrics->num_lines++;
 
 }
 

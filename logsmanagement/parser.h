@@ -74,7 +74,8 @@ typedef struct log_parser_config{
 
 // IMPORTANT! Ensure no pointer are contained inside log_parser_metrics as there are shallow copy operations used on this struct.
 typedef struct log_parser_metrics{
-    unsigned long long num_lines; /**< Number of total lines parsed in log source file. */
+    unsigned long long num_lines_total; /**< Number of total lines parsed in log source file. */
+    unsigned long long num_lines_rate;  /**< Number of new lines parsed. */
     struct log_parser_metrics_req_method{
 		int acl, baseline_control, bind, checkin, checkout, connect, copy, delet, get,
 		head, label, link, lock, merge, mkactivity, mkcalendar, mkcol, mkredirectref,

@@ -8,8 +8,9 @@ struct Chart_data{
 
     /* Number of lines */
     RRDSET *st_lines;
-    RRDDIM *dim_lines;
-    collected_number num_lines;
+    RRDDIM *dim_lines_total;
+    RRDDIM *dim_lines_rate;
+    collected_number num_lines_total, num_lines_rate;
 
     /* Request methods */
     RRDSET *st_req_methods;
@@ -94,11 +95,11 @@ void *logsmanagement_plugin_main(void *ptr){
         /* Number of lines - initialise */
     	chart_data_arr[i]->st_lines = rrdset_create_localhost(
                 chart_data_arr[i]->rrd_type
-                , "total lines parsed"
+                , "lines parsed"
                 , NULL
-                , "total lines parsed"
+                , "lines parsed"
                 , NULL
-                , "Lines collected (total)"
+                , "Log lines parsed"
                 , "lines/s"
                 , "logsmanagement.plugin"
                 , NULL
@@ -106,7 +107,9 @@ void *logsmanagement_plugin_main(void *ptr){
                 , localhost->rrd_update_every
                 , RRDSET_TYPE_AREA
         );
-        chart_data_arr[i]->dim_lines = rrddim_add(chart_data_arr[i]->st_lines, "lines/s", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        // TODO: Change dim_lines_total to RRD_ALGORITHM_INCREMENTAL
+        chart_data_arr[i]->dim_lines_total = rrddim_add(chart_data_arr[i]->st_lines, "Total lines", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
+        chart_data_arr[i]->dim_lines_rate = rrddim_add(chart_data_arr[i]->st_lines, "New lines", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
 
         /* Request methods - initialise */
         chart_data_arr[i]->st_req_methods = rrdset_create_localhost(
@@ -293,8 +296,10 @@ void *logsmanagement_plugin_main(void *ptr){
         uv_mutex_lock(p_file_info->parser_mut);
 
         /* Number of lines - collect first time */
-        chart_data_arr[i]->num_lines = p_file_info->parser_metrics->num_lines;
-        p_file_info->parser_metrics->num_lines = 0;
+        chart_data_arr[i]->num_lines_total = p_file_info->parser_metrics->num_lines_total;
+        // p_file_info->parser_metrics->num_lines_total = 0;
+        chart_data_arr[i]->num_lines_rate = p_file_info->parser_metrics->num_lines_rate;
+        p_file_info->parser_metrics->num_lines_rate = 0;
 
         /* Request methods - collect first time */
         chart_data_arr[i]->num_req_method_acl = p_file_info->parser_metrics->req_method.acl;
@@ -444,7 +449,8 @@ void *logsmanagement_plugin_main(void *ptr){
 
 
         /* Number of lines - update chart first time */
-        rrddim_set_by_pointer(chart_data_arr[i]->st_lines, chart_data_arr[i]->dim_lines, chart_data_arr[i]->num_lines);
+        rrddim_set_by_pointer(chart_data_arr[i]->st_lines, chart_data_arr[i]->dim_lines_total, chart_data_arr[i]->num_lines_total);
+        rrddim_set_by_pointer(chart_data_arr[i]->st_lines, chart_data_arr[i]->dim_lines_rate, chart_data_arr[i]->num_lines_rate);
     	rrdset_done(chart_data_arr[i]->st_lines);
 
         /* Request methods - update chart first time */
@@ -550,8 +556,10 @@ void *logsmanagement_plugin_main(void *ptr){
     		uv_mutex_lock(p_file_info->parser_mut);
 
             /* Number of lines - collect */
-            chart_data_arr[i]->num_lines += p_file_info->parser_metrics->num_lines;
-            //p_file_info->parser_metrics->num_lines = 0;
+            chart_data_arr[i]->num_lines_total = p_file_info->parser_metrics->num_lines_total;
+            // p_file_info->parser_metrics->num_lines_total = 0;
+            chart_data_arr[i]->num_lines_rate += p_file_info->parser_metrics->num_lines_rate;
+            p_file_info->parser_metrics->num_lines_rate = 0;
 
             /* Request methods - collect */
             chart_data_arr[i]->num_req_method_acl += p_file_info->parser_metrics->req_method.acl;
@@ -701,7 +709,8 @@ void *logsmanagement_plugin_main(void *ptr){
 
             /* Number of lines - update chart */
     		rrdset_next(chart_data_arr[i]->st_lines);
-    		rrddim_set_by_pointer(chart_data_arr[i]->st_lines, chart_data_arr[i]->dim_lines, chart_data_arr[i]->num_lines);
+    		rrddim_set_by_pointer(chart_data_arr[i]->st_lines, chart_data_arr[i]->dim_lines_total, chart_data_arr[i]->num_lines_total);
+            rrddim_set_by_pointer(chart_data_arr[i]->st_lines, chart_data_arr[i]->dim_lines_rate, chart_data_arr[i]->num_lines_rate);
             rrdset_done(chart_data_arr[i]->st_lines);
 
             /* Request methods - update chart */
