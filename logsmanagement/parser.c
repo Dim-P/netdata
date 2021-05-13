@@ -487,8 +487,9 @@ Log_parser_config_t *read_parse_config(char *log_format, const char delimiter){
 }
 
 #define ENABLE_PARSE_LOG_LINE_FPRINTS 0
-static Log_line_parsed_t *parse_log_line(log_line_field_t *fields_format, const int num_fields_format, const char *line, const char delimiter, const int verify){
-    Log_line_parsed_t *log_line_parsed = callocz(1, sizeof(Log_line_parsed_t));
+static Log_line_parsed_t *parse_log_line(Log_parser_buffs_t *parser_buffs, log_line_field_t *fields_format, const int num_fields_format, const char *line, const char delimiter, const int verify){
+    parser_buffs->log_line_parsed = (Log_line_parsed_t) {};
+    Log_line_parsed_t *log_line_parsed = &parser_buffs->log_line_parsed;
 #if ENABLE_PARSE_LOG_LINE_FPRINTS
     fprintf(stderr, "Original line: %s\n", line);
 #endif
@@ -1031,7 +1032,7 @@ Log_parser_metrics_t parse_text_buf(Log_parser_buffs_t *parser_buffs, char *text
         parser_buffs->line[line_len] = '\0';
         // fprintf(stderr, "line:%s\n", parser_buffs->line);
         
-        Log_line_parsed_t *line_parsed = parse_log_line(fields, num_fields, parser_buffs->line, delimiter, verify);
+        Log_line_parsed_t *line_parsed = parse_log_line(parser_buffs, fields, num_fields, parser_buffs->line, delimiter, verify);
         
         // TODO: Refactor the following, can be done inside parse_log_line() function to save a strcmp() call.
         extract_metrics(line_parsed, &metrics);
@@ -1039,7 +1040,6 @@ Log_parser_metrics_t parse_text_buf(Log_parser_buffs_t *parser_buffs, char *text
         freez(line_parsed->vhost);
         freez(line_parsed->req_client);
         freez(line_parsed->req_URL);
-        freez(line_parsed);
 
         line_start = line_end + 1;
         
