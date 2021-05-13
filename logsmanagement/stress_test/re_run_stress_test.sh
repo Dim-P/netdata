@@ -17,4 +17,4 @@ gcc stress_test.c -luv -o stress_test
 sudo -u netdata -g netdata ./stress_test "$num_log_sources" &
 sleep 2
 #sudo systemctl start netdata
-sudo -u netdata -g netdata -s gdb -ex=run --args /tmp/netdata/usr/sbin/netdata -D
+sudo -u netdata -g netdata -s gdb -ex=run -ex="set confirm off" --args /tmp/netdata/usr/sbin/netdata -D

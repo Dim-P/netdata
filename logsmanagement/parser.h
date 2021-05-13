@@ -14,6 +14,7 @@
 #define SSL_PROTO_MAX_LEN 8 
 #define SSL_CIPHER_SUITE_MAX_LEN 256 // TODO: Check max len for ssl cipher suite string is indeed 256
 #define REGEX_SIZE 100U /**< Max size of regular expression (used in keyword search) in bytes **/
+#define LOG_PARSER_BUFFS_LINE_REALLOC_SCALE_FACTOR 1.5
 
 typedef enum{
 	VHOST, 		      // nginx: $host ($http_host)      apache: %v
@@ -59,6 +60,12 @@ typedef struct log_line_parsed{
 		uint64_t timestamp;
 } Log_line_parsed_t;
 
+typedef struct log_parser_buffs{
+	Log_line_parsed_t log_line_parsed;
+	char *line;
+	size_t line_len_max;
+}Log_parser_buffs_t;
+
 typedef struct log_parser_config{
     log_line_field_t *fields;   
     int num_fields;             /**< Number of strings in the fields array. */
@@ -95,6 +102,6 @@ typedef struct log_parser_metrics{
 
 void search_keyword(char *src, char *dest, const char *keyword, const int ignore_case);
 Log_parser_config_t *read_parse_config(char *log_format, const char delimiter);
-Log_parser_metrics_t parse_text_buf(char *text, size_t text_size, log_line_field_t *fields, int num_fields, const char delimiter, const int verify);
+Log_parser_metrics_t parse_text_buf(Log_parser_buffs_t *log_parser_buffs, char *text, size_t text_size, log_line_field_t *fields, int num_fields, const char delimiter, const int verify);
 
 #endif  // PARSER_H_

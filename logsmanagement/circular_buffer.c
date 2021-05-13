@@ -34,11 +34,12 @@ static void msg_parser(uv_work_t *req){
     m_assert(buff->parse_next_index != buff->head_index, "More msg_parser() called than Message_t items in buff that need parsing");
     /* This needs to be within mut lock as another msg_parser() in different thread 
      * (albeit unlikely) could be changing parsed_index at the same time as this thread */
-    Message_t *buff_msg_current = &buff->msgs[(buff->parse_next_index++) & BUFF_SIZE_MASK];  
+    Log_parser_buffs_t *parser_buff_current =  &buff->parser_buffs[(buff->parse_next_index) & BUFF_SIZE_MASK]; 
+    Message_t *buff_msg_current = &buff->msgs[(buff->parse_next_index++) & BUFF_SIZE_MASK]; 
     uv_mutex_unlock(&buff->mut);
 
     // TODO: verify bool should be set through log source configuration.
-    Log_parser_metrics_t parser_metrics = parse_text_buf(buff_msg_current->text, buff_msg_current->text_size, 
+    Log_parser_metrics_t parser_metrics = parse_text_buf(parser_buff_current, buff_msg_current->text, buff_msg_current->text_size, 
         p_file_info->parser_config->fields, p_file_info->parser_config->num_fields, p_file_info->parser_config->delimiter, 1);
     if(parser_metrics.num_lines == 0) fatal("Parsed buffer did not contain any text or was of 0 size.");
     uv_mutex_lock(p_file_info->parser_mut);
@@ -287,7 +288,7 @@ static void circ_buff_loop_run(void *arg){
  */ 
 Circ_buff_t *circ_buff_init() {
     int rc = 0;
-    Circ_buff_t *buff = mallocz(sizeof(Circ_buff_t));
+    Circ_buff_t *buff = callocz(1, sizeof(Circ_buff_t));
     *buff = (Circ_buff_t){0};
     buff->tail_index = buff->read_index = buff->parsed_index = buff->parse_next_index = buff->head_index = 0;
     buff->size = 0;

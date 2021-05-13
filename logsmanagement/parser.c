@@ -1006,41 +1006,47 @@ static inline void extract_metrics(Log_line_parsed_t *line_parsed, Log_parser_me
 
 }
 
-static char *strndup_custom(const char *s, size_t n) {
-    char *p;
-    size_t n1;
-    for (n1 = 0; n1 < n && s[n1] != '\0'; n1++)
-        continue;
-    p = mallocz(n + 1);
-    if (p != NULL) {
-        memcpy(p, s, n1);
-        p[n1] = '\0';
-    }
-    return p;
-}
-
-Log_parser_metrics_t parse_text_buf(char *text, size_t text_size, log_line_field_t *fields, int num_fields, const char delimiter, const int verify){
+#define MEASURE_PARSE_TEXT_TIME 1
+Log_parser_metrics_t parse_text_buf(Log_parser_buffs_t *parser_buffs, char *text, size_t text_size, log_line_field_t *fields, int num_fields, const char delimiter, const int verify){
     Log_parser_metrics_t metrics = {0};
     if(!text_size || !text || !*text) return metrics;
 
     char *line_start = text, *line_end = text;
     while(line_end = strchr(line_start, '\n')){
 
-        char *line = strndup_custom(line_start, (size_t) (line_end - line_start));
-        if(!line) fatal("Fatal when extracting line from text buffer in parse_text_buf()");
-        Log_line_parsed_t *line_parsed = parse_log_line(fields, num_fields, line, delimiter, verify);
-        // TODO: Refactor the following, can be done inside parse_log_line() function to save a strcmp() call.
+        #if MEASURE_PARSE_TEXT_TIME
+        struct timespec begin, end;
+        clock_gettime(CLOCK_MONOTONIC_RAW, &begin);
+        #endif
 
+        size_t line_len = (size_t) (line_end - line_start);
+        
+        if(!parser_buffs->line || (line_len + 1) > parser_buffs->line_len_max){
+            parser_buffs->line_len_max = (line_len + 1) * LOG_PARSER_BUFFS_LINE_REALLOC_SCALE_FACTOR;
+            parser_buffs->line = realloc(parser_buffs->line, parser_buffs->line_len_max);
+        }
+        if(!parser_buffs->line) fatal("Fatal when extracting line from text buffer in parse_text_buf()");
+
+        memcpy(parser_buffs->line, line_start, line_len);
+        parser_buffs->line[line_len] = '\0';
+        // fprintf(stderr, "line:%s\n", parser_buffs->line);
+        
+        Log_line_parsed_t *line_parsed = parse_log_line(fields, num_fields, parser_buffs->line, delimiter, verify);
+        
+        // TODO: Refactor the following, can be done inside parse_log_line() function to save a strcmp() call.
         extract_metrics(line_parsed, &metrics);
         
         freez(line_parsed->vhost);
         freez(line_parsed->req_client);
         freez(line_parsed->req_URL);
         freez(line_parsed);
-        freez(line); // WARNING! use free() not freez() here due to strndup()!
 
         line_start = line_end + 1;
         
+        #if MEASURE_PARSE_TEXT_TIME
+        clock_gettime(CLOCK_MONOTONIC_RAW, &end);
+        fprintf (stderr, "T:%fs\n", (end.tv_nsec - begin.tv_nsec) / 1000000000.0 + (end.tv_sec  - begin.tv_sec));
+        #endif
         
     }
 
