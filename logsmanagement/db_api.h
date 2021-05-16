@@ -7,7 +7,7 @@
 #ifndef DB_API_H_
 #define DB_API_H_
 
-#include <sqlite3.h>
+#include "sqlite3.h"
 #include <uv.h>
 #include "query.h"
 #include "file_info.h"	

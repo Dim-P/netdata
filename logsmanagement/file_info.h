@@ -7,7 +7,7 @@
 #ifndef FILE_INFO_H_
 #define FILE_INFO_H_
 
-#include <sqlite3.h>
+#include "sqlite3.h"
 #include "config_.h"
 #include "parser.h"
 

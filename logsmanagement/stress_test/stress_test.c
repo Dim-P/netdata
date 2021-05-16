@@ -139,7 +139,7 @@ static void produce_logs(void *arg) {
     uint64_t start_time = get_unix_time_ms();
     int log_no = *((int *)arg);
     int rc = 0;
-    long int msgs_written = 0;
+    long long int msgs_written = 0;
     uv_file file_handle;
     uv_buf_t uv_buf;
     char *buf = malloc(max_msg_len + 100);
