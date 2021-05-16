@@ -88,7 +88,7 @@ void *logsmanagement_plugin_main(void *ptr){
         } 
 
         chart_data_arr[i] = callocz(1, sizeof(struct Chart_data));
-        chart_data_arr[i]->rrd_type = p_file_info->filename;
+        chart_data_arr[i]->rrd_type = (char *) p_file_info->chart_name;
 
 
 
@@ -193,7 +193,7 @@ void *logsmanagement_plugin_main(void *ptr){
                 , "bandwidth"
                 , NULL
                 , "Bandwidth"
-                , "kilobits/s"
+                , "bits/s"
                 , "logsmanagement.plugin"
                 , NULL
                 , 132203
@@ -201,7 +201,7 @@ void *logsmanagement_plugin_main(void *ptr){
                 , RRDSET_TYPE_AREA
         );
         chart_data_arr[i]->dim_bandwidth_req_size = rrddim_add(chart_data_arr[i]->st_bandwidth, "received", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
-        chart_data_arr[i]->dim_bandwidth_resp_size = rrddim_add(chart_data_arr[i]->st_bandwidth, "sent", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        chart_data_arr[i]->dim_bandwidth_resp_size = rrddim_add(chart_data_arr[i]->st_bandwidth, "sent", NULL, -1, 1, RRD_ALGORITHM_INCREMENTAL);
 
         /* Response code family - initialise */
         chart_data_arr[i]->st_resp_code_family = rrdset_create_localhost(

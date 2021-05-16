@@ -640,16 +640,21 @@ static void config_init(){
                     char *log_format = appconfig_get(&log_management_config, config_section->name, "log format", NULL);
                     fprintf(stderr, "NDLGS log format value: %s for section: %s\n==== \n", log_format ? log_format : "NULL!", config_section->name);
                     const char delimiter = ' '; // TODO!!: TO READ FROM CONFIG
-                    if(log_format){
-                        p_file_info->parser_config = read_parse_config(log_format, delimiter);
-                        if(p_file_info) fprintf(stderr, "NDLGS Read parser_config for %s\n", p_file_info->filename);
-                        if(p_file_info->parser_config){ 
-                            p_file_info->parser_metrics = callocz(1, sizeof(Log_parser_metrics_t));
-                            p_file_info->parser_mut = mallocz(sizeof(uv_mutex_t));
-                            rc = uv_mutex_init(p_file_info->parser_mut);
-                            if(rc) fatal("Failed to initialise parser_mut for %s\n", p_file_info->filename);
-                            fprintf(stderr, "NDLGS parser_mut initialised for %s\n", p_file_info->filename);
-                        }
+                    if(!log_format){
+                        // TODO: Set default log format and delimiter if not found in config? 
+                    }
+                    p_file_info->parser_config = read_parse_config(log_format, delimiter);
+                    fprintf(stderr, "NDLGS Read parser_config for %s: %s\n", p_file_info->filename, p_file_info->parser_config ? "success!" : "failed!");
+                    if(p_file_info->parser_config){ 
+                        p_file_info->chart_name = config_section->name ? strdup(config_section->name) : p_file_info->filename;
+                        p_file_info->parser_metrics = callocz(1, sizeof(Log_parser_metrics_t));
+                        p_file_info->parser_mut = mallocz(sizeof(uv_mutex_t));
+                        rc = uv_mutex_init(p_file_info->parser_mut);
+                        if(rc) fatal("Failed to initialise parser_mut for %s\n", p_file_info->filename);
+                        fprintf(stderr, "NDLGS parser_mut initialised for %s\n", p_file_info->filename);
+                    }
+                    else{
+                        // TODO: Terminate monitor_log_file_init() if p_file_info->parser_config is NULL? 
                     }
                 }
             }
