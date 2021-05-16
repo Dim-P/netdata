@@ -56,7 +56,8 @@ static void msg_parser(uv_work_t *req){
     p_file_info->parser_metrics->req_method.checkin += parser_metrics.req_method.checkin;
     p_file_info->parser_metrics->req_method.checkout += parser_metrics.req_method.checkout;
     p_file_info->parser_metrics->req_method.connect += parser_metrics.req_method.copy;
-    p_file_info->parser_metrics->req_method.delet += parser_metrics.req_method.get;
+    p_file_info->parser_metrics->req_method.delet += parser_metrics.req_method.delet;
+    p_file_info->parser_metrics->req_method.get += parser_metrics.req_method.get;
     p_file_info->parser_metrics->req_method.head += parser_metrics.req_method.head;
     p_file_info->parser_metrics->req_method.label += parser_metrics.req_method.label;
     p_file_info->parser_metrics->req_method.link += parser_metrics.req_method.link;
