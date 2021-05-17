@@ -3,6 +3,16 @@
 #include "plugin_logsmanagement.h"
 #include "../../logsmanagement/file_info.h"
 
+#define NETDATA_CHART_PRIO_LOGS_BASE        132200
+#define NETDATA_CHART_PRIO_LINES            NETDATA_CHART_PRIO_LOGS_BASE + 0
+#define NETDATA_CHART_PRIO_REQ_METHODS      NETDATA_CHART_PRIO_LOGS_BASE + 1
+#define NETDATA_CHART_PRIO_REQ_PROTO        NETDATA_CHART_PRIO_LOGS_BASE + 2
+#define NETDATA_CHART_PRIO_BANDWIDTH        NETDATA_CHART_PRIO_LOGS_BASE + 3
+#define NETDATA_CHART_PRIO_RESP_CODE_FAMILY NETDATA_CHART_PRIO_LOGS_BASE + 4
+#define NETDATA_CHART_PRIO_RESP_CODE        NETDATA_CHART_PRIO_LOGS_BASE + 5
+#define NETDATA_CHART_PRIO_RESP_CODE_TYPE   NETDATA_CHART_PRIO_LOGS_BASE + 6
+#define NETDATA_CHART_PRIO_SSL_PROTO        NETDATA_CHART_PRIO_LOGS_BASE + 7
+
 struct Chart_data{
     char * rrd_type;
 
@@ -76,7 +86,9 @@ static void logsmanagement_plugin_main_cleanup(void *ptr) {
 void *logsmanagement_plugin_main(void *ptr){
 	netdata_thread_cleanup_push(logsmanagement_plugin_main_cleanup, ptr);
 
-    while(!p_file_infos_arr) sleep_usec(100000); // wait for p_file_infos_arr initialisation
+    /* wait for p_file_infos_arr initialisation
+     * TODO: Not production ready - needs refactoring as this can lead to race condition! */
+    while(!p_file_infos_arr) sleep_usec(100000); 
 
     chart_data_arr = callocz(1, p_file_infos_arr->count * sizeof(struct Chart_data *));
 
@@ -103,7 +115,7 @@ void *logsmanagement_plugin_main(void *ptr){
                 , "lines/s"
                 , "logsmanagement.plugin"
                 , NULL
-                , 132200
+                , NETDATA_CHART_PRIO_LINES
                 , localhost->rrd_update_every
                 , RRDSET_TYPE_AREA
         );
@@ -122,7 +134,7 @@ void *logsmanagement_plugin_main(void *ptr){
                 , "requests/s"
                 , "logsmanagement.plugin"
                 , NULL
-                , 132201
+                , NETDATA_CHART_PRIO_REQ_METHODS
                 , localhost->rrd_update_every
                 , RRDSET_TYPE_AREA
         );
@@ -176,7 +188,7 @@ void *logsmanagement_plugin_main(void *ptr){
                 , "requests/s"
                 , "logsmanagement.plugin"
                 , NULL
-                , 132202
+                , NETDATA_CHART_PRIO_REQ_PROTO
                 , localhost->rrd_update_every
                 , RRDSET_TYPE_AREA
         );
@@ -193,15 +205,15 @@ void *logsmanagement_plugin_main(void *ptr){
                 , "bandwidth"
                 , NULL
                 , "Bandwidth"
-                , "bits/s"
+                , "kilobits/s"
                 , "logsmanagement.plugin"
                 , NULL
-                , 132203
+                , NETDATA_CHART_PRIO_BANDWIDTH
                 , localhost->rrd_update_every
                 , RRDSET_TYPE_AREA
         );
-        chart_data_arr[i]->dim_bandwidth_req_size = rrddim_add(chart_data_arr[i]->st_bandwidth, "received", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
-        chart_data_arr[i]->dim_bandwidth_resp_size = rrddim_add(chart_data_arr[i]->st_bandwidth, "sent", NULL, -1, 1, RRD_ALGORITHM_INCREMENTAL);
+        chart_data_arr[i]->dim_bandwidth_req_size = rrddim_add(chart_data_arr[i]->st_bandwidth, "received", NULL, 8, 1000, RRD_ALGORITHM_INCREMENTAL);
+        chart_data_arr[i]->dim_bandwidth_resp_size = rrddim_add(chart_data_arr[i]->st_bandwidth, "sent", NULL, -8, 1000, RRD_ALGORITHM_INCREMENTAL);
 
         /* Response code family - initialise */
         chart_data_arr[i]->st_resp_code_family = rrdset_create_localhost(
@@ -214,7 +226,7 @@ void *logsmanagement_plugin_main(void *ptr){
                 , "requests/s"
                 , "logsmanagement.plugin"
                 , NULL
-                , 132204
+                , NETDATA_CHART_PRIO_RESP_CODE_FAMILY
                 , localhost->rrd_update_every
                 , RRDSET_TYPE_AREA
         );
@@ -230,13 +242,13 @@ void *logsmanagement_plugin_main(void *ptr){
                 chart_data_arr[i]->rrd_type
                 , "detailed responses"
                 , NULL
-                , "detailed responses"
+                , "responses"
                 , NULL
                 , "Detailed Response Codes"
                 , "requests/s"
                 , "logsmanagement.plugin"
                 , NULL
-                , 132205
+                , NETDATA_CHART_PRIO_RESP_CODE
                 , localhost->rrd_update_every
                 , RRDSET_TYPE_AREA
         );
@@ -252,13 +264,13 @@ void *logsmanagement_plugin_main(void *ptr){
                 chart_data_arr[i]->rrd_type
                 , "response types"
                 , NULL
-                , "response types"
+                , "responses"
                 , NULL
                 , "Response Statuses"
                 , "requests/s"
                 , "logsmanagement.plugin"
                 , NULL
-                , 132206
+                , NETDATA_CHART_PRIO_RESP_CODE_TYPE
                 , localhost->rrd_update_every
                 , RRDSET_TYPE_AREA
         );
@@ -279,7 +291,7 @@ void *logsmanagement_plugin_main(void *ptr){
                 , "requests/s"
                 , "logsmanagement.plugin"
                 , NULL
-                , 132207
+                , NETDATA_CHART_PRIO_SSL_PROTO
                 , localhost->rrd_update_every
                 , RRDSET_TYPE_AREA
         );
