@@ -8,6 +8,7 @@
 #define PARSER_H_
 
 /* Following max lengths include NUL terminating char */
+#define VHOST_MAX_LEN 255
 #define REQ_SCHEME_MAX_LEN 6
 #define REQ_METHOD_MAX_LEN 18
 #define REQ_PROTO_MAX_LEN 4 
@@ -40,7 +41,7 @@ typedef enum{
 typedef struct log_line_parsed{
 		//char vhost[255];
 		//char req_client[46]; // https://superuser.com/questions/381022/how-many-characters-can-an-ip-address-be#comment2219013_381029
-		char *vhost;
+		char vhost[VHOST_MAX_LEN];
 		int  port;
 		char req_scheme[REQ_SCHEME_MAX_LEN];
 		char *req_client;
@@ -69,10 +70,16 @@ typedef struct log_parser_config{
     char delimiter;       /**< Delimiter that separates the fields in the log format. */
 } Log_parser_config_t;
 
-// IMPORTANT! Ensure no pointer are contained inside log_parser_metrics as there are shallow copy operations used on this struct.
 typedef struct log_parser_metrics{
     unsigned long long num_lines_total; /**< Number of total lines parsed in log source file. */
     unsigned long long num_lines_rate;  /**< Number of new lines parsed. */
+    struct log_parser_metrics_vhosts_array{
+    	struct log_parser_metrics_vhost{
+	    	char name[VHOST_MAX_LEN];
+	    	int count;
+	    } *vhosts;
+	    int size;
+    } vhost_arr;
     struct log_parser_metrics_req_method{
 		int acl, baseline_control, bind, checkin, checkout, connect, copy, delet, get,
 		head, label, link, lock, merge, mkactivity, mkcalendar, mkcol, mkredirectref,

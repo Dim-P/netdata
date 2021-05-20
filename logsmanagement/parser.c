@@ -530,11 +530,14 @@ static Log_line_parsed_t *parse_log_line(Log_parser_buffs_t *parser_buffs, log_l
             }
             if(verify){
                 int rc = regexec(&vhost_regex, parsed[i], 0, NULL, 0);
-                if(!rc) log_line_parsed->vhost = strdupz(parsed[i]);
-                else if (rc == REG_NOMATCH) fprintf(stderr, "VHOST is invalid\n");
+                if(!rc) snprintf(log_line_parsed->vhost, VHOST_MAX_LEN, "%s", parsed[i]);
+                else if (rc == REG_NOMATCH) {
+                    fprintf(stderr, "VHOST is invalid\n");
+                    log_line_parsed->vhost[0] = '\0';
+                }
                 else assert(0); 
             }
-            else log_line_parsed->vhost = strdupz(parsed[i]);
+            else snprintf(log_line_parsed->vhost, VHOST_MAX_LEN, "%s", parsed[i]);
             #if ENABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Extracted VHOST:%s\n", log_line_parsed->vhost);
             #endif
@@ -913,6 +916,27 @@ static inline void extract_metrics(Log_line_parsed_t *line_parsed, Log_parser_me
     metrics->num_lines_total++;
     metrics->num_lines_rate++;
 
+    /* Extract vhost */
+    // TODO: Reduce number of reallocs
+    if(line_parsed->vhost && *line_parsed->vhost){
+        int i;
+        for(i = 0; i < metrics->vhost_arr.size; i++){
+            if(!strcmp(metrics->vhost_arr.vhosts[i].name, line_parsed->vhost)){
+                metrics->vhost_arr.vhosts[i].count++;
+                break;
+            }
+        }
+        if(metrics->vhost_arr.size == i){ // Vhost not found in array - need to append
+            metrics->vhost_arr.size++;
+            metrics->vhost_arr.vhosts = reallocz(metrics->vhost_arr.vhosts, metrics->vhost_arr.size * sizeof(struct log_parser_metrics_vhost));
+            snprintf(metrics->vhost_arr.vhosts[metrics->vhost_arr.size - 1].name, VHOST_MAX_LEN, "%s", line_parsed->vhost);
+            metrics->vhost_arr.vhosts[metrics->vhost_arr.size - 1].count = 1;
+        }
+    }
+    // for(int i = 0; i < metrics->vhost_arr.size; i++){
+    //     fprintf(stderr, "This: %s %d\n", metrics->vhost_arr.vhosts[i].name, metrics->vhost_arr.vhosts[i].count);
+    // }
+
     /* Extract request method */
     if(!strcmp(line_parsed->req_method, "ACL")) metrics->req_method.acl++;
     if(!strcmp(line_parsed->req_method, "BASELINE-CONTROL")) metrics->req_method.baseline_control++;
@@ -1016,6 +1040,8 @@ Log_parser_metrics_t parse_text_buf(Log_parser_buffs_t *parser_buffs, char *text
     Log_parser_metrics_t metrics = {0};
     if(!text_size || !text || !*text) return metrics;
 
+    metrics.vhost_arr.vhosts = NULL;
+
     char *line_start = text, *line_end = text;
     while(line_end = strchr(line_start, '\n')){
 
@@ -1028,7 +1054,7 @@ Log_parser_metrics_t parse_text_buf(Log_parser_buffs_t *parser_buffs, char *text
         
         if(!parser_buffs->line || (line_len + 1) > parser_buffs->line_len_max){
             parser_buffs->line_len_max = (line_len + 1) * LOG_PARSER_BUFFS_LINE_REALLOC_SCALE_FACTOR;
-            parser_buffs->line = realloc(parser_buffs->line, parser_buffs->line_len_max);
+            parser_buffs->line = reallocz(parser_buffs->line, parser_buffs->line_len_max);
         }
         if(!parser_buffs->line) fatal("Fatal when extracting line from text buffer in parse_text_buf()");
 
@@ -1041,7 +1067,6 @@ Log_parser_metrics_t parse_text_buf(Log_parser_buffs_t *parser_buffs, char *text
         // TODO: Refactor the following, can be done inside parse_log_line() function to save a strcmp() call.
         extract_metrics(line_parsed, &metrics);
         
-        freez(line_parsed->vhost);
         freez(line_parsed->req_client);
         freez(line_parsed->req_URL);
 
@@ -1053,6 +1078,10 @@ Log_parser_metrics_t parse_text_buf(Log_parser_buffs_t *parser_buffs, char *text
         #endif
         
     }
+
+    // for(int i = 0; i < metrics.vhost_arr.size; i++){
+    //     fprintf(stderr, "This: %s %d\n", metrics.vhost_arr.vhosts[i].name, metrics.vhost_arr.vhosts[i].count);
+    // }
 
     //fprintf(stderr, "NDLGS Total numLines: %lld\n", metrics.num_lines);
     return metrics;

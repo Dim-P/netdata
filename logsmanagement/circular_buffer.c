@@ -50,6 +50,30 @@ static void msg_parser(uv_work_t *req){
     p_file_info->parser_metrics->num_lines_rate += parser_metrics.num_lines_rate;
     fprintf(stderr, "NDLGS NumLines: Total:%lld Rate:%lld\n", p_file_info->parser_metrics->num_lines_total, p_file_info->parser_metrics->num_lines_rate);
 
+    for(int i = 0; i < parser_metrics.vhost_arr.size; i++){
+        int j;
+        for(j = 0; j < p_file_info->parser_metrics->vhost_arr.size ; j++){
+            if(!strcmp(parser_metrics.vhost_arr.vhosts[i].name, p_file_info->parser_metrics->vhost_arr.vhosts[j].name)) {
+                p_file_info->parser_metrics->vhost_arr.vhosts[j].count += parser_metrics.vhost_arr.vhosts[i].count;
+                break;
+            }
+        }
+        if(p_file_info->parser_metrics->vhost_arr.size == j){
+            p_file_info->parser_metrics->vhost_arr.size++;
+
+            // TODO: Reduce number of reallocs
+            p_file_info->parser_metrics->vhost_arr.vhosts = reallocz(p_file_info->parser_metrics->vhost_arr.vhosts, 
+                p_file_info->parser_metrics->vhost_arr.size * sizeof(struct log_parser_metrics_vhost));
+            snprintf(p_file_info->parser_metrics->vhost_arr.vhosts[p_file_info->parser_metrics->vhost_arr.size - 1].name, 
+                VHOST_MAX_LEN, "%s", parser_metrics.vhost_arr.vhosts[i].name);
+            p_file_info->parser_metrics->vhost_arr.vhosts[p_file_info->parser_metrics->vhost_arr.size - 1].count = parser_metrics.vhost_arr.vhosts[i].count;
+        }
+    }
+    freez(parser_metrics.vhost_arr.vhosts);
+    // for(int i = 0; i < p_file_info->parser_metrics->vhost_arr.size; i++){
+    //     fprintf(stderr, "This: %s %d\n", p_file_info->parser_metrics->vhost_arr.vhosts[i].name, p_file_info->parser_metrics->vhost_arr.vhosts[i].count);
+    // }
+
     p_file_info->parser_metrics->req_method.acl += parser_metrics.req_method.acl;
     p_file_info->parser_metrics->req_method.baseline_control += parser_metrics.req_method.baseline_control;
     p_file_info->parser_metrics->req_method.bind += parser_metrics.req_method.bind;
