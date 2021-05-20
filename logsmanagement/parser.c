@@ -345,12 +345,20 @@ Log_parser_config_t *read_parse_config(char *log_format, const char delimiter){
     parser_config->num_fields = num_fields;
     parser_config->delimiter = delimiter;
     
+    // fprintf(stderr, "ND-LGS: numFields: %d\n", num_fields);
     char **parsed_format = parse_csv(log_format, delimiter, num_fields); // parsed_format is NULL-terminated
     parser_config->fields = callocz(num_fields, sizeof(log_line_field_t));
     unsigned int fields_off = 0;
 
     for(int i = 0; i < num_fields; i++ ){
 		fprintf(stderr, "Field %d (%s) is ", i, parsed_format[i]);
+
+        if(strcmp(parsed_format[i], "$host:$server_port") == 0 || 
+           strcmp(parsed_format[i], "%v:%p") == 0) {
+            fprintf(stderr, "VHOST_WITH_PORT\n");
+            parser_config->fields[fields_off++] = VHOST_WITH_PORT;
+            continue;
+        }
 
 		if(strcmp(parsed_format[i], "$host") == 0 || 
 		   strcmp(parsed_format[i], "$http_host") == 0 ||
@@ -364,13 +372,6 @@ Log_parser_config_t *read_parse_config(char *log_format, const char delimiter){
 		   strcmp(parsed_format[i], "%p") == 0) {
 			fprintf(stderr, "PORT\n");
 			parser_config->fields[fields_off++] = PORT;
-			continue;
-		}
-
-		if(strcmp(parsed_format[i], "$host:$server_port") == 0 || 
-		   strcmp(parsed_format[i], "%v:%p") == 0) {
-			fprintf(stderr, "VHOST_WITH_PORT\n");
-			parser_config->fields[fields_off++] = VHOST_WITH_PORT;
 			continue;
 		}
 
@@ -469,6 +470,7 @@ Log_parser_config_t *read_parse_config(char *log_format, const char delimiter){
 		if(strcmp(parsed_format[i], "$time_local") == 0 ||
 		   strcmp(parsed_format[i], "%t") == 0) {
 			fprintf(stderr, "TIME\n");
+            parser_config->fields = reallocz(parser_config->fields, (num_fields + 1) * sizeof(log_line_field_t));
 			parser_config->fields[fields_off++] = TIME;
             parser_config->fields[fields_off++] = TIME; // TIME takes 2 fields
             parser_config->num_fields++;                // TIME takes 2 fields
@@ -486,21 +488,21 @@ Log_parser_config_t *read_parse_config(char *log_format, const char delimiter){
     return parser_config;
 }
 
-#define ENABLE_PARSE_LOG_LINE_FPRINTS 0
-static Log_line_parsed_t *parse_log_line(Log_parser_buffs_t *parser_buffs, log_line_field_t *fields_format, const int num_fields_format, const char *line, const char delimiter, const int verify){
+#define ENABLE_PARSE_LOG_LINE_FPRINTS 1
+static Log_line_parsed_t *parse_log_line(Log_parser_buffs_t *parser_buffs, log_line_field_t *fields_format, const int num_fields_config, const char *line, const char delimiter, const int verify){
     parser_buffs->log_line_parsed = (Log_line_parsed_t) {};
     Log_line_parsed_t *log_line_parsed = &parser_buffs->log_line_parsed;
 #if ENABLE_PARSE_LOG_LINE_FPRINTS
     fprintf(stderr, "Original line: %s\n", line);
 #endif
-    int num_fields = count_fields(line, delimiter);
-    char **parsed = parse_csv(line, delimiter, num_fields);
+    int num_fields_line = count_fields(line, delimiter);
+    char **parsed = parse_csv(line, delimiter, num_fields_line);
 #if ENABLE_PARSE_LOG_LINE_FPRINTS
-    fprintf(stderr, "Number of items: %d\n", num_fields);
+    fprintf(stderr, "Number of items: %d\n", num_fields_line);
 #endif
     // int parsed_offset = 0;
-    assert(num_fields_format == num_fields); // TODO: REMOVE FROM PRODUCTION! 
-    for(int i = 0; i < num_fields_format; i++ ){
+    assert(num_fields_config == num_fields_line); // TODO: REMOVE FROM PRODUCTION - Handle error instead?
+    for(int i = 0; i < num_fields_config; i++ ){
         #if ENABLE_PARSE_LOG_LINE_FPRINTS
         fprintf(stderr, "===\nField %d:%s\n", i, parsed[i]);
         #endif

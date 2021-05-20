@@ -39,10 +39,7 @@ typedef enum{
 
 typedef struct log_line_parsed{
 		//char vhost[255];
-		//char port[6];
-		//char req_scheme[6];
 		//char req_client[46]; // https://superuser.com/questions/381022/how-many-characters-can-an-ip-address-be#comment2219013_381029
-		//char req_method[20];
 		char *vhost;
 		int  port;
 		char req_scheme[REQ_SCHEME_MAX_LEN];
