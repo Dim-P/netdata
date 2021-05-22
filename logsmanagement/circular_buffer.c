@@ -61,18 +61,19 @@ static void msg_parser(uv_work_t *req){
         if(p_file_info->parser_metrics->vhost_arr.size == j){
             p_file_info->parser_metrics->vhost_arr.size++;
 
-            // TODO: Reduce number of reallocs
+            if(p_file_info->parser_metrics->vhost_arr.size >= p_file_info->parser_metrics->vhost_arr.size_max){
+                p_file_info->parser_metrics->vhost_arr.size_max = p_file_info->parser_metrics->vhost_arr.size * LOG_PARSER_METRICS_VHOST_BUFFS_SCALE_FACTOR + 1;
+            }
             p_file_info->parser_metrics->vhost_arr.vhosts = reallocz(p_file_info->parser_metrics->vhost_arr.vhosts, 
-                p_file_info->parser_metrics->vhost_arr.size * sizeof(struct log_parser_metrics_vhost));
+                p_file_info->parser_metrics->vhost_arr.size_max * sizeof(struct log_parser_metrics_vhost));
+
             snprintf(p_file_info->parser_metrics->vhost_arr.vhosts[p_file_info->parser_metrics->vhost_arr.size - 1].name, 
                 VHOST_MAX_LEN, "%s", parser_metrics.vhost_arr.vhosts[i].name);
+
             p_file_info->parser_metrics->vhost_arr.vhosts[p_file_info->parser_metrics->vhost_arr.size - 1].count = parser_metrics.vhost_arr.vhosts[i].count;
         }
     }
     freez(parser_metrics.vhost_arr.vhosts);
-    // for(int i = 0; i < p_file_info->parser_metrics->vhost_arr.size; i++){
-    //     fprintf(stderr, "This: %s %d\n", p_file_info->parser_metrics->vhost_arr.vhosts[i].name, p_file_info->parser_metrics->vhost_arr.vhosts[i].count);
-    // }
 
     p_file_info->parser_metrics->req_method.acl += parser_metrics.req_method.acl;
     p_file_info->parser_metrics->req_method.baseline_control += parser_metrics.req_method.baseline_control;

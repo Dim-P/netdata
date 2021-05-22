@@ -488,7 +488,7 @@ Log_parser_config_t *read_parse_config(char *log_format, const char delimiter){
     return parser_config;
 }
 
-#define ENABLE_PARSE_LOG_LINE_FPRINTS 1
+#define ENABLE_PARSE_LOG_LINE_FPRINTS 0
 static Log_line_parsed_t *parse_log_line(Log_parser_buffs_t *parser_buffs, log_line_field_t *fields_format, const int num_fields_config, const char *line, const char delimiter, const int verify){
     parser_buffs->log_line_parsed = (Log_line_parsed_t) {};
     Log_line_parsed_t *log_line_parsed = &parser_buffs->log_line_parsed;
@@ -933,9 +933,6 @@ static inline void extract_metrics(Log_line_parsed_t *line_parsed, Log_parser_me
             metrics->vhost_arr.vhosts[metrics->vhost_arr.size - 1].count = 1;
         }
     }
-    // for(int i = 0; i < metrics->vhost_arr.size; i++){
-    //     fprintf(stderr, "This: %s %d\n", metrics->vhost_arr.vhosts[i].name, metrics->vhost_arr.vhosts[i].count);
-    // }
 
     /* Extract request method */
     if(!strcmp(line_parsed->req_method, "ACL")) metrics->req_method.acl++;

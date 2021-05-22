@@ -16,6 +16,7 @@
 #define SSL_CIPHER_SUITE_MAX_LEN 256 // TODO: Check max len for ssl cipher suite string is indeed 256
 #define REGEX_SIZE 100U /**< Max size of regular expression (used in keyword search) in bytes **/
 #define LOG_PARSER_BUFFS_LINE_REALLOC_SCALE_FACTOR 1.5
+#define LOG_PARSER_METRICS_VHOST_BUFFS_SCALE_FACTOR 1.5
 
 typedef enum{
 	VHOST, 		      // nginx: $host ($http_host)      apache: %v
@@ -75,10 +76,11 @@ typedef struct log_parser_metrics{
     unsigned long long num_lines_rate;  /**< Number of new lines parsed. */
     struct log_parser_metrics_vhosts_array{
     	struct log_parser_metrics_vhost{
-	    	char name[VHOST_MAX_LEN];
-	    	int count;
+	    	char name[VHOST_MAX_LEN];   /**< Name of the vhost **/
+	    	int count;					/**< Occurences of the vhost **/
 	    } *vhosts;
-	    int size;
+	    int size;						/**< Size of vhosts array **/
+	    int size_max;
     } vhost_arr;
     struct log_parser_metrics_req_method{
 		int acl, baseline_control, bind, checkin, checkout, connect, copy, delet, get,

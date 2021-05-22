@@ -5,13 +5,14 @@
 
 #define NETDATA_CHART_PRIO_LOGS_BASE        132200
 #define NETDATA_CHART_PRIO_LINES            NETDATA_CHART_PRIO_LOGS_BASE + 0
-#define NETDATA_CHART_PRIO_REQ_METHODS      NETDATA_CHART_PRIO_LOGS_BASE + 1
-#define NETDATA_CHART_PRIO_REQ_PROTO        NETDATA_CHART_PRIO_LOGS_BASE + 2
-#define NETDATA_CHART_PRIO_BANDWIDTH        NETDATA_CHART_PRIO_LOGS_BASE + 3
-#define NETDATA_CHART_PRIO_RESP_CODE_FAMILY NETDATA_CHART_PRIO_LOGS_BASE + 4
-#define NETDATA_CHART_PRIO_RESP_CODE        NETDATA_CHART_PRIO_LOGS_BASE + 5
-#define NETDATA_CHART_PRIO_RESP_CODE_TYPE   NETDATA_CHART_PRIO_LOGS_BASE + 6
-#define NETDATA_CHART_PRIO_SSL_PROTO        NETDATA_CHART_PRIO_LOGS_BASE + 7
+#define NETDATA_CHART_PRIO_VHOST            NETDATA_CHART_PRIO_LOGS_BASE + 1
+#define NETDATA_CHART_PRIO_REQ_METHODS      NETDATA_CHART_PRIO_LOGS_BASE + 2
+#define NETDATA_CHART_PRIO_REQ_PROTO        NETDATA_CHART_PRIO_LOGS_BASE + 3
+#define NETDATA_CHART_PRIO_BANDWIDTH        NETDATA_CHART_PRIO_LOGS_BASE + 4
+#define NETDATA_CHART_PRIO_RESP_CODE_FAMILY NETDATA_CHART_PRIO_LOGS_BASE + 5
+#define NETDATA_CHART_PRIO_RESP_CODE        NETDATA_CHART_PRIO_LOGS_BASE + 6
+#define NETDATA_CHART_PRIO_RESP_CODE_TYPE   NETDATA_CHART_PRIO_LOGS_BASE + 7
+#define NETDATA_CHART_PRIO_SSL_PROTO        NETDATA_CHART_PRIO_LOGS_BASE + 8
 
 struct Chart_data{
     char * rrd_type;
@@ -21,6 +22,12 @@ struct Chart_data{
     RRDDIM *dim_lines_total;
     RRDDIM *dim_lines_rate;
     collected_number num_lines_total, num_lines_rate;
+
+    /* Vhosts */
+    RRDSET *st_vhost;
+    RRDDIM **dim_vhosts;
+    collected_number *num_vhosts;
+    int vhost_size, vhost_size_max;
 
     /* Request methods */
     RRDSET *st_req_methods;
@@ -122,6 +129,22 @@ void *logsmanagement_plugin_main(void *ptr){
         // TODO: Change dim_lines_total to RRD_ALGORITHM_INCREMENTAL
         chart_data_arr[i]->dim_lines_total = rrddim_add(chart_data_arr[i]->st_lines, "Total lines", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
         chart_data_arr[i]->dim_lines_rate = rrddim_add(chart_data_arr[i]->st_lines, "New lines", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+
+        /* Vhost - initialise */
+        chart_data_arr[i]->st_vhost = rrdset_create_localhost(
+                chart_data_arr[i]->rrd_type
+                , "vhost"
+                , NULL
+                , "vhost"
+                , NULL
+                , "Requests by Vhost"
+                , "requests/s"
+                , "logsmanagement.plugin"
+                , NULL
+                , NETDATA_CHART_PRIO_VHOST
+                , localhost->rrd_update_every
+                , RRDSET_TYPE_AREA
+        );
 
         /* Request methods - initialise */
         chart_data_arr[i]->st_req_methods = rrdset_create_localhost(
@@ -313,6 +336,32 @@ void *logsmanagement_plugin_main(void *ptr){
         chart_data_arr[i]->num_lines_rate = p_file_info->parser_metrics->num_lines_rate;
         p_file_info->parser_metrics->num_lines_rate = 0;
 
+        /* Vhost - collect first time */
+        for(int j = 0; j < p_file_info->parser_metrics->vhost_arr.size; j++){
+            int k;
+            for(k = 0; k < chart_data_arr[i]->vhost_size; k++){
+                if(!strcmp(p_file_info->parser_metrics->vhost_arr.vhosts[j].name, chart_data_arr[i]->dim_vhosts[k]->name)){
+                    chart_data_arr[i]->num_vhosts[k] = p_file_info->parser_metrics->vhost_arr.vhosts[j].count;
+                    p_file_info->parser_metrics->vhost_arr.vhosts[j].count = 0;
+                    break;
+                }
+            }
+            if(chart_data_arr[i]->vhost_size == k){ // New vhost not in existing dimensions
+                chart_data_arr[i]->vhost_size++;
+
+                if(chart_data_arr[i]->vhost_size >= chart_data_arr[i]->vhost_size_max){
+                    chart_data_arr[i]->vhost_size_max = chart_data_arr[i]->vhost_size * LOG_PARSER_METRICS_VHOST_BUFFS_SCALE_FACTOR;
+                }
+                chart_data_arr[i]->dim_vhosts = reallocz(chart_data_arr[i]->dim_vhosts, chart_data_arr[i]->vhost_size_max * sizeof(RRDDIM));
+                
+                chart_data_arr[i]->dim_vhosts[chart_data_arr[i]->vhost_size - 1] = rrddim_add(chart_data_arr[i]->st_vhost, 
+                    p_file_info->parser_metrics->vhost_arr.vhosts[j].name, NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+
+                chart_data_arr[i]->num_vhosts = reallocz(chart_data_arr[i]->num_vhosts, chart_data_arr[i]->vhost_size * sizeof(collected_number));
+                chart_data_arr[i]->num_vhosts[chart_data_arr[i]->vhost_size - 1] = p_file_info->parser_metrics->vhost_arr.vhosts[j].count;
+            }
+        }
+
         /* Request methods - collect first time */
         chart_data_arr[i]->num_req_method_acl = p_file_info->parser_metrics->req_method.acl;
         p_file_info->parser_metrics->req_method.acl = 0;
@@ -465,6 +514,12 @@ void *logsmanagement_plugin_main(void *ptr){
         rrddim_set_by_pointer(chart_data_arr[i]->st_lines, chart_data_arr[i]->dim_lines_rate, chart_data_arr[i]->num_lines_rate);
     	rrdset_done(chart_data_arr[i]->st_lines);
 
+        /* Vhost - update chart first time */
+        for(int j = 0; j < chart_data_arr[i]->vhost_size; j++){
+            rrddim_set_by_pointer(chart_data_arr[i]->st_vhost, chart_data_arr[i]->dim_vhosts[j], chart_data_arr[i]->num_vhosts[j]);
+        }
+        rrdset_done(chart_data_arr[i]->st_vhost);
+
         /* Request methods - update chart first time */
         rrddim_set_by_pointer(chart_data_arr[i]->st_req_methods, chart_data_arr[i]->dim_req_method_acl, chart_data_arr[i]->num_req_method_acl);
         rrddim_set_by_pointer(chart_data_arr[i]->st_req_methods, chart_data_arr[i]->dim_req_method_baseline_control, chart_data_arr[i]->num_req_method_baseline_control);
@@ -572,6 +627,32 @@ void *logsmanagement_plugin_main(void *ptr){
             // p_file_info->parser_metrics->num_lines_total = 0;
             chart_data_arr[i]->num_lines_rate += p_file_info->parser_metrics->num_lines_rate;
             p_file_info->parser_metrics->num_lines_rate = 0;
+
+            /* Vhost - collect */
+            for(int j = 0; j < p_file_info->parser_metrics->vhost_arr.size; j++){
+                int k;
+                for(k = 0; k < chart_data_arr[i]->vhost_size; k++){
+                    if(!strcmp(p_file_info->parser_metrics->vhost_arr.vhosts[j].name, chart_data_arr[i]->dim_vhosts[k]->name)){
+                        chart_data_arr[i]->num_vhosts[k] += p_file_info->parser_metrics->vhost_arr.vhosts[j].count;
+                        p_file_info->parser_metrics->vhost_arr.vhosts[j].count = 0;
+                        break;
+                    }
+                }
+                if(chart_data_arr[i]->vhost_size == k){ // New vhost not in existing dimensions
+                    chart_data_arr[i]->vhost_size++;
+
+                    if(chart_data_arr[i]->vhost_size >= chart_data_arr[i]->vhost_size_max){
+                        chart_data_arr[i]->vhost_size_max = chart_data_arr[i]->vhost_size * LOG_PARSER_METRICS_VHOST_BUFFS_SCALE_FACTOR + 1;
+                    }
+                    chart_data_arr[i]->dim_vhosts = reallocz(chart_data_arr[i]->dim_vhosts, chart_data_arr[i]->vhost_size_max * sizeof(RRDDIM));
+                    
+                    chart_data_arr[i]->dim_vhosts[chart_data_arr[i]->vhost_size - 1] = rrddim_add(chart_data_arr[i]->st_vhost, 
+                        p_file_info->parser_metrics->vhost_arr.vhosts[j].name, NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+
+                    chart_data_arr[i]->num_vhosts = reallocz(chart_data_arr[i]->num_vhosts, chart_data_arr[i]->vhost_size * sizeof(collected_number));
+                    chart_data_arr[i]->num_vhosts[chart_data_arr[i]->vhost_size - 1] = p_file_info->parser_metrics->vhost_arr.vhosts[j].count;
+                }
+            }
 
             /* Request methods - collect */
             chart_data_arr[i]->num_req_method_acl += p_file_info->parser_metrics->req_method.acl;
@@ -717,13 +798,20 @@ void *logsmanagement_plugin_main(void *ptr){
             
             uv_mutex_unlock(p_file_info->parser_mut);
 
-
+            if(unlikely(netdata_exit)) break;
 
             /* Number of lines - update chart */
     		rrdset_next(chart_data_arr[i]->st_lines);
     		rrddim_set_by_pointer(chart_data_arr[i]->st_lines, chart_data_arr[i]->dim_lines_total, chart_data_arr[i]->num_lines_total);
             rrddim_set_by_pointer(chart_data_arr[i]->st_lines, chart_data_arr[i]->dim_lines_rate, chart_data_arr[i]->num_lines_rate);
             rrdset_done(chart_data_arr[i]->st_lines);
+
+            /* Vhost - update chart */
+            rrdset_next(chart_data_arr[i]->st_vhost);
+            for(int j = 0; j < chart_data_arr[i]->vhost_size; j++){
+                rrddim_set_by_pointer(chart_data_arr[i]->st_vhost, chart_data_arr[i]->dim_vhosts[j], chart_data_arr[i]->num_vhosts[j]);
+            }
+            rrdset_done(chart_data_arr[i]->st_vhost);
 
             /* Request methods - update chart */
             rrdset_next(chart_data_arr[i]->st_req_methods);
