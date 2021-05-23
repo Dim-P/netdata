@@ -73,7 +73,30 @@ static void msg_parser(uv_work_t *req){
             p_file_info->parser_metrics->vhost_arr.vhosts[p_file_info->parser_metrics->vhost_arr.size - 1].count = parser_metrics.vhost_arr.vhosts[i].count;
         }
     }
-    freez(parser_metrics.vhost_arr.vhosts);
+    freez(parser_metrics.vhost_arr.vhosts); // TODO: Avoid mallocz()/freez() in future by reusing buffs
+
+    for(int i = 0; i < parser_metrics.port_arr.size; i++){
+        int j;
+        for(j = 0; j < p_file_info->parser_metrics->port_arr.size ; j++){
+            if(parser_metrics.port_arr.ports[i].port == p_file_info->parser_metrics->port_arr.ports[j].port) {
+                p_file_info->parser_metrics->port_arr.ports[j].count += parser_metrics.port_arr.ports[i].count;
+                break;
+            }
+        }
+        if(p_file_info->parser_metrics->port_arr.size == j){
+            p_file_info->parser_metrics->port_arr.size++;
+
+            if(p_file_info->parser_metrics->port_arr.size >= p_file_info->parser_metrics->port_arr.size_max){
+                p_file_info->parser_metrics->port_arr.size_max = p_file_info->parser_metrics->port_arr.size * LOG_PARSER_METRICS_PORT_BUFFS_SCALE_FACTOR + 1;
+            }
+            p_file_info->parser_metrics->port_arr.ports = reallocz(p_file_info->parser_metrics->port_arr.ports, 
+                p_file_info->parser_metrics->port_arr.size_max * sizeof(struct log_parser_metrics_port));
+
+            p_file_info->parser_metrics->port_arr.ports[p_file_info->parser_metrics->port_arr.size - 1].port = parser_metrics.port_arr.ports[i].port;
+            p_file_info->parser_metrics->port_arr.ports[p_file_info->parser_metrics->port_arr.size - 1].count = parser_metrics.port_arr.ports[i].count;
+        }
+    }
+    freez(parser_metrics.port_arr.ports); // TODO: Avoid mallocz()/freez() in future by reusing buffs
 
     p_file_info->parser_metrics->req_method.acl += parser_metrics.req_method.acl;
     p_file_info->parser_metrics->req_method.baseline_control += parser_metrics.req_method.baseline_control;

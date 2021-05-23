@@ -488,7 +488,6 @@ Log_parser_config_t *read_parse_config(char *log_format, const char delimiter){
     return parser_config;
 }
 
-#define ENABLE_PARSE_LOG_LINE_FPRINTS 0
 static Log_line_parsed_t *parse_log_line(Log_parser_buffs_t *parser_buffs, log_line_field_t *fields_format, const int num_fields_config, const char *line, const char delimiter, const int verify){
     parser_buffs->log_line_parsed = (Log_line_parsed_t) {};
     Log_line_parsed_t *log_line_parsed = &parser_buffs->log_line_parsed;
@@ -530,7 +529,7 @@ static Log_line_parsed_t *parse_log_line(Log_parser_buffs_t *parser_buffs, log_l
             }
             if(verify){
                 int rc = regexec(&vhost_regex, parsed[i], 0, NULL, 0);
-                if(!rc) snprintf(log_line_parsed->vhost, VHOST_MAX_LEN, "%s", parsed[i]);
+                if(likely(!rc)) snprintf(log_line_parsed->vhost, VHOST_MAX_LEN, "%s", parsed[i]);
                 else if (rc == REG_NOMATCH) {
                     fprintf(stderr, "VHOST is invalid\n");
                     log_line_parsed->vhost[0] = '\0';
@@ -550,15 +549,22 @@ static Log_line_parsed_t *parse_log_line(Log_parser_buffs_t *parser_buffs, log_l
             #if ENABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Item %d (type: PORT):%s\n", i, port);
             #endif
-            if(str2int(&log_line_parsed->port, port, 10) == STR2XX_SUCCESS){
+            if(likely(str2int(&log_line_parsed->port, port, 10) == STR2XX_SUCCESS)){
                 if(verify){
-                    if(log_line_parsed->port < 80 || log_line_parsed->port > 49151){
-                        log_line_parsed->port = 0;
+                    if(unlikely(log_line_parsed->port < 80 || log_line_parsed->port > 49151)){
+                        log_line_parsed->port = -1;
+                        #if ENABLE_PARSE_LOG_LINE_FPRINTS
                         fprintf(stderr, "PORT is invalid (<80 or >49151)\n");
+                        #endif
                     }
                 }
             }
-            else fprintf(stderr, "Error while extracting PORT from string\n");
+            else{
+                #if ENABLE_PARSE_LOG_LINE_FPRINTS
+                fprintf(stderr, "Error while extracting PORT from string\n");
+                #endif
+                log_line_parsed->port = -1;
+            }
             #if ENABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Extracted PORT:%d\n", log_line_parsed->port);
             #endif
@@ -934,6 +940,24 @@ static inline void extract_metrics(Log_line_parsed_t *line_parsed, Log_parser_me
         }
     }
 
+    /* Extract port */
+    // TODO: Reduce number of reallocs
+    if(line_parsed->port){
+        int i;
+        for(i = 0; i < metrics->port_arr.size; i++){
+            if(metrics->port_arr.ports[i].port == line_parsed->port){
+                metrics->port_arr.ports[i].count++;
+                break;
+            }
+        }
+        if(metrics->port_arr.size == i){ // Port not found in array - need to append
+            metrics->port_arr.size++;
+            metrics->port_arr.ports = reallocz(metrics->port_arr.ports, metrics->port_arr.size * sizeof(struct log_parser_metrics_port));
+            metrics->port_arr.ports[metrics->port_arr.size - 1].port = line_parsed->port;
+            metrics->port_arr.ports[metrics->port_arr.size - 1].count = 1;
+        } 
+    }
+
     /* Extract request method */
     if(!strcmp(line_parsed->req_method, "ACL")) metrics->req_method.acl++;
     if(!strcmp(line_parsed->req_method, "BASELINE-CONTROL")) metrics->req_method.baseline_control++;
@@ -1032,7 +1056,6 @@ static inline void extract_metrics(Log_line_parsed_t *line_parsed, Log_parser_me
 
 }
 
-#define MEASURE_PARSE_TEXT_TIME 1
 Log_parser_metrics_t parse_text_buf(Log_parser_buffs_t *parser_buffs, char *text, size_t text_size, log_line_field_t *fields, int num_fields, const char delimiter, const int verify){
     Log_parser_metrics_t metrics = {0};
     if(!text_size || !text || !*text) return metrics;

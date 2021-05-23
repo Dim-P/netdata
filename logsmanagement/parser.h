@@ -17,6 +17,11 @@
 #define REGEX_SIZE 100U /**< Max size of regular expression (used in keyword search) in bytes **/
 #define LOG_PARSER_BUFFS_LINE_REALLOC_SCALE_FACTOR 1.5
 #define LOG_PARSER_METRICS_VHOST_BUFFS_SCALE_FACTOR 1.5
+#define LOG_PARSER_METRICS_PORT_BUFFS_SCALE_FACTOR 8 // Unlike Vhosts, ports are stored as integers, so scale factor can be much bigger without significant waste of memory
+
+/* Debug prints */
+#define ENABLE_PARSE_LOG_LINE_FPRINTS 0
+#define MEASURE_PARSE_TEXT_TIME 1
 
 typedef enum{
 	VHOST, 		      // nginx: $host ($http_host)      apache: %v
@@ -40,7 +45,6 @@ typedef enum{
 } log_line_field_t;
 
 typedef struct log_line_parsed{
-		//char vhost[255];
 		//char req_client[46]; // https://superuser.com/questions/381022/how-many-characters-can-an-ip-address-be#comment2219013_381029
 		char vhost[VHOST_MAX_LEN];
 		int  port;
@@ -82,6 +86,14 @@ typedef struct log_parser_metrics{
 	    int size;						/**< Size of vhosts array **/
 	    int size_max;
     } vhost_arr;
+    struct log_parser_metrics_ports_array{
+    	struct log_parser_metrics_port{
+	    	int port;   				/**< Number of port **/
+	    	int count;					/**< Occurences of the port **/
+	    } *ports;
+	    int size;						/**< Size of ports array **/
+	    int size_max;
+    } port_arr;
     struct log_parser_metrics_req_method{
 		int acl, baseline_control, bind, checkin, checkout, connect, copy, delet, get,
 		head, label, link, lock, merge, mkactivity, mkcalendar, mkcol, mkredirectref,

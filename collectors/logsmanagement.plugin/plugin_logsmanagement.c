@@ -6,13 +6,14 @@
 #define NETDATA_CHART_PRIO_LOGS_BASE        132200
 #define NETDATA_CHART_PRIO_LINES            NETDATA_CHART_PRIO_LOGS_BASE + 0
 #define NETDATA_CHART_PRIO_VHOST            NETDATA_CHART_PRIO_LOGS_BASE + 1
-#define NETDATA_CHART_PRIO_REQ_METHODS      NETDATA_CHART_PRIO_LOGS_BASE + 2
-#define NETDATA_CHART_PRIO_REQ_PROTO        NETDATA_CHART_PRIO_LOGS_BASE + 3
-#define NETDATA_CHART_PRIO_BANDWIDTH        NETDATA_CHART_PRIO_LOGS_BASE + 4
-#define NETDATA_CHART_PRIO_RESP_CODE_FAMILY NETDATA_CHART_PRIO_LOGS_BASE + 5
-#define NETDATA_CHART_PRIO_RESP_CODE        NETDATA_CHART_PRIO_LOGS_BASE + 6
-#define NETDATA_CHART_PRIO_RESP_CODE_TYPE   NETDATA_CHART_PRIO_LOGS_BASE + 7
-#define NETDATA_CHART_PRIO_SSL_PROTO        NETDATA_CHART_PRIO_LOGS_BASE + 8
+#define NETDATA_CHART_PRIO_PORT             NETDATA_CHART_PRIO_LOGS_BASE + 2
+#define NETDATA_CHART_PRIO_REQ_METHODS      NETDATA_CHART_PRIO_LOGS_BASE + 3
+#define NETDATA_CHART_PRIO_REQ_PROTO        NETDATA_CHART_PRIO_LOGS_BASE + 4
+#define NETDATA_CHART_PRIO_BANDWIDTH        NETDATA_CHART_PRIO_LOGS_BASE + 5
+#define NETDATA_CHART_PRIO_RESP_CODE_FAMILY NETDATA_CHART_PRIO_LOGS_BASE + 6
+#define NETDATA_CHART_PRIO_RESP_CODE        NETDATA_CHART_PRIO_LOGS_BASE + 7
+#define NETDATA_CHART_PRIO_RESP_CODE_TYPE   NETDATA_CHART_PRIO_LOGS_BASE + 8
+#define NETDATA_CHART_PRIO_SSL_PROTO        NETDATA_CHART_PRIO_LOGS_BASE + 9
 
 struct Chart_data{
     char * rrd_type;
@@ -27,7 +28,14 @@ struct Chart_data{
     RRDSET *st_vhost;
     RRDDIM **dim_vhosts;
     collected_number *num_vhosts;
-    int vhost_size, vhost_size_max;
+    int vhost_size, vhost_size_max; /**< Actual size and maximum allocated size of dim_vhosts, num_vhosts arrays **/ 
+
+    /* Ports */
+    RRDSET *st_port;
+    RRDDIM **dim_ports;
+    collected_number *num_ports;
+    int *ports;                      /**< Arry of port numbers  **/
+    int port_size, port_size_max;    /**< Actual size and maximum allocated size of dim_ports, num_ports and ports arrays **/ 
 
     /* Request methods */
     RRDSET *st_req_methods;
@@ -142,6 +150,22 @@ void *logsmanagement_plugin_main(void *ptr){
                 , "logsmanagement.plugin"
                 , NULL
                 , NETDATA_CHART_PRIO_VHOST
+                , localhost->rrd_update_every
+                , RRDSET_TYPE_AREA
+        );
+
+        /* Port - initialise */
+        chart_data_arr[i]->st_port = rrdset_create_localhost(
+                chart_data_arr[i]->rrd_type
+                , "port"
+                , NULL
+                , "port"
+                , NULL
+                , "Requests by Port"
+                , "requests/s"
+                , "logsmanagement.plugin"
+                , NULL
+                , NETDATA_CHART_PRIO_PORT
                 , localhost->rrd_update_every
                 , RRDSET_TYPE_AREA
         );
@@ -324,7 +348,7 @@ void *logsmanagement_plugin_main(void *ptr){
         chart_data_arr[i]->dim_ssl_proto_tlsv1_3 = rrddim_add(chart_data_arr[i]->st_ssl_proto, "TLSV1.3", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
         chart_data_arr[i]->dim_ssl_proto_sslv2 = rrddim_add(chart_data_arr[i]->st_ssl_proto, "SSLV2", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
         chart_data_arr[i]->dim_ssl_proto_sslv3 = rrddim_add(chart_data_arr[i]->st_ssl_proto, "SSLV3", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
-        chart_data_arr[i]->dim_ssl_proto_other = rrddim_add(chart_data_arr[i]->st_ssl_proto, "Other", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        chart_data_arr[i]->dim_ssl_proto_other = rrddim_add(chart_data_arr[i]->st_ssl_proto, "other", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
 
 
 
@@ -350,15 +374,52 @@ void *logsmanagement_plugin_main(void *ptr){
                 chart_data_arr[i]->vhost_size++;
 
                 if(chart_data_arr[i]->vhost_size >= chart_data_arr[i]->vhost_size_max){
-                    chart_data_arr[i]->vhost_size_max = chart_data_arr[i]->vhost_size * LOG_PARSER_METRICS_VHOST_BUFFS_SCALE_FACTOR;
+                    chart_data_arr[i]->vhost_size_max = chart_data_arr[i]->vhost_size * LOG_PARSER_METRICS_VHOST_BUFFS_SCALE_FACTOR + 1;
                 }
                 chart_data_arr[i]->dim_vhosts = reallocz(chart_data_arr[i]->dim_vhosts, chart_data_arr[i]->vhost_size_max * sizeof(RRDDIM));
                 
                 chart_data_arr[i]->dim_vhosts[chart_data_arr[i]->vhost_size - 1] = rrddim_add(chart_data_arr[i]->st_vhost, 
                     p_file_info->parser_metrics->vhost_arr.vhosts[j].name, NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
 
-                chart_data_arr[i]->num_vhosts = reallocz(chart_data_arr[i]->num_vhosts, chart_data_arr[i]->vhost_size * sizeof(collected_number));
+                chart_data_arr[i]->num_vhosts = reallocz(chart_data_arr[i]->num_vhosts, chart_data_arr[i]->vhost_size_max * sizeof(collected_number));
                 chart_data_arr[i]->num_vhosts[chart_data_arr[i]->vhost_size - 1] = p_file_info->parser_metrics->vhost_arr.vhosts[j].count;
+            }
+        }
+
+        /* Port - collect first time */
+        for(int j = 0; j < p_file_info->parser_metrics->port_arr.size; j++){
+            int k;
+            for(k = 0; k < chart_data_arr[i]->port_size; k++){
+                if(p_file_info->parser_metrics->port_arr.ports[j].port == chart_data_arr[i]->ports[k]){
+                    chart_data_arr[i]->num_ports[k] = p_file_info->parser_metrics->port_arr.ports[j].count;
+                    p_file_info->parser_metrics->port_arr.ports[j].count = 0;
+                    break;
+                }
+            }
+            if(chart_data_arr[i]->port_size == k){ // New port not in existing dimensions
+                chart_data_arr[i]->port_size++;
+
+                if(chart_data_arr[i]->port_size >= chart_data_arr[i]->port_size_max){
+                    chart_data_arr[i]->port_size_max = chart_data_arr[i]->port_size * LOG_PARSER_METRICS_PORT_BUFFS_SCALE_FACTOR + 1;
+                }
+
+                chart_data_arr[i]->ports = reallocz(chart_data_arr[i]->ports, chart_data_arr[i]->port_size_max * sizeof(int));
+                chart_data_arr[i]->ports[chart_data_arr[i]->port_size - 1] = p_file_info->parser_metrics->port_arr.ports[j].port;
+
+                chart_data_arr[i]->dim_ports = reallocz(chart_data_arr[i]->dim_ports, chart_data_arr[i]->port_size_max * sizeof(RRDDIM));
+
+                if(unlikely(chart_data_arr[i]->ports[chart_data_arr[i]->port_size - 1] == -1)){ // port == -1 stands for invalid port, see parser.c 
+                    chart_data_arr[i]->dim_ports[chart_data_arr[i]->port_size - 1] = rrddim_add(chart_data_arr[i]->st_port, 
+                        "invalid", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+                } else {
+                    char port_name[6] = "";
+                    snprintf(port_name, 6, "%d", chart_data_arr[i]->ports[chart_data_arr[i]->port_size - 1]);
+                    chart_data_arr[i]->dim_ports[chart_data_arr[i]->port_size - 1] = rrddim_add(chart_data_arr[i]->st_port, 
+                        port_name, NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+                }
+
+                chart_data_arr[i]->num_ports = reallocz(chart_data_arr[i]->num_ports, chart_data_arr[i]->port_size_max * sizeof(collected_number));
+                chart_data_arr[i]->num_ports[chart_data_arr[i]->port_size - 1] = p_file_info->parser_metrics->port_arr.ports[j].count;
             }
         }
 
@@ -520,6 +581,12 @@ void *logsmanagement_plugin_main(void *ptr){
         }
         rrdset_done(chart_data_arr[i]->st_vhost);
 
+        /* Port - update chart first time */
+        for(int j = 0; j < chart_data_arr[i]->port_size; j++){
+            rrddim_set_by_pointer(chart_data_arr[i]->st_port, chart_data_arr[i]->dim_ports[j], chart_data_arr[i]->num_ports[j]);
+        }
+        rrdset_done(chart_data_arr[i]->st_port);
+
         /* Request methods - update chart first time */
         rrddim_set_by_pointer(chart_data_arr[i]->st_req_methods, chart_data_arr[i]->dim_req_method_acl, chart_data_arr[i]->num_req_method_acl);
         rrddim_set_by_pointer(chart_data_arr[i]->st_req_methods, chart_data_arr[i]->dim_req_method_baseline_control, chart_data_arr[i]->num_req_method_baseline_control);
@@ -651,6 +718,43 @@ void *logsmanagement_plugin_main(void *ptr){
 
                     chart_data_arr[i]->num_vhosts = reallocz(chart_data_arr[i]->num_vhosts, chart_data_arr[i]->vhost_size * sizeof(collected_number));
                     chart_data_arr[i]->num_vhosts[chart_data_arr[i]->vhost_size - 1] = p_file_info->parser_metrics->vhost_arr.vhosts[j].count;
+                }
+            }
+
+            /* Port - collect */
+            for(int j = 0; j < p_file_info->parser_metrics->port_arr.size; j++){
+                int k;
+                for(k = 0; k < chart_data_arr[i]->port_size; k++){
+                    if(p_file_info->parser_metrics->port_arr.ports[j].port == chart_data_arr[i]->ports[k]){
+                        chart_data_arr[i]->num_ports[k] += p_file_info->parser_metrics->port_arr.ports[j].count;
+                        p_file_info->parser_metrics->port_arr.ports[j].count = 0;
+                        break;
+                    }
+                }
+                if(chart_data_arr[i]->port_size == k){ // New port not in existing dimensions
+                    chart_data_arr[i]->port_size++;
+
+                    if(chart_data_arr[i]->port_size >= chart_data_arr[i]->port_size_max){
+                        chart_data_arr[i]->port_size_max = chart_data_arr[i]->port_size * LOG_PARSER_METRICS_PORT_BUFFS_SCALE_FACTOR + 1;
+                    }
+
+                    chart_data_arr[i]->ports = reallocz(chart_data_arr[i]->ports, chart_data_arr[i]->port_size_max * sizeof(int));
+                    chart_data_arr[i]->ports[chart_data_arr[i]->port_size - 1] = p_file_info->parser_metrics->port_arr.ports[j].port;
+
+                    chart_data_arr[i]->dim_ports = reallocz(chart_data_arr[i]->dim_ports, chart_data_arr[i]->port_size_max * sizeof(RRDDIM));
+
+                    if(unlikely(chart_data_arr[i]->ports[chart_data_arr[i]->port_size - 1] == -1)){ // port == -1 stands for invalid port, see parser.c 
+                    chart_data_arr[i]->dim_ports[chart_data_arr[i]->port_size - 1] = rrddim_add(chart_data_arr[i]->st_port, 
+                        "invalid", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+                    } else {
+                        char port_name[6] = "";
+                        snprintf(port_name, 6, "%d", chart_data_arr[i]->ports[chart_data_arr[i]->port_size - 1]);
+                        chart_data_arr[i]->dim_ports[chart_data_arr[i]->port_size - 1] = rrddim_add(chart_data_arr[i]->st_port, 
+                            port_name, NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+                    }
+
+                    chart_data_arr[i]->num_ports = reallocz(chart_data_arr[i]->num_ports, chart_data_arr[i]->port_size_max * sizeof(collected_number));
+                    chart_data_arr[i]->num_ports[chart_data_arr[i]->port_size - 1] = p_file_info->parser_metrics->port_arr.ports[j].count;
                 }
             }
 
@@ -812,6 +916,13 @@ void *logsmanagement_plugin_main(void *ptr){
                 rrddim_set_by_pointer(chart_data_arr[i]->st_vhost, chart_data_arr[i]->dim_vhosts[j], chart_data_arr[i]->num_vhosts[j]);
             }
             rrdset_done(chart_data_arr[i]->st_vhost);
+
+            /* Port - update chart */
+            rrdset_next(chart_data_arr[i]->st_port);
+            for(int j = 0; j < chart_data_arr[i]->port_size; j++){
+                rrddim_set_by_pointer(chart_data_arr[i]->st_port, chart_data_arr[i]->dim_ports[j], chart_data_arr[i]->num_ports[j]);
+            }
+            rrdset_done(chart_data_arr[i]->st_port);
 
             /* Request methods - update chart */
             rrdset_next(chart_data_arr[i]->st_req_methods);
