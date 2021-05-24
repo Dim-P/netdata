@@ -23,10 +23,13 @@
 #define ENABLE_PARSE_LOG_LINE_FPRINTS 0
 #define MEASURE_PARSE_TEXT_TIME 1
 
+#define INVALID_PORT -1
+#define INVALID_CLIENT_IP "inv"
+
 typedef enum{
+	VHOST_WITH_PORT,  // nginx: $host:$server_port      apache: %v:%p
 	VHOST, 		      // nginx: $host ($http_host)      apache: %v
 	PORT,             // nginx: $server_port            apache: %p
-	VHOST_WITH_PORT,  // nginx: $host:$server_port      apache: %v:%p
 	REQ_SCHEME,       // nginx: $scheme                 apache: -
 	REQ_CLIENT,       // nginx: $remote_addr            apache: %a (%h)
 	REQ,			  // nginx: $request                apache: %r
@@ -94,6 +97,9 @@ typedef struct log_parser_metrics{
 	    int size;						/**< Size of ports array **/
 	    int size_max;
     } port_arr;
+    struct log_parser_metrics_ip_ver{
+		int v4, v6, invalid;
+	} ip_ver;
     struct log_parser_metrics_req_method{
 		int acl, baseline_control, bind, checkin, checkout, connect, copy, delet, get,
 		head, label, link, lock, merge, mkactivity, mkcalendar, mkcol, mkredirectref,

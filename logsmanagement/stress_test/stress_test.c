@@ -93,14 +93,14 @@ static const char *log_msgs_arr[] = {
     "hddtemp[localhost] : Failed to connect to '127.0.0.1', port 7634, error: [Errno 111] Connection refused",
     "plugin[main] : memcached[localhost] : check failed",
     */
-    "testhost.host:80 GET 202 HTTP/1 845 - TLSv1", /* common log format */
-    "testhost12.host:8080 POST 303 HTTP/1 845 698 TLSv1.1", /* common log format */
-    "testhost13.host:3040 OPTIONS 404 HTTP/1 - 236 TLSv1.2", /* common log format */
-    "testhost57.host:19999 PATCH 404 HTTP/2 124 541 TLSv1.3", /* common log format */
-    "testhost42.host:17 UNBIND 1027 HTTP/3 958 2345 SSLv2", /* common log format */
-    "testhost0.host:77777 PUT 403 HTTP/1.0 458 1056 SSLv3", /* common log format */
-    "testhost111.host:42303 PUT 304 HTTP/1.0 205 288 wrong_ssl", /* common log format */
-    "testhost546.host:80 WRONGMETHOD 504 HTTP/1.0 150 130 -", /* common log format */
+    "testhost.host:80 192.168.2.1 GET 202 HTTP/1 845 - TLSv1", /* common log format */
+    "testhost12.host:8080 188.133.132.15 POST 303 HTTP/1 845 698 TLSv1.1", /* common log format */
+    "testhost13.host:3040 2001:0db8:85a3:0000:0000:8a2e:0370:7334 OPTIONS 404 HTTP/1 - 236 TLSv1.2", /* common log format */
+    "testhost57.host:19999 garbageAddress PATCH 404 HTTP/2 124 541 TLSv1.3", /* common log format */
+    "testhost42.host:17 garbage.Address_with_dot UNBIND 1027 HTTP/3 958 2345 SSLv2", /* common log format */
+    "testhost0.host:77777 156.134.132.15 PUT 403 HTTP/1.0 458 1056 SSLv3", /* common log format */
+    "testhost111.host:42303 156.134.132.15 PUT 304 HTTP/1.0 205 288 wrong_ssl", /* common log format */
+    "testhost546.host:80 156.134.132.15 WRONGMETHOD 504 HTTP/1.0 150 130 -", /* common log format */
     "",
 };
 

@@ -98,6 +98,10 @@ static void msg_parser(uv_work_t *req){
     }
     freez(parser_metrics.port_arr.ports); // TODO: Avoid mallocz()/freez() in future by reusing buffs
 
+    p_file_info->parser_metrics->ip_ver.v4 += parser_metrics.ip_ver.v4;
+    p_file_info->parser_metrics->ip_ver.v6 += parser_metrics.ip_ver.v6;
+    p_file_info->parser_metrics->ip_ver.invalid += parser_metrics.ip_ver.invalid;
+
     p_file_info->parser_metrics->req_method.acl += parser_metrics.req_method.acl;
     p_file_info->parser_metrics->req_method.baseline_control += parser_metrics.req_method.baseline_control;
     p_file_info->parser_metrics->req_method.bind += parser_metrics.req_method.bind;

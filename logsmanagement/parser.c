@@ -15,6 +15,7 @@
 #include "parser.h"
 #include <time.h>
 #include <sys/time.h>
+#include <sys/resource.h>
 
 static regex_t vhost_regex, req_client_regex, cipher_suite_regex;
 static int regexs_initialised = 0;
@@ -552,7 +553,7 @@ static Log_line_parsed_t *parse_log_line(Log_parser_buffs_t *parser_buffs, log_l
             if(likely(str2int(&log_line_parsed->port, port, 10) == STR2XX_SUCCESS)){
                 if(verify){
                     if(unlikely(log_line_parsed->port < 80 || log_line_parsed->port > 49151)){
-                        log_line_parsed->port = -1;
+                        log_line_parsed->port = INVALID_PORT;
                         #if ENABLE_PARSE_LOG_LINE_FPRINTS
                         fprintf(stderr, "PORT is invalid (<80 or >49151)\n");
                         #endif
@@ -595,7 +596,12 @@ static Log_line_parsed_t *parse_log_line(Log_parser_buffs_t *parser_buffs, log_l
             if(verify){
                 int rc = regexec(&req_client_regex, parsed[i], 0, NULL, 0);
                 if(!rc) log_line_parsed->req_client = strdupz(parsed[i]);
-                else if (rc == REG_NOMATCH) fprintf(stderr, "REQ_CLIENT is invalid\n");
+                else if (rc == REG_NOMATCH) {
+                    #if ENABLE_PARSE_LOG_LINE_FPRINTS
+                    fprintf(stderr, "REQ_CLIENT is invalid\n");
+                    #endif
+                    log_line_parsed->req_client = strdupz(INVALID_CLIENT_IP);
+                }
                 else assert(0); // Can also use: regerror(rc, &req_client_regex, msgbuf, sizeof(msgbuf));
             }
             else log_line_parsed->req_client = strdupz(parsed[i]);
@@ -958,6 +964,13 @@ static inline void extract_metrics(Log_line_parsed_t *line_parsed, Log_parser_me
         } 
     }
 
+    /* Extract client metrics - IP version */
+    if(line_parsed->req_client && *line_parsed->req_client){
+        if(!strcmp(line_parsed->req_client, INVALID_CLIENT_IP)) metrics->ip_ver.invalid++;
+        else if(strchr(line_parsed->req_client, ':')) metrics->ip_ver.v6++;
+        else metrics->ip_ver.v4++;
+    }
+
     /* Extract request method */
     if(!strcmp(line_parsed->req_method, "ACL")) metrics->req_method.acl++;
     if(!strcmp(line_parsed->req_method, "BASELINE-CONTROL")) metrics->req_method.baseline_control++;
@@ -1067,7 +1080,9 @@ Log_parser_metrics_t parse_text_buf(Log_parser_buffs_t *parser_buffs, char *text
 
         #if MEASURE_PARSE_TEXT_TIME
         struct timespec begin, end;
-        clock_gettime(CLOCK_MONOTONIC_RAW, &begin);
+        clock_gettime(CLOCK_THREAD_CPUTIME_ID, &begin);
+        struct rusage begin_rusage, end_rusage;
+        if(getrusage(1, &begin_rusage) !=0) exit(-1);
         #endif
 
         size_t line_len = (size_t) (line_end - line_start);
@@ -1093,15 +1108,21 @@ Log_parser_metrics_t parse_text_buf(Log_parser_buffs_t *parser_buffs, char *text
         line_start = line_end + 1;
         
         #if MEASURE_PARSE_TEXT_TIME
-        clock_gettime(CLOCK_MONOTONIC_RAW, &end);
-        fprintf (stderr, "T:%fs\n", (end.tv_nsec - begin.tv_nsec) / 1000000000.0 + (end.tv_sec  - begin.tv_sec));
+        clock_gettime(CLOCK_THREAD_CPUTIME_ID, &end);
+        if(getrusage(1, &end_rusage) != 0) exit(-1);
+        fprintf (stderr, "R:%.9lfs T:%.9lfs\n", (
+            end_rusage.ru_stime.tv_usec 
+            + end_rusage.ru_utime.tv_usec 
+            - begin_rusage.ru_stime.tv_usec 
+            - begin_rusage.ru_utime.tv_usec) / 1000000.0 
+        + (double) (end_rusage.ru_stime.tv_sec 
+            + end_rusage.ru_utime.tv_sec  
+            - begin_rusage.ru_stime.tv_sec 
+            - begin_rusage.ru_utime.tv_sec), 
+        (end.tv_nsec - begin.tv_nsec) / 1000000000.0 + (end.tv_sec - begin.tv_sec));
         #endif
         
     }
-
-    // for(int i = 0; i < metrics.vhost_arr.size; i++){
-    //     fprintf(stderr, "This: %s %d\n", metrics.vhost_arr.vhosts[i].name, metrics.vhost_arr.vhosts[i].count);
-    // }
 
     //fprintf(stderr, "NDLGS Total numLines: %lld\n", metrics.num_lines);
     return metrics;

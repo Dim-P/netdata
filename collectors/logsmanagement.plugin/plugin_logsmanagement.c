@@ -37,6 +37,11 @@ struct Chart_data{
     int *ports;                      /**< Arry of port numbers  **/
     int port_size, port_size_max;    /**< Actual size and maximum allocated size of dim_ports, num_ports and ports arrays **/ 
 
+    /* IP Version */
+    RRDSET *st_ip_ver;
+    RRDDIM *dim_ip_ver_4, *dim_ip_ver_6, *dim_ip_ver_invalid;
+    collected_number num_ip_ver_4, num_ip_ver_6, num_ip_ver_invalid;
+
     /* Request methods */
     RRDSET *st_req_methods;
     RRDDIM *dim_req_method_acl, *dim_req_method_baseline_control, *dim_req_method_bind, *dim_req_method_checkin, *dim_req_method_checkout,
@@ -169,6 +174,25 @@ void *logsmanagement_plugin_main(void *ptr){
                 , localhost->rrd_update_every
                 , RRDSET_TYPE_AREA
         );
+
+        /* IP Version - initialise */
+        chart_data_arr[i]->st_ip_ver = rrdset_create_localhost(
+                chart_data_arr[i]->rrd_type
+                , "ip version"
+                , NULL
+                , "ip version"
+                , NULL
+                , "Requests by IP version"
+                , "requests/s"
+                , "logsmanagement.plugin"
+                , NULL
+                , NETDATA_CHART_PRIO_PORT
+                , localhost->rrd_update_every
+                , RRDSET_TYPE_AREA
+        );
+        chart_data_arr[i]->dim_ip_ver_4 = rrddim_add(chart_data_arr[i]->st_ip_ver, "ipv4", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        chart_data_arr[i]->dim_ip_ver_6 = rrddim_add(chart_data_arr[i]->st_ip_ver, "ipv6", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+        chart_data_arr[i]->dim_ip_ver_invalid = rrddim_add(chart_data_arr[i]->st_ip_ver, "invalid", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
 
         /* Request methods - initialise */
         chart_data_arr[i]->st_req_methods = rrdset_create_localhost(
@@ -408,7 +432,7 @@ void *logsmanagement_plugin_main(void *ptr){
 
                 chart_data_arr[i]->dim_ports = reallocz(chart_data_arr[i]->dim_ports, chart_data_arr[i]->port_size_max * sizeof(RRDDIM));
 
-                if(unlikely(chart_data_arr[i]->ports[chart_data_arr[i]->port_size - 1] == -1)){ // port == -1 stands for invalid port, see parser.c 
+                if(unlikely(chart_data_arr[i]->ports[chart_data_arr[i]->port_size - 1] == INVALID_PORT)){
                     chart_data_arr[i]->dim_ports[chart_data_arr[i]->port_size - 1] = rrddim_add(chart_data_arr[i]->st_port, 
                         "invalid", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
                 } else {
@@ -422,6 +446,14 @@ void *logsmanagement_plugin_main(void *ptr){
                 chart_data_arr[i]->num_ports[chart_data_arr[i]->port_size - 1] = p_file_info->parser_metrics->port_arr.ports[j].count;
             }
         }
+
+        /* IP Version - collect first time */
+        chart_data_arr[i]->num_ip_ver_4 = p_file_info->parser_metrics->ip_ver.v4;
+        p_file_info->parser_metrics->ip_ver.v4 = 0;
+        chart_data_arr[i]->num_ip_ver_6 = p_file_info->parser_metrics->ip_ver.v6;
+        p_file_info->parser_metrics->ip_ver.v6 = 0;
+        chart_data_arr[i]->num_ip_ver_invalid = p_file_info->parser_metrics->ip_ver.invalid;
+        p_file_info->parser_metrics->ip_ver.invalid = 0;
 
         /* Request methods - collect first time */
         chart_data_arr[i]->num_req_method_acl = p_file_info->parser_metrics->req_method.acl;
@@ -587,6 +619,12 @@ void *logsmanagement_plugin_main(void *ptr){
         }
         rrdset_done(chart_data_arr[i]->st_port);
 
+        /* IP Version - update chart first time */
+        rrddim_set_by_pointer(chart_data_arr[i]->st_ip_ver, chart_data_arr[i]->dim_ip_ver_4, chart_data_arr[i]->num_ip_ver_4);
+        rrddim_set_by_pointer(chart_data_arr[i]->st_ip_ver, chart_data_arr[i]->dim_ip_ver_6, chart_data_arr[i]->num_ip_ver_6);
+        rrddim_set_by_pointer(chart_data_arr[i]->st_ip_ver, chart_data_arr[i]->dim_ip_ver_invalid, chart_data_arr[i]->num_ip_ver_invalid);
+        rrdset_done(chart_data_arr[i]->st_ip_ver);
+
         /* Request methods - update chart first time */
         rrddim_set_by_pointer(chart_data_arr[i]->st_req_methods, chart_data_arr[i]->dim_req_method_acl, chart_data_arr[i]->num_req_method_acl);
         rrddim_set_by_pointer(chart_data_arr[i]->st_req_methods, chart_data_arr[i]->dim_req_method_baseline_control, chart_data_arr[i]->num_req_method_baseline_control);
@@ -743,7 +781,7 @@ void *logsmanagement_plugin_main(void *ptr){
 
                     chart_data_arr[i]->dim_ports = reallocz(chart_data_arr[i]->dim_ports, chart_data_arr[i]->port_size_max * sizeof(RRDDIM));
 
-                    if(unlikely(chart_data_arr[i]->ports[chart_data_arr[i]->port_size - 1] == -1)){ // port == -1 stands for invalid port, see parser.c 
+                    if(unlikely(chart_data_arr[i]->ports[chart_data_arr[i]->port_size - 1] == INVALID_PORT)){
                     chart_data_arr[i]->dim_ports[chart_data_arr[i]->port_size - 1] = rrddim_add(chart_data_arr[i]->st_port, 
                         "invalid", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
                     } else {
@@ -757,6 +795,14 @@ void *logsmanagement_plugin_main(void *ptr){
                     chart_data_arr[i]->num_ports[chart_data_arr[i]->port_size - 1] = p_file_info->parser_metrics->port_arr.ports[j].count;
                 }
             }
+
+            /* IP Version - collect first time */
+            chart_data_arr[i]->num_ip_ver_4 += p_file_info->parser_metrics->ip_ver.v4;
+            p_file_info->parser_metrics->ip_ver.v4 = 0;
+            chart_data_arr[i]->num_ip_ver_6 += p_file_info->parser_metrics->ip_ver.v6;
+            p_file_info->parser_metrics->ip_ver.v6 = 0;
+            chart_data_arr[i]->num_ip_ver_invalid += p_file_info->parser_metrics->ip_ver.invalid;
+            p_file_info->parser_metrics->ip_ver.invalid = 0;
 
             /* Request methods - collect */
             chart_data_arr[i]->num_req_method_acl += p_file_info->parser_metrics->req_method.acl;
@@ -923,6 +969,13 @@ void *logsmanagement_plugin_main(void *ptr){
                 rrddim_set_by_pointer(chart_data_arr[i]->st_port, chart_data_arr[i]->dim_ports[j], chart_data_arr[i]->num_ports[j]);
             }
             rrdset_done(chart_data_arr[i]->st_port);
+
+            /* IP Version - update chart first time */
+            rrdset_next(chart_data_arr[i]->st_ip_ver);
+            rrddim_set_by_pointer(chart_data_arr[i]->st_ip_ver, chart_data_arr[i]->dim_ip_ver_4, chart_data_arr[i]->num_ip_ver_4);
+            rrddim_set_by_pointer(chart_data_arr[i]->st_ip_ver, chart_data_arr[i]->dim_ip_ver_6, chart_data_arr[i]->num_ip_ver_6);
+            rrddim_set_by_pointer(chart_data_arr[i]->st_ip_ver, chart_data_arr[i]->dim_ip_ver_invalid, chart_data_arr[i]->num_ip_ver_invalid);
+            rrdset_done(chart_data_arr[i]->st_ip_ver);
 
             /* Request methods - update chart */
             rrdset_next(chart_data_arr[i]->st_req_methods);
