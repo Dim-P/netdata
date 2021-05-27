@@ -46,10 +46,12 @@ static void msg_parser(uv_work_t *req){
     uv_mutex_lock(p_file_info->parser_mut);
     // This part needs refactoring
 
+    /* Number of lines */
     p_file_info->parser_metrics->num_lines_total += parser_metrics.num_lines_total;
     p_file_info->parser_metrics->num_lines_rate += parser_metrics.num_lines_rate;
     fprintf(stderr, "NDLGS NumLines: Total:%lld Rate:%lld\n", p_file_info->parser_metrics->num_lines_total, p_file_info->parser_metrics->num_lines_rate);
 
+    /* Vhost */
     for(int i = 0; i < parser_metrics.vhost_arr.size; i++){
         int j;
         for(j = 0; j < p_file_info->parser_metrics->vhost_arr.size ; j++){
@@ -75,6 +77,7 @@ static void msg_parser(uv_work_t *req){
     }
     freez(parser_metrics.vhost_arr.vhosts); // TODO: Avoid mallocz()/freez() in future by reusing buffs
 
+    /* Port */
     for(int i = 0; i < parser_metrics.port_arr.size; i++){
         int j;
         for(j = 0; j < p_file_info->parser_metrics->port_arr.size ; j++){
@@ -98,10 +101,53 @@ static void msg_parser(uv_work_t *req){
     }
     freez(parser_metrics.port_arr.ports); // TODO: Avoid mallocz()/freez() in future by reusing buffs
 
+    /* Request client */
     p_file_info->parser_metrics->ip_ver.v4 += parser_metrics.ip_ver.v4;
     p_file_info->parser_metrics->ip_ver.v6 += parser_metrics.ip_ver.v6;
     p_file_info->parser_metrics->ip_ver.invalid += parser_metrics.ip_ver.invalid;
 
+    // TODO: Following 2 for loops need refactiong - can add 1 external for loop with 3 iterations instead 
+    for(int i = 0; i < parser_metrics.req_clients_arr.ipv4_size; i++){
+        int j;
+        for(j = 0; j < p_file_info->parser_metrics->req_clients_arr.ipv4_size ; j++){
+            if(!strcmp(parser_metrics.req_clients_arr.ipv4_req_clients[i], p_file_info->parser_metrics->req_clients_arr.ipv4_req_clients[j])) break;
+        }
+        if(p_file_info->parser_metrics->req_clients_arr.ipv4_size == j){
+            p_file_info->parser_metrics->req_clients_arr.ipv4_size++;
+
+            if(p_file_info->parser_metrics->req_clients_arr.ipv4_size >= p_file_info->parser_metrics->req_clients_arr.ipv4_size_max){
+                p_file_info->parser_metrics->req_clients_arr.ipv4_size_max = p_file_info->parser_metrics->req_clients_arr.ipv4_size * LOG_PARSER_METRICS_REQ_CLIENTS_BUFFS_SCALE_FACTOR + 1;
+            }
+            p_file_info->parser_metrics->req_clients_arr.ipv4_req_clients = reallocz(p_file_info->parser_metrics->req_clients_arr.ipv4_req_clients, 
+                p_file_info->parser_metrics->req_clients_arr.ipv4_size_max * sizeof(*p_file_info->parser_metrics->req_clients_arr.ipv4_req_clients));
+
+            snprintf(p_file_info->parser_metrics->req_clients_arr.ipv4_req_clients[p_file_info->parser_metrics->req_clients_arr.ipv4_size - 1], 
+                REQ_CLIENT_MAX_LEN, "%s", parser_metrics.req_clients_arr.ipv4_req_clients[i]);
+        }
+    }
+    freez(parser_metrics.req_clients_arr.ipv4_req_clients); // TODO: Avoid mallocz()/freez() in future by reusing buffs
+
+    for(int i = 0; i < parser_metrics.req_clients_arr.ipv6_size; i++){
+        int j;
+        for(j = 0; j < p_file_info->parser_metrics->req_clients_arr.ipv6_size ; j++){
+            if(!strcmp(parser_metrics.req_clients_arr.ipv6_req_clients[i], p_file_info->parser_metrics->req_clients_arr.ipv6_req_clients[j])) break;
+        }
+        if(p_file_info->parser_metrics->req_clients_arr.ipv6_size == j){
+            p_file_info->parser_metrics->req_clients_arr.ipv6_size++;
+
+            if(p_file_info->parser_metrics->req_clients_arr.ipv6_size >= p_file_info->parser_metrics->req_clients_arr.ipv6_size_max){
+                p_file_info->parser_metrics->req_clients_arr.ipv6_size_max = p_file_info->parser_metrics->req_clients_arr.ipv6_size * LOG_PARSER_METRICS_REQ_CLIENTS_BUFFS_SCALE_FACTOR + 1;
+            }
+            p_file_info->parser_metrics->req_clients_arr.ipv6_req_clients = reallocz(p_file_info->parser_metrics->req_clients_arr.ipv6_req_clients, 
+                p_file_info->parser_metrics->req_clients_arr.ipv6_size_max * sizeof(*p_file_info->parser_metrics->req_clients_arr.ipv6_req_clients));
+
+            snprintf(p_file_info->parser_metrics->req_clients_arr.ipv6_req_clients[p_file_info->parser_metrics->req_clients_arr.ipv6_size - 1], 
+                REQ_CLIENT_MAX_LEN, "%s", parser_metrics.req_clients_arr.ipv6_req_clients[i]);
+        }
+    }
+    freez(parser_metrics.req_clients_arr.ipv6_req_clients); // TODO: Avoid mallocz()/freez() in future by reusing buffs
+
+    /* Request methods */
     p_file_info->parser_metrics->req_method.acl += parser_metrics.req_method.acl;
     p_file_info->parser_metrics->req_method.baseline_control += parser_metrics.req_method.baseline_control;
     p_file_info->parser_metrics->req_method.bind += parser_metrics.req_method.bind;
@@ -140,14 +186,17 @@ static void msg_parser(uv_work_t *req){
     p_file_info->parser_metrics->req_method.update += parser_metrics.req_method.update;
     p_file_info->parser_metrics->req_method.updateredirectref += parser_metrics.req_method.updateredirectref;
 
+    /* Request protocol */
     p_file_info->parser_metrics->req_proto.http_1 += parser_metrics.req_proto.http_1;
     p_file_info->parser_metrics->req_proto.http_1_1 += parser_metrics.req_proto.http_1_1;
     p_file_info->parser_metrics->req_proto.http_2 += parser_metrics.req_proto.http_2;
     p_file_info->parser_metrics->req_proto.other += parser_metrics.req_proto.other;
 
+    /* Request bandwidth */
     p_file_info->parser_metrics->bandwidth.req_size += parser_metrics.bandwidth.req_size;
     p_file_info->parser_metrics->bandwidth.resp_size += parser_metrics.bandwidth.resp_size;
 
+    /* Response code family */
     p_file_info->parser_metrics->resp_code_family.resp_1xx += parser_metrics.resp_code_family.resp_1xx;
     p_file_info->parser_metrics->resp_code_family.resp_2xx += parser_metrics.resp_code_family.resp_2xx;
     p_file_info->parser_metrics->resp_code_family.resp_3xx += parser_metrics.resp_code_family.resp_3xx;
@@ -155,14 +204,17 @@ static void msg_parser(uv_work_t *req){
     p_file_info->parser_metrics->resp_code_family.resp_5xx += parser_metrics.resp_code_family.resp_5xx;
     p_file_info->parser_metrics->resp_code_family.other += parser_metrics.resp_code_family.other;
 
+    /* Response code */
     for(int i = 0; i < 501; i++) p_file_info->parser_metrics->resp_code[i] += parser_metrics.resp_code[i];
 
+    /* Response code type */
     p_file_info->parser_metrics->resp_code_type.resp_success += parser_metrics.resp_code_type.resp_success;
     p_file_info->parser_metrics->resp_code_type.resp_redirect += parser_metrics.resp_code_type.resp_redirect;
     p_file_info->parser_metrics->resp_code_type.resp_bad += parser_metrics.resp_code_type.resp_bad;
     p_file_info->parser_metrics->resp_code_type.resp_error += parser_metrics.resp_code_type.resp_error;
     p_file_info->parser_metrics->resp_code_type.other += parser_metrics.resp_code_type.other;
 
+    /* SSL protocol */
     p_file_info->parser_metrics->ssl_proto.tlsv1 += parser_metrics.ssl_proto.tlsv1;
     p_file_info->parser_metrics->ssl_proto.tlsv1_1 += parser_metrics.ssl_proto.tlsv1_1;
     p_file_info->parser_metrics->ssl_proto.tlsv1_2 += parser_metrics.ssl_proto.tlsv1_2;

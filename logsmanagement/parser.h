@@ -19,13 +19,14 @@
 #define LOG_PARSER_BUFFS_LINE_REALLOC_SCALE_FACTOR 1.5
 #define LOG_PARSER_METRICS_VHOST_BUFFS_SCALE_FACTOR 1.5
 #define LOG_PARSER_METRICS_PORT_BUFFS_SCALE_FACTOR 8 // Unlike Vhosts, ports are stored as integers, so scale factor can be much bigger without significant waste of memory
+#define LOG_PARSER_METRICS_REQ_CLIENTS_BUFFS_SCALE_FACTOR 1.5 // Need to be careful with the scale factor here, as it can consume a lot of memory if there are many unique client IPs
 
 /* Debug prints */
 #define ENABLE_PARSE_LOG_LINE_FPRINTS 0
 #define MEASURE_PARSE_TEXT_TIME 1
 
 #define INVALID_PORT -1
-#define INVALID_CLIENT_IP "inv"
+#define INVALID_CLIENT_IP_STR "inv"
 
 typedef enum{
 	VHOST_WITH_PORT,  // nginx: $host:$server_port      apache: %v:%p
@@ -100,6 +101,14 @@ typedef struct log_parser_metrics{
     struct log_parser_metrics_ip_ver{
 		int v4, v6, invalid;
 	} ip_ver;
+	struct log_parser_metrics_req_clients_array{
+		char (*ipv4_req_clients)[REQ_CLIENT_MAX_LEN];
+	    int ipv4_size;						   		 
+	    int ipv4_size_max;
+	    char (*ipv6_req_clients)[REQ_CLIENT_MAX_LEN];
+	    int ipv6_size;						   		 
+	    int ipv6_size_max;
+    } req_clients_arr;
     struct log_parser_metrics_req_method{
 		int acl, baseline_control, bind, checkin, checkout, connect, copy, delet, get,
 		head, label, link, lock, merge, mkactivity, mkcalendar, mkcol, mkredirectref,

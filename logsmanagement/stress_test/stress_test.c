@@ -100,7 +100,7 @@ static const char *log_msgs_arr[] = {
     "testhost42.host:17 garbage.Address_with_dot UNBIND 1027 HTTP/3 958 2345 SSLv2", /* common log format */
     "testhost0.host:77777 156.134.132.15 PUT 403 HTTP/1.0 458 1056 SSLv3", /* common log format */
     "testhost111.host:42303 156.134.132.15 PUT 304 HTTP/1.0 205 288 wrong_ssl", /* common log format */
-    "testhost546.host:80 156.134.132.15 WRONGMETHOD 504 HTTP/1.0 150 130 -", /* common log format */
+    "testhost546.host:80 8501:0ab8:85a3:0000:0000:4a5d:0370:5213 WRONGMETHOD 504 HTTP/1.0 150 130 -", /* common log format */
     "",
 };
 
