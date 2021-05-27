@@ -240,6 +240,7 @@ void *logsmanagement_plugin_main(void *ptr){
                 , localhost->rrd_update_every
                 , RRDSET_TYPE_AREA
         );
+        // TODO: Change dim_req_client_all_time_ipv4 and dim_req_client_all_time_ipv6 to RRD_ALGORITHM_INCREMENTAL
         chart_data_arr[i]->dim_req_client_all_time_ipv4 = rrddim_add(chart_data_arr[i]->st_req_client_all_time, "ipv4", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
         chart_data_arr[i]->dim_req_client_all_time_ipv6 = rrddim_add(chart_data_arr[i]->st_req_client_all_time, "ipv6", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
 
@@ -505,10 +506,15 @@ void *logsmanagement_plugin_main(void *ptr){
         chart_data_arr[i]->num_ip_ver_invalid = p_file_info->parser_metrics->ip_ver.invalid;
         p_file_info->parser_metrics->ip_ver.invalid = 0;
 
-        /* Request client - collect first time */
-        chart_data_arr[i]->num_req_client_all_time_ipv4 = p_file_info->parser_metrics->req_clients_arr.ipv4_size;  
-        chart_data_arr[i]->num_req_client_all_time_ipv6 = p_file_info->parser_metrics->req_clients_arr.ipv6_size;
+        /* Request client current poll - collect first time */
+        chart_data_arr[i]->num_req_client_current_ipv4 = p_file_info->parser_metrics->req_clients_current_arr.ipv4_size;
+        p_file_info->parser_metrics->req_clients_current_arr.ipv4_size = 0;  
+        chart_data_arr[i]->num_req_client_current_ipv6 = p_file_info->parser_metrics->req_clients_current_arr.ipv6_size;
+        p_file_info->parser_metrics->req_clients_current_arr.ipv6_size = 0;
 
+        /* Request client all-time - collect first time */
+        chart_data_arr[i]->num_req_client_all_time_ipv4 = p_file_info->parser_metrics->req_clients_alltime_arr.ipv4_size;  
+        chart_data_arr[i]->num_req_client_all_time_ipv6 = p_file_info->parser_metrics->req_clients_alltime_arr.ipv6_size;
 
         /* Request methods - collect first time */
         chart_data_arr[i]->num_req_method_acl = p_file_info->parser_metrics->req_method.acl;
@@ -680,7 +686,12 @@ void *logsmanagement_plugin_main(void *ptr){
         rrddim_set_by_pointer(chart_data_arr[i]->st_ip_ver, chart_data_arr[i]->dim_ip_ver_invalid, chart_data_arr[i]->num_ip_ver_invalid);
         rrdset_done(chart_data_arr[i]->st_ip_ver);
 
-        /* Request client - update chart */
+        /* Request client current poll - update chart */
+        rrddim_set_by_pointer(chart_data_arr[i]->st_req_client_current, chart_data_arr[i]->dim_req_client_current_ipv4, chart_data_arr[i]->num_req_client_current_ipv4);
+        rrddim_set_by_pointer(chart_data_arr[i]->st_req_client_current, chart_data_arr[i]->dim_req_client_current_ipv6, chart_data_arr[i]->num_req_client_current_ipv6);
+        rrdset_done(chart_data_arr[i]->st_req_client_current);
+
+        /* Request client all-time - update chart */
         rrddim_set_by_pointer(chart_data_arr[i]->st_req_client_all_time, chart_data_arr[i]->dim_req_client_all_time_ipv4, chart_data_arr[i]->num_req_client_all_time_ipv4);
         rrddim_set_by_pointer(chart_data_arr[i]->st_req_client_all_time, chart_data_arr[i]->dim_req_client_all_time_ipv6, chart_data_arr[i]->num_req_client_all_time_ipv6);
         rrdset_done(chart_data_arr[i]->st_req_client_all_time);
@@ -864,9 +875,15 @@ void *logsmanagement_plugin_main(void *ptr){
             chart_data_arr[i]->num_ip_ver_invalid += p_file_info->parser_metrics->ip_ver.invalid;
             p_file_info->parser_metrics->ip_ver.invalid = 0;
 
-            /* Request client - collect */
-            chart_data_arr[i]->num_req_client_all_time_ipv4 = p_file_info->parser_metrics->req_clients_arr.ipv4_size;  
-            chart_data_arr[i]->num_req_client_all_time_ipv6 = p_file_info->parser_metrics->req_clients_arr.ipv6_size;
+            /* Request client current poll - collect first time */
+            chart_data_arr[i]->num_req_client_current_ipv4 += p_file_info->parser_metrics->req_clients_current_arr.ipv4_size;
+            p_file_info->parser_metrics->req_clients_current_arr.ipv4_size = 0;  
+            chart_data_arr[i]->num_req_client_current_ipv6 += p_file_info->parser_metrics->req_clients_current_arr.ipv6_size;
+            p_file_info->parser_metrics->req_clients_current_arr.ipv6_size = 0;
+
+            /* Request client all-time - collect first time */
+            chart_data_arr[i]->num_req_client_all_time_ipv4 = p_file_info->parser_metrics->req_clients_alltime_arr.ipv4_size;  
+            chart_data_arr[i]->num_req_client_all_time_ipv6 = p_file_info->parser_metrics->req_clients_alltime_arr.ipv6_size;
 
             /* Request methods - collect */
             chart_data_arr[i]->num_req_method_acl += p_file_info->parser_metrics->req_method.acl;
@@ -1041,7 +1058,13 @@ void *logsmanagement_plugin_main(void *ptr){
             rrddim_set_by_pointer(chart_data_arr[i]->st_ip_ver, chart_data_arr[i]->dim_ip_ver_invalid, chart_data_arr[i]->num_ip_ver_invalid);
             rrdset_done(chart_data_arr[i]->st_ip_ver);
 
-            /* Request client - update chart */
+            /* Request client current poll - update chart */
+            rrdset_next(chart_data_arr[i]->st_req_client_current);
+            rrddim_set_by_pointer(chart_data_arr[i]->st_req_client_current, chart_data_arr[i]->dim_req_client_current_ipv4, chart_data_arr[i]->num_req_client_current_ipv4);
+            rrddim_set_by_pointer(chart_data_arr[i]->st_req_client_current, chart_data_arr[i]->dim_req_client_current_ipv6, chart_data_arr[i]->num_req_client_current_ipv6);
+            rrdset_done(chart_data_arr[i]->st_req_client_current);
+
+            /* Request client all-time - update chart */
             rrdset_next(chart_data_arr[i]->st_req_client_all_time);
             rrddim_set_by_pointer(chart_data_arr[i]->st_req_client_all_time, chart_data_arr[i]->dim_req_client_all_time_ipv4, chart_data_arr[i]->num_req_client_all_time_ipv4);
             rrddim_set_by_pointer(chart_data_arr[i]->st_req_client_all_time, chart_data_arr[i]->dim_req_client_all_time_ipv6, chart_data_arr[i]->num_req_client_all_time_ipv6);

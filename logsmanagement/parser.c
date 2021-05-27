@@ -973,14 +973,15 @@ static inline void extract_metrics(Log_line_parsed_t *line_parsed, Log_parser_me
 
             /* Unique Client IPv6 Address */
             int i;
-            for(i = 0; i < metrics->req_clients_arr.ipv6_size; i++){
-                if(!strcmp(metrics->req_clients_arr.ipv6_req_clients[i], line_parsed->req_client)) break;
+            for(i = 0; i < metrics->req_clients_current_arr.ipv6_size; i++){
+                if(!strcmp(metrics->req_clients_current_arr.ipv6_req_clients[i], line_parsed->req_client)) break;
             }
-            if(metrics->req_clients_arr.ipv6_size == i){ // Req client not found in array - need to append
-                metrics->req_clients_arr.ipv6_size++;
-                metrics->req_clients_arr.ipv6_req_clients = reallocz(metrics->req_clients_arr.ipv6_req_clients, 
-                    metrics->req_clients_arr.ipv6_size * sizeof(*metrics->req_clients_arr.ipv6_req_clients));
-                snprintf(metrics->req_clients_arr.ipv6_req_clients[metrics->req_clients_arr.ipv6_size - 1], REQ_CLIENT_MAX_LEN, "%s", line_parsed->req_client);
+            if(metrics->req_clients_current_arr.ipv6_size == i){ // Req client not found in array - need to append
+                metrics->req_clients_current_arr.ipv6_size++;
+                metrics->req_clients_current_arr.ipv6_req_clients = reallocz(metrics->req_clients_current_arr.ipv6_req_clients, 
+                    metrics->req_clients_current_arr.ipv6_size * sizeof(*metrics->req_clients_current_arr.ipv6_req_clients));
+                snprintf(metrics->req_clients_current_arr.ipv6_req_clients[metrics->req_clients_current_arr.ipv6_size - 1], 
+                    REQ_CLIENT_MAX_LEN, "%s", line_parsed->req_client);
             }
         }
         else{
@@ -989,14 +990,15 @@ static inline void extract_metrics(Log_line_parsed_t *line_parsed, Log_parser_me
 
             /* Unique Client IPv4 Address */
             int i;
-            for(i = 0; i < metrics->req_clients_arr.ipv4_size; i++){
-                if(!strcmp(metrics->req_clients_arr.ipv4_req_clients[i], line_parsed->req_client)) break;
+            for(i = 0; i < metrics->req_clients_current_arr.ipv4_size; i++){
+                if(!strcmp(metrics->req_clients_current_arr.ipv4_req_clients[i], line_parsed->req_client)) break;
             }
-            if(metrics->req_clients_arr.ipv4_size == i){ // Req client not found in array - need to append
-                metrics->req_clients_arr.ipv4_size++;
-                metrics->req_clients_arr.ipv4_req_clients = reallocz(metrics->req_clients_arr.ipv4_req_clients, 
-                    metrics->req_clients_arr.ipv4_size * sizeof(*metrics->req_clients_arr.ipv4_req_clients));
-                snprintf(metrics->req_clients_arr.ipv4_req_clients[metrics->req_clients_arr.ipv4_size - 1], REQ_CLIENT_MAX_LEN, "%s", line_parsed->req_client);
+            if(metrics->req_clients_current_arr.ipv4_size == i){ // Req client not found in array - need to append
+                metrics->req_clients_current_arr.ipv4_size++;
+                metrics->req_clients_current_arr.ipv4_req_clients = reallocz(metrics->req_clients_current_arr.ipv4_req_clients, 
+                    metrics->req_clients_current_arr.ipv4_size * sizeof(*metrics->req_clients_current_arr.ipv4_req_clients));
+                snprintf(metrics->req_clients_current_arr.ipv4_req_clients[metrics->req_clients_current_arr.ipv4_size - 1], 
+                    REQ_CLIENT_MAX_LEN, "%s", line_parsed->req_client);
             }
         }
     }

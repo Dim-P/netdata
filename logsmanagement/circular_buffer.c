@@ -101,51 +101,88 @@ static void msg_parser(uv_work_t *req){
     }
     freez(parser_metrics.port_arr.ports); // TODO: Avoid mallocz()/freez() in future by reusing buffs
 
-    /* Request client */
+    /* Req Client - IP version */
     p_file_info->parser_metrics->ip_ver.v4 += parser_metrics.ip_ver.v4;
     p_file_info->parser_metrics->ip_ver.v6 += parser_metrics.ip_ver.v6;
     p_file_info->parser_metrics->ip_ver.invalid += parser_metrics.ip_ver.invalid;
 
-    // TODO: Following 2 for loops need refactiong - can add 1 external for loop with 3 iterations instead 
-    for(int i = 0; i < parser_metrics.req_clients_arr.ipv4_size; i++){
+    for(int i = 0; i < parser_metrics.req_clients_current_arr.ipv4_size; i++){
         int j;
-        for(j = 0; j < p_file_info->parser_metrics->req_clients_arr.ipv4_size ; j++){
-            if(!strcmp(parser_metrics.req_clients_arr.ipv4_req_clients[i], p_file_info->parser_metrics->req_clients_arr.ipv4_req_clients[j])) break;
+
+        /* Request Client - Unique IPv4 clients all-time */
+        for(j = 0; j < p_file_info->parser_metrics->req_clients_alltime_arr.ipv4_size ; j++){
+            if(!strcmp(parser_metrics.req_clients_current_arr.ipv4_req_clients[i], p_file_info->parser_metrics->req_clients_alltime_arr.ipv4_req_clients[j])) break;
         }
-        if(p_file_info->parser_metrics->req_clients_arr.ipv4_size == j){
-            p_file_info->parser_metrics->req_clients_arr.ipv4_size++;
+        if(p_file_info->parser_metrics->req_clients_alltime_arr.ipv4_size == j){
+            p_file_info->parser_metrics->req_clients_alltime_arr.ipv4_size++;
 
-            if(p_file_info->parser_metrics->req_clients_arr.ipv4_size >= p_file_info->parser_metrics->req_clients_arr.ipv4_size_max){
-                p_file_info->parser_metrics->req_clients_arr.ipv4_size_max = p_file_info->parser_metrics->req_clients_arr.ipv4_size * LOG_PARSER_METRICS_REQ_CLIENTS_BUFFS_SCALE_FACTOR + 1;
+            if(p_file_info->parser_metrics->req_clients_alltime_arr.ipv4_size >= p_file_info->parser_metrics->req_clients_alltime_arr.ipv4_size_max){
+                p_file_info->parser_metrics->req_clients_alltime_arr.ipv4_size_max = p_file_info->parser_metrics->req_clients_alltime_arr.ipv4_size * LOG_PARSER_METRICS_REQ_CLIENTS_BUFFS_SCALE_FACTOR + 1;
             }
-            p_file_info->parser_metrics->req_clients_arr.ipv4_req_clients = reallocz(p_file_info->parser_metrics->req_clients_arr.ipv4_req_clients, 
-                p_file_info->parser_metrics->req_clients_arr.ipv4_size_max * sizeof(*p_file_info->parser_metrics->req_clients_arr.ipv4_req_clients));
+            p_file_info->parser_metrics->req_clients_alltime_arr.ipv4_req_clients = reallocz(p_file_info->parser_metrics->req_clients_alltime_arr.ipv4_req_clients, 
+                p_file_info->parser_metrics->req_clients_alltime_arr.ipv4_size_max * sizeof(*p_file_info->parser_metrics->req_clients_alltime_arr.ipv4_req_clients));
 
-            snprintf(p_file_info->parser_metrics->req_clients_arr.ipv4_req_clients[p_file_info->parser_metrics->req_clients_arr.ipv4_size - 1], 
-                REQ_CLIENT_MAX_LEN, "%s", parser_metrics.req_clients_arr.ipv4_req_clients[i]);
+            snprintf(p_file_info->parser_metrics->req_clients_alltime_arr.ipv4_req_clients[p_file_info->parser_metrics->req_clients_alltime_arr.ipv4_size - 1], 
+                REQ_CLIENT_MAX_LEN, "%s", parser_metrics.req_clients_current_arr.ipv4_req_clients[i]);
+        }
+
+        /* Request Client - Unique IPv4 clients current poll */
+        for(j = 0; j < p_file_info->parser_metrics->req_clients_current_arr.ipv4_size ; j++){
+            if(!strcmp(parser_metrics.req_clients_current_arr.ipv4_req_clients[i], p_file_info->parser_metrics->req_clients_current_arr.ipv4_req_clients[j])) break;
+        }
+        if(p_file_info->parser_metrics->req_clients_current_arr.ipv4_size == j){
+            p_file_info->parser_metrics->req_clients_current_arr.ipv4_size++;
+
+            if(p_file_info->parser_metrics->req_clients_current_arr.ipv4_size >= p_file_info->parser_metrics->req_clients_current_arr.ipv4_size_max){
+                p_file_info->parser_metrics->req_clients_current_arr.ipv4_size_max = p_file_info->parser_metrics->req_clients_current_arr.ipv4_size * LOG_PARSER_METRICS_REQ_CLIENTS_BUFFS_SCALE_FACTOR + 1;
+            }
+            p_file_info->parser_metrics->req_clients_current_arr.ipv4_req_clients = reallocz(p_file_info->parser_metrics->req_clients_current_arr.ipv4_req_clients, 
+                p_file_info->parser_metrics->req_clients_current_arr.ipv4_size_max * sizeof(*p_file_info->parser_metrics->req_clients_current_arr.ipv4_req_clients));
+
+            snprintf(p_file_info->parser_metrics->req_clients_current_arr.ipv4_req_clients[p_file_info->parser_metrics->req_clients_current_arr.ipv4_size - 1], 
+                REQ_CLIENT_MAX_LEN, "%s", parser_metrics.req_clients_current_arr.ipv4_req_clients[i]);
         }
     }
-    freez(parser_metrics.req_clients_arr.ipv4_req_clients); // TODO: Avoid mallocz()/freez() in future by reusing buffs
+    freez(parser_metrics.req_clients_current_arr.ipv4_req_clients); // TODO: Avoid mallocz()/freez() in future by reusing buffs
 
-    for(int i = 0; i < parser_metrics.req_clients_arr.ipv6_size; i++){
+    for(int i = 0; i < parser_metrics.req_clients_current_arr.ipv6_size; i++){
         int j;
-        for(j = 0; j < p_file_info->parser_metrics->req_clients_arr.ipv6_size ; j++){
-            if(!strcmp(parser_metrics.req_clients_arr.ipv6_req_clients[i], p_file_info->parser_metrics->req_clients_arr.ipv6_req_clients[j])) break;
+
+        /* Request Client - Unique IPv6 clients all-time */
+        for(j = 0; j < p_file_info->parser_metrics->req_clients_alltime_arr.ipv6_size ; j++){
+            if(!strcmp(parser_metrics.req_clients_current_arr.ipv6_req_clients[i], p_file_info->parser_metrics->req_clients_alltime_arr.ipv6_req_clients[j])) break;
         }
-        if(p_file_info->parser_metrics->req_clients_arr.ipv6_size == j){
-            p_file_info->parser_metrics->req_clients_arr.ipv6_size++;
+        if(p_file_info->parser_metrics->req_clients_alltime_arr.ipv6_size == j){
+            p_file_info->parser_metrics->req_clients_alltime_arr.ipv6_size++;
 
-            if(p_file_info->parser_metrics->req_clients_arr.ipv6_size >= p_file_info->parser_metrics->req_clients_arr.ipv6_size_max){
-                p_file_info->parser_metrics->req_clients_arr.ipv6_size_max = p_file_info->parser_metrics->req_clients_arr.ipv6_size * LOG_PARSER_METRICS_REQ_CLIENTS_BUFFS_SCALE_FACTOR + 1;
+            if(p_file_info->parser_metrics->req_clients_alltime_arr.ipv6_size >= p_file_info->parser_metrics->req_clients_alltime_arr.ipv6_size_max){
+                p_file_info->parser_metrics->req_clients_alltime_arr.ipv6_size_max = p_file_info->parser_metrics->req_clients_alltime_arr.ipv6_size * LOG_PARSER_METRICS_REQ_CLIENTS_BUFFS_SCALE_FACTOR + 1;
             }
-            p_file_info->parser_metrics->req_clients_arr.ipv6_req_clients = reallocz(p_file_info->parser_metrics->req_clients_arr.ipv6_req_clients, 
-                p_file_info->parser_metrics->req_clients_arr.ipv6_size_max * sizeof(*p_file_info->parser_metrics->req_clients_arr.ipv6_req_clients));
+            p_file_info->parser_metrics->req_clients_alltime_arr.ipv6_req_clients = reallocz(p_file_info->parser_metrics->req_clients_alltime_arr.ipv6_req_clients, 
+                p_file_info->parser_metrics->req_clients_alltime_arr.ipv6_size_max * sizeof(*p_file_info->parser_metrics->req_clients_alltime_arr.ipv6_req_clients));
 
-            snprintf(p_file_info->parser_metrics->req_clients_arr.ipv6_req_clients[p_file_info->parser_metrics->req_clients_arr.ipv6_size - 1], 
-                REQ_CLIENT_MAX_LEN, "%s", parser_metrics.req_clients_arr.ipv6_req_clients[i]);
+            snprintf(p_file_info->parser_metrics->req_clients_alltime_arr.ipv6_req_clients[p_file_info->parser_metrics->req_clients_alltime_arr.ipv6_size - 1], 
+                REQ_CLIENT_MAX_LEN, "%s", parser_metrics.req_clients_current_arr.ipv6_req_clients[i]);
+        }
+
+        /* Request Client - Unique IPv6 clients current poll */
+        for(j = 0; j < p_file_info->parser_metrics->req_clients_current_arr.ipv6_size ; j++){
+            if(!strcmp(parser_metrics.req_clients_current_arr.ipv6_req_clients[i], p_file_info->parser_metrics->req_clients_current_arr.ipv6_req_clients[j])) break;
+        }
+        if(p_file_info->parser_metrics->req_clients_current_arr.ipv6_size == j){
+            p_file_info->parser_metrics->req_clients_current_arr.ipv6_size++;
+
+            if(p_file_info->parser_metrics->req_clients_current_arr.ipv6_size >= p_file_info->parser_metrics->req_clients_current_arr.ipv6_size_max){
+                p_file_info->parser_metrics->req_clients_current_arr.ipv6_size_max = p_file_info->parser_metrics->req_clients_current_arr.ipv6_size * LOG_PARSER_METRICS_REQ_CLIENTS_BUFFS_SCALE_FACTOR + 1;
+            }
+            p_file_info->parser_metrics->req_clients_current_arr.ipv6_req_clients = reallocz(p_file_info->parser_metrics->req_clients_current_arr.ipv6_req_clients, 
+                p_file_info->parser_metrics->req_clients_current_arr.ipv6_size_max * sizeof(*p_file_info->parser_metrics->req_clients_current_arr.ipv6_req_clients));
+
+            snprintf(p_file_info->parser_metrics->req_clients_current_arr.ipv6_req_clients[p_file_info->parser_metrics->req_clients_current_arr.ipv6_size - 1], 
+                REQ_CLIENT_MAX_LEN, "%s", parser_metrics.req_clients_current_arr.ipv6_req_clients[i]);
         }
     }
-    freez(parser_metrics.req_clients_arr.ipv6_req_clients); // TODO: Avoid mallocz()/freez() in future by reusing buffs
+    freez(parser_metrics.req_clients_current_arr.ipv6_req_clients); // TODO: Avoid mallocz()/freez() in future by reusing buffs
 
     /* Request methods */
     p_file_info->parser_metrics->req_method.acl += parser_metrics.req_method.acl;

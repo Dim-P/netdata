@@ -108,7 +108,10 @@ typedef struct log_parser_metrics{
 	    char (*ipv6_req_clients)[REQ_CLIENT_MAX_LEN];
 	    int ipv6_size;						   		 
 	    int ipv6_size_max;
-    } req_clients_arr;
+    } req_clients_current_arr, req_clients_alltime_arr; /**< req_clients_current_arr is used by parser.c to save unique client IPs extracted per circular buffer item
+														and also in p_file_info to save unique client IPs per collection (poll) iteration of plugin_logsmanagement.c.
+														req_clients_alltime_arr is used in p_file_info to save unique client IPs of all time (and so ipv4_size and 
+														ipv6_size can only grow and are never reset to 0). **/
     struct log_parser_metrics_req_method{
 		int acl, baseline_control, bind, checkin, checkout, connect, copy, delet, get,
 		head, label, link, lock, merge, mkactivity, mkcalendar, mkcol, mkredirectref,
