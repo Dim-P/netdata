@@ -595,16 +595,16 @@ static Log_line_parsed_t *parse_log_line(Log_parser_buffs_t *parser_buffs, log_l
             #endif
             if(verify){
                 int rc = regexec(&req_client_regex, parsed[i], 0, NULL, 0);
-                if(!rc) log_line_parsed->req_client = strdupz(parsed[i]);
+                if(!rc) snprintf(log_line_parsed->req_client, REQ_CLIENT_MAX_LEN, "%s", parsed[i]);
                 else if (rc == REG_NOMATCH) {
                     #if ENABLE_PARSE_LOG_LINE_FPRINTS
                     fprintf(stderr, "REQ_CLIENT is invalid\n");
                     #endif
-                    log_line_parsed->req_client = strdupz(INVALID_CLIENT_IP);
+                    snprintf(log_line_parsed->req_client, REQ_CLIENT_MAX_LEN, "%s", INVALID_CLIENT_IP);
                 }
                 else assert(0); // Can also use: regerror(rc, &req_client_regex, msgbuf, sizeof(msgbuf));
             }
-            else log_line_parsed->req_client = strdupz(parsed[i]);
+            else snprintf(log_line_parsed->req_client, REQ_CLIENT_MAX_LEN, "%s", parsed[i]);
             #if ENABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Extracted REQ_CLIENT:%s\n", log_line_parsed->req_client);
             #endif
@@ -964,12 +964,14 @@ static inline void extract_metrics(Log_line_parsed_t *line_parsed, Log_parser_me
         } 
     }
 
-    /* Extract client metrics - IP version */
+    /* Extract client metrics */
+    /* IP version */
     if(line_parsed->req_client && *line_parsed->req_client){
         if(!strcmp(line_parsed->req_client, INVALID_CLIENT_IP)) metrics->ip_ver.invalid++;
         else if(strchr(line_parsed->req_client, ':')) metrics->ip_ver.v6++;
         else metrics->ip_ver.v4++;
     }
+    /* 
 
     /* Extract request method */
     if(!strcmp(line_parsed->req_method, "ACL")) metrics->req_method.acl++;
@@ -1102,7 +1104,6 @@ Log_parser_metrics_t parse_text_buf(Log_parser_buffs_t *parser_buffs, char *text
         // TODO: Refactor the following, can be done inside parse_log_line() function to save a strcmp() call.
         extract_metrics(line_parsed, &metrics);
         
-        freez(line_parsed->req_client);
         freez(line_parsed->req_URL);
 
         line_start = line_end + 1;

@@ -10,6 +10,7 @@
 /* Following max lengths include NUL terminating char */
 #define VHOST_MAX_LEN 255
 #define REQ_SCHEME_MAX_LEN 6
+#define REQ_CLIENT_MAX_LEN 46 // https://superuser.com/questions/381022/how-many-characters-can-an-ip-address-be#comment2219013_381029
 #define REQ_METHOD_MAX_LEN 18
 #define REQ_PROTO_MAX_LEN 4 
 #define SSL_PROTO_MAX_LEN 8 
@@ -48,11 +49,10 @@ typedef enum{
 } log_line_field_t;
 
 typedef struct log_line_parsed{
-		//char req_client[46]; // https://superuser.com/questions/381022/how-many-characters-can-an-ip-address-be#comment2219013_381029
 		char vhost[VHOST_MAX_LEN];
 		int  port;
 		char req_scheme[REQ_SCHEME_MAX_LEN];
-		char *req_client;
+		char req_client[REQ_CLIENT_MAX_LEN];
 		char req_method[REQ_METHOD_MAX_LEN];
 		char *req_URL;
 		char req_proto[REQ_PROTO_MAX_LEN];

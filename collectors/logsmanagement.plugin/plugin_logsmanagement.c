@@ -380,7 +380,6 @@ void *logsmanagement_plugin_main(void *ptr){
 
         /* Number of lines - collect first time */
         chart_data_arr[i]->num_lines_total = p_file_info->parser_metrics->num_lines_total;
-        // p_file_info->parser_metrics->num_lines_total = 0;
         chart_data_arr[i]->num_lines_rate = p_file_info->parser_metrics->num_lines_rate;
         p_file_info->parser_metrics->num_lines_rate = 0;
 
@@ -407,6 +406,7 @@ void *logsmanagement_plugin_main(void *ptr){
 
                 chart_data_arr[i]->num_vhosts = reallocz(chart_data_arr[i]->num_vhosts, chart_data_arr[i]->vhost_size_max * sizeof(collected_number));
                 chart_data_arr[i]->num_vhosts[chart_data_arr[i]->vhost_size - 1] = p_file_info->parser_metrics->vhost_arr.vhosts[j].count;
+                p_file_info->parser_metrics->vhost_arr.vhosts[j].count = 0;
             }
         }
 
@@ -444,6 +444,7 @@ void *logsmanagement_plugin_main(void *ptr){
 
                 chart_data_arr[i]->num_ports = reallocz(chart_data_arr[i]->num_ports, chart_data_arr[i]->port_size_max * sizeof(collected_number));
                 chart_data_arr[i]->num_ports[chart_data_arr[i]->port_size - 1] = p_file_info->parser_metrics->port_arr.ports[j].count;
+                p_file_info->parser_metrics->port_arr.ports[j].count = 0;
             }
         }
 
