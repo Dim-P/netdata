@@ -20,6 +20,7 @@
 #define LOG_PARSER_METRICS_VHOST_BUFFS_SCALE_FACTOR 1.5
 #define LOG_PARSER_METRICS_PORT_BUFFS_SCALE_FACTOR 8 // Unlike Vhosts, ports are stored as integers, so scale factor can be much bigger without significant waste of memory
 #define LOG_PARSER_METRICS_REQ_CLIENTS_BUFFS_SCALE_FACTOR 1.5 // Need to be careful with the scale factor here, as it can consume a lot of memory if there are many unique client IPs
+#define LOG_PARSER_METRICS_SLL_CIPHER_BUFFS_SCALE_FACTOR 1.5
 
 /* Debug prints */
 #define ENABLE_PARSE_LOG_LINE_FPRINTS 0
@@ -63,7 +64,7 @@ typedef struct log_line_parsed{
 		int resp_size;
 		int ups_resp_time;
 		char ssl_proto[SSL_PROTO_MAX_LEN];
-		char ssl_cipher_suite[SSL_CIPHER_SUITE_MAX_LEN];
+		char ssl_cipher[SSL_CIPHER_SUITE_MAX_LEN];
 		uint64_t timestamp;
 } Log_line_parsed_t;
 
@@ -135,6 +136,14 @@ typedef struct log_parser_metrics{
 	struct log_parser_metrics_ssl_proto{
 		int tlsv1, tlsv1_1, tlsv1_2, tlsv1_3, sslv2, sslv3, other;
 	} ssl_proto;
+	struct log_parser_metrics_ssl_cipher_array{
+    	struct log_parser_metrics_ssl_cipher{
+	    	char string[SSL_CIPHER_SUITE_MAX_LEN];    /**< SSL cipher suite string **/
+	    	int count;								/**< Occurences of the SSL cipher **/
+	    } *ssl_ciphers;
+	    int size;									/**< Size of SSL ciphers array **/
+	    int size_max;
+    } ssl_cipher_arr;
 } Log_parser_metrics_t;
 
 void search_keyword(char *src, char *dest, const char *keyword, const int ignore_case);

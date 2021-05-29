@@ -21,7 +21,7 @@
 #define MSGS_TO_PRODUCE 5000000U /**< Messages to be produced per log source **/
 #define QUERIES_DELAY 300 /**< Delay before executing queries once log producer threads have finished. Must be > LOG_FILE_READ_INTERVAL to ensure netdata-logs had chance to read in all produced logs. **/
 #define DELAY_OPEN_TO_WRITE_SEC 6U /**< Give Netdata some time to startup and register a listener to the log source **/
-#define DELAY_BETWEEN_MSG_WRITE 50U /**< Sleep delay (in us) in between consequent messages writes to a file **/
+#define DELAY_BETWEEN_MSG_WRITE 100U /**< Sleep delay (in us) in between consequent messages writes to a file **/
 
 #ifdef _WIN32
 # define PIPENAME "\\\\?\\pipe\\netdata-logs-stress-test"
@@ -93,18 +93,18 @@ static const char *log_msgs_arr[] = {
     "hddtemp[localhost] : Failed to connect to '127.0.0.1', port 7634, error: [Errno 111] Connection refused",
     "plugin[main] : memcached[localhost] : check failed",
     */
-    "testhost.host:80 192.168.15.14 GET 202 HTTP/1 635 - TLSv1",
-    "testhost.host:123 192.168.15.17 GET 200 HTTP/1.0 236 - TLSv1",
-    "testhost.host:123 192.168.15.14 UPDATE 202 HTTP/1 426 - TLSv1.2",
-    "testhost.host:8080 192.168.2.1 DELETE 410 HTTP/1 125 - TLSv1",
-    "testhost.host:80 192.137.168.4 DELETE 201 HTTP/1.1 954 - TLSv1.2", 
-    "testhost12.host:8080 188.133.132.15 POST 303 HTTP/1 845 698 TLSv1.1", 
-    "testhost13.host:3040 2001:0db8:85a3:0000:0000:8a2e:0370:7334 OPTIONS 404 HTTP/1 - 236 TLSv1.2", 
-    "testhost57.host:19999 garbageAddress PATCH 404 HTTP/2 124 541 TLSv1.3", 
-    "testhost42.host:17 garbage.Address_with_dot UNBIND 1027 HTTP/3 958 2345 SSLv2", 
-    "testhost0.host:77777 156.134.132.15 PUT 403 HTTP/1.0 458 1056 SSLv3", 
-    "testhost111.host:42303 156.134.132.15 PUT 304 HTTP/1.0 205 288 wrong_ssl", 
-    "testhost546.host:80 8501:0ab8:85a3:0000:0000:4a5d:0370:5213 WRONGMETHOD 504 HTTP/1.0 150 130 -", 
+    "testhost.host:80 192.168.15.14 GET 202 HTTP/1 635 - TLSv1 TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+    "testhost.host:123 192.168.15.17 GET 200 HTTP/1.0 236 - TLSv1 TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+    "testhost.host:123 192.168.15.14 UPDATE 202 HTTP/1 426 - TLSv1.2 TLS_PSK_WITH_AES_128_CCM_8",
+    "testhost.host:8080 192.168.2.1 DELETE 410 HTTP/1 125 - TLSv1 TLS_PSK_WITH_AES_128_CCM_8",
+    "testhost.host:80 192.137.168.4 DELETE 201 HTTP/1.1 954 - TLSv1.2 ECDHE-RSA-AES128-GCM-SHA256", 
+    "testhost12.host:8080 188.133.132.15 POST 303 HTTP/1 845 698 TLSv1.1 invalidSSLCipher", 
+    "testhost13.host:3040 2001:0db8:85a3:0000:0000:8a2e:0370:7334 OPTIONS 404 HTTP/1 - 236 TLSv1.2 invalid_SSL_cipher_suite", 
+    "testhost57.host:19999 garbageAddress PATCH 404 HTTP/2 124 541 TLSv1.3 ECDHE-RSA-AES128-GCM-SHA256", 
+    "testhost42.host:17 garbage.Address_with_dot UNBIND 1027 HTTP/3 958 2345 SSLv2 TLS_RSA_WITH_DES_CBC_SHA", 
+    "testhost0.host:77777 156.134.132.15 PUT 403 HTTP/1.0 458 1056 SSLv3 ECDHE-RSA-AES128-GCM-SHA256", 
+    "testhost111.host:42303 156.134.132.15 PUT 304 HTTP/1.0 205 288 wrong_ssl TLS_RSA_WITH_AES_256_CBC_SHA256", 
+    "testhost546.host:80 8501:0ab8:85a3:0000:0000:4a5d:0370:5213 WRONGMETHOD 504 HTTP/1.0 150 130 - TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256", 
     "",
 };
 
@@ -143,7 +143,7 @@ static void produce_logs(void *arg) {
     uint64_t start_time = get_unix_time_ms();
     int log_no = *((int *)arg);
     int rc = 0;
-    long long int msgs_written = 0;
+    long int msgs_written = 0;
     uv_file file_handle;
     uv_buf_t uv_buf;
     char *buf = malloc(max_msg_len + 100);

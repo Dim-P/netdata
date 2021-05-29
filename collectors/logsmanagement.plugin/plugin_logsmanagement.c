@@ -14,6 +14,7 @@
 #define NETDATA_CHART_PRIO_RESP_CODE            NETDATA_CHART_PRIO_LOGS_BASE + 7
 #define NETDATA_CHART_PRIO_RESP_CODE_TYPE       NETDATA_CHART_PRIO_LOGS_BASE + 8
 #define NETDATA_CHART_PRIO_SSL_PROTO            NETDATA_CHART_PRIO_LOGS_BASE + 9
+#define NETDATA_CHART_PRIO_SSL_CIPHER_SUITE     NETDATA_CHART_PRIO_LOGS_BASE + 10
 #define NETDATA_CHART_PRIO_IP_VER               NETDATA_CHART_PRIO_LOGS_BASE + 11
 #define NETDATA_CHART_PRIO_REQ_CLIENT_CURRENT   NETDATA_CHART_PRIO_LOGS_BASE + 12
 #define NETDATA_CHART_PRIO_REQ_CLIENT_ALL_TIME  NETDATA_CHART_PRIO_LOGS_BASE + 13
@@ -102,6 +103,12 @@ struct Chart_data{
     RRDSET *st_ssl_proto;
     RRDDIM *dim_ssl_proto_tlsv1, *dim_ssl_proto_tlsv1_1, *dim_ssl_proto_tlsv1_2, *dim_ssl_proto_tlsv1_3, *dim_ssl_proto_sslv2, *dim_ssl_proto_sslv3, *dim_ssl_proto_other;
     collected_number num_ssl_proto_tlsv1, num_ssl_proto_tlsv1_1, num_ssl_proto_tlsv1_2, num_ssl_proto_tlsv1_3, num_ssl_proto_sslv2, num_ssl_proto_sslv3, num_ssl_proto_other;
+
+    /* SSL cipher suite */
+    RRDSET *st_ssl_cipher;
+    RRDDIM **dim_ssl_ciphers;
+    collected_number *num_ssl_ciphers;
+    int ssl_cipher_size, ssl_cipher_size_max; /**< Actual size and maximum allocated size of dim_ssl_ciphers, num_ssl_ciphers arrays **/ 
 };
 
 static struct Chart_data **chart_data_arr;
@@ -424,6 +431,21 @@ void *logsmanagement_plugin_main(void *ptr){
         chart_data_arr[i]->dim_ssl_proto_sslv3 = rrddim_add(chart_data_arr[i]->st_ssl_proto, "SSLV3", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
         chart_data_arr[i]->dim_ssl_proto_other = rrddim_add(chart_data_arr[i]->st_ssl_proto, "other", NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
 
+        /* SSL cipher suite - initialise */
+        chart_data_arr[i]->st_ssl_cipher = rrdset_create_localhost(
+                chart_data_arr[i]->rrd_type
+                , "ssl cipher suite"
+                , NULL
+                , "ssl cipher suite"
+                , NULL
+                , "Requests by SSL cipher suite"
+                , "requests/s"
+                , "logsmanagement.plugin"
+                , NULL
+                , NETDATA_CHART_PRIO_SSL_CIPHER_SUITE
+                , localhost->rrd_update_every
+                , RRDSET_TYPE_AREA
+        );
 
 
         uv_mutex_lock(p_file_info->parser_mut);
@@ -659,6 +681,34 @@ void *logsmanagement_plugin_main(void *ptr){
         chart_data_arr[i]->num_ssl_proto_other = p_file_info->parser_metrics->ssl_proto.other;
         p_file_info->parser_metrics->ssl_proto.other = 0;
 
+        /* SSL cipher suite - collect first time */
+        for(int j = 0; j < p_file_info->parser_metrics->ssl_cipher_arr.size; j++){
+            int k;
+            for(k = 0; k < chart_data_arr[i]->ssl_cipher_size; k++){
+                if(!strcmp(p_file_info->parser_metrics->ssl_cipher_arr.ssl_ciphers[j].string, chart_data_arr[i]->dim_ssl_ciphers[k]->name)){
+                    chart_data_arr[i]->num_ssl_ciphers[k] = p_file_info->parser_metrics->ssl_cipher_arr.ssl_ciphers[j].count;
+                    p_file_info->parser_metrics->ssl_cipher_arr.ssl_ciphers[j].count = 0;
+                    break;
+                }
+            }
+            if(chart_data_arr[i]->ssl_cipher_size == k){ // New SSL cipher suite not in existing dimensions
+                chart_data_arr[i]->ssl_cipher_size++;
+
+                if(chart_data_arr[i]->ssl_cipher_size >= chart_data_arr[i]->ssl_cipher_size_max){
+                    chart_data_arr[i]->ssl_cipher_size_max = chart_data_arr[i]->ssl_cipher_size * LOG_PARSER_METRICS_SLL_CIPHER_BUFFS_SCALE_FACTOR + 1;
+
+                    chart_data_arr[i]->dim_ssl_ciphers = reallocz(chart_data_arr[i]->dim_ssl_ciphers, chart_data_arr[i]->ssl_cipher_size_max * sizeof(RRDDIM));
+                    chart_data_arr[i]->num_ssl_ciphers = reallocz(chart_data_arr[i]->num_ssl_ciphers, chart_data_arr[i]->ssl_cipher_size_max * sizeof(collected_number));
+                }
+                
+                chart_data_arr[i]->dim_ssl_ciphers[chart_data_arr[i]->ssl_cipher_size - 1] = rrddim_add(chart_data_arr[i]->st_ssl_cipher, 
+                    p_file_info->parser_metrics->ssl_cipher_arr.ssl_ciphers[j].string, NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+                
+                chart_data_arr[i]->num_ssl_ciphers[chart_data_arr[i]->ssl_cipher_size - 1] = p_file_info->parser_metrics->ssl_cipher_arr.ssl_ciphers[j].count;
+                p_file_info->parser_metrics->ssl_cipher_arr.ssl_ciphers[j].count = 0;
+            }
+        }
+
         
         uv_mutex_unlock(p_file_info->parser_mut);
 
@@ -780,6 +830,12 @@ void *logsmanagement_plugin_main(void *ptr){
         rrddim_set_by_pointer(chart_data_arr[i]->st_ssl_proto, chart_data_arr[i]->dim_ssl_proto_sslv3, chart_data_arr[i]->num_ssl_proto_sslv3);
         rrddim_set_by_pointer(chart_data_arr[i]->st_ssl_proto, chart_data_arr[i]->dim_ssl_proto_other, chart_data_arr[i]->num_ssl_proto_other);
         rrdset_done(chart_data_arr[i]->st_ssl_proto);
+
+        /* SSL cipher suite - update chart first time */
+        for(int j = 0; j < chart_data_arr[i]->ssl_cipher_size; j++){
+            rrddim_set_by_pointer(chart_data_arr[i]->st_ssl_cipher, chart_data_arr[i]->dim_ssl_ciphers[j], chart_data_arr[i]->num_ssl_ciphers[j]);
+        }
+        rrdset_done(chart_data_arr[i]->st_ssl_cipher);
 
     }
 
@@ -1028,6 +1084,34 @@ void *logsmanagement_plugin_main(void *ptr){
             p_file_info->parser_metrics->ssl_proto.sslv3 = 0;
             chart_data_arr[i]->num_ssl_proto_other += p_file_info->parser_metrics->ssl_proto.other;
             p_file_info->parser_metrics->ssl_proto.other = 0;
+
+            /* SSL cipher suite - collect */
+            for(int j = 0; j < p_file_info->parser_metrics->ssl_cipher_arr.size; j++){
+                int k;
+                for(k = 0; k < chart_data_arr[i]->ssl_cipher_size; k++){
+                    if(!strcmp(p_file_info->parser_metrics->ssl_cipher_arr.ssl_ciphers[j].string, chart_data_arr[i]->dim_ssl_ciphers[k]->name)){
+                        chart_data_arr[i]->num_ssl_ciphers[k] += p_file_info->parser_metrics->ssl_cipher_arr.ssl_ciphers[j].count;
+                        p_file_info->parser_metrics->ssl_cipher_arr.ssl_ciphers[j].count = 0;
+                        break;
+                    }
+                }
+                if(chart_data_arr[i]->ssl_cipher_size == k){ // New SSL cipher suite not in existing dimensions
+                    chart_data_arr[i]->ssl_cipher_size++;
+
+                    if(chart_data_arr[i]->ssl_cipher_size >= chart_data_arr[i]->ssl_cipher_size_max){
+                        chart_data_arr[i]->ssl_cipher_size_max = chart_data_arr[i]->ssl_cipher_size * LOG_PARSER_METRICS_SLL_CIPHER_BUFFS_SCALE_FACTOR + 1;
+
+                        chart_data_arr[i]->dim_ssl_ciphers = reallocz(chart_data_arr[i]->dim_ssl_ciphers, chart_data_arr[i]->ssl_cipher_size_max * sizeof(RRDDIM));
+                        chart_data_arr[i]->num_ssl_ciphers = reallocz(chart_data_arr[i]->num_ssl_ciphers, chart_data_arr[i]->ssl_cipher_size_max * sizeof(collected_number));
+                    }
+                    
+                    chart_data_arr[i]->dim_ssl_ciphers[chart_data_arr[i]->ssl_cipher_size - 1] = rrddim_add(chart_data_arr[i]->st_ssl_cipher, 
+                        p_file_info->parser_metrics->ssl_cipher_arr.ssl_ciphers[j].string, NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
+                    
+                    chart_data_arr[i]->num_ssl_ciphers[chart_data_arr[i]->ssl_cipher_size - 1] = p_file_info->parser_metrics->ssl_cipher_arr.ssl_ciphers[j].count;
+                    p_file_info->parser_metrics->ssl_cipher_arr.ssl_ciphers[j].count = 0;
+                }
+            }
             
             uv_mutex_unlock(p_file_info->parser_mut);
 
@@ -1152,7 +1236,7 @@ void *logsmanagement_plugin_main(void *ptr){
             rrddim_set_by_pointer(chart_data_arr[i]->st_resp_code_type, chart_data_arr[i]->dim_resp_code_type_other, chart_data_arr[i]->num_resp_code_type_other);
             rrdset_done(chart_data_arr[i]->st_resp_code_type);
 
-            /* SSL protocol - update chart first time */
+            /* SSL protocol - update chart */
             rrdset_next(chart_data_arr[i]->st_ssl_proto);
             rrddim_set_by_pointer(chart_data_arr[i]->st_ssl_proto, chart_data_arr[i]->dim_ssl_proto_tlsv1, chart_data_arr[i]->num_ssl_proto_tlsv1);
             rrddim_set_by_pointer(chart_data_arr[i]->st_ssl_proto, chart_data_arr[i]->dim_ssl_proto_tlsv1_1, chart_data_arr[i]->num_ssl_proto_tlsv1_1);
@@ -1162,6 +1246,13 @@ void *logsmanagement_plugin_main(void *ptr){
             rrddim_set_by_pointer(chart_data_arr[i]->st_ssl_proto, chart_data_arr[i]->dim_ssl_proto_sslv3, chart_data_arr[i]->num_ssl_proto_sslv3);
             rrddim_set_by_pointer(chart_data_arr[i]->st_ssl_proto, chart_data_arr[i]->dim_ssl_proto_other, chart_data_arr[i]->num_ssl_proto_other);
             rrdset_done(chart_data_arr[i]->st_ssl_proto);
+
+            /* SSL cipher suite - update chart */
+            rrdset_next(chart_data_arr[i]->st_ssl_cipher);
+            for(int j = 0; j < chart_data_arr[i]->ssl_cipher_size; j++){
+                rrddim_set_by_pointer(chart_data_arr[i]->st_ssl_cipher, chart_data_arr[i]->dim_ssl_ciphers[j], chart_data_arr[i]->num_ssl_ciphers[j]);
+            }
+            rrdset_done(chart_data_arr[i]->st_ssl_cipher);
         }
 	}
 

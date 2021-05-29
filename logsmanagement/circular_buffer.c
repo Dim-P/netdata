@@ -266,6 +266,33 @@ static void msg_parser(uv_work_t *req){
     p_file_info->parser_metrics->ssl_proto.sslv3 += parser_metrics.ssl_proto.sslv3;
     p_file_info->parser_metrics->ssl_proto.other += parser_metrics.ssl_proto.other;
 
+    /* SSL cipher suite */
+    for(int i = 0; i < parser_metrics.ssl_cipher_arr.size; i++){
+        int j;
+        for(j = 0; j < p_file_info->parser_metrics->ssl_cipher_arr.size ; j++){
+            if(!strcmp(parser_metrics.ssl_cipher_arr.ssl_ciphers[i].string, p_file_info->parser_metrics->ssl_cipher_arr.ssl_ciphers[j].string)) {
+                p_file_info->parser_metrics->ssl_cipher_arr.ssl_ciphers[j].count += parser_metrics.ssl_cipher_arr.ssl_ciphers[i].count;
+                break;
+            }
+        }
+        if(p_file_info->parser_metrics->ssl_cipher_arr.size == j){
+            p_file_info->parser_metrics->ssl_cipher_arr.size++;
+
+            if(p_file_info->parser_metrics->ssl_cipher_arr.size >= p_file_info->parser_metrics->ssl_cipher_arr.size_max){
+                p_file_info->parser_metrics->ssl_cipher_arr.size_max = p_file_info->parser_metrics->ssl_cipher_arr.size * LOG_PARSER_METRICS_SLL_CIPHER_BUFFS_SCALE_FACTOR + 1;
+                
+                p_file_info->parser_metrics->ssl_cipher_arr.ssl_ciphers = reallocz(p_file_info->parser_metrics->ssl_cipher_arr.ssl_ciphers, 
+                    p_file_info->parser_metrics->ssl_cipher_arr.size_max * sizeof(struct log_parser_metrics_ssl_cipher));
+            }
+
+            snprintf(p_file_info->parser_metrics->ssl_cipher_arr.ssl_ciphers[p_file_info->parser_metrics->ssl_cipher_arr.size - 1].string, 
+                SSL_CIPHER_SUITE_MAX_LEN, "%s", parser_metrics.ssl_cipher_arr.ssl_ciphers[i].string);
+
+            p_file_info->parser_metrics->ssl_cipher_arr.ssl_ciphers[p_file_info->parser_metrics->ssl_cipher_arr.size - 1].count = parser_metrics.ssl_cipher_arr.ssl_ciphers[i].count;
+        }
+    }
+    freez(parser_metrics.ssl_cipher_arr.ssl_ciphers); // TODO: Avoid mallocz()/freez() in future by reusing buffs
+
     uv_mutex_unlock(p_file_info->parser_mut);
 
     compress_text(buff_msg_current);

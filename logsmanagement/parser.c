@@ -532,7 +532,9 @@ static Log_line_parsed_t *parse_log_line(Log_parser_buffs_t *parser_buffs, log_l
                 int rc = regexec(&vhost_regex, parsed[i], 0, NULL, 0);
                 if(likely(!rc)) snprintf(log_line_parsed->vhost, VHOST_MAX_LEN, "%s", parsed[i]);
                 else if (rc == REG_NOMATCH) {
+                    #if ENABLE_PARSE_LOG_LINE_FPRINTS
                     fprintf(stderr, "VHOST is invalid\n");
+                    #endif
                     log_line_parsed->vhost[0] = '\0';
                 }
                 else assert(0); 
@@ -595,7 +597,7 @@ static Log_line_parsed_t *parse_log_line(Log_parser_buffs_t *parser_buffs, log_l
             #endif
             if(verify){
                 int rc = regexec(&req_client_regex, parsed[i], 0, NULL, 0);
-                if(!rc) snprintf(log_line_parsed->req_client, REQ_CLIENT_MAX_LEN, "%s", parsed[i]);
+                if(likely(!rc)) snprintf(log_line_parsed->req_client, REQ_CLIENT_MAX_LEN, "%s", parsed[i]);
                 else if (rc == REG_NOMATCH) {
                     #if ENABLE_PARSE_LOG_LINE_FPRINTS
                     fprintf(stderr, "REQ_CLIENT is invalid\n");
@@ -866,15 +868,19 @@ static Log_line_parsed_t *parse_log_line(Log_parser_buffs_t *parser_buffs, log_l
             fprintf(stderr, "Item %d (type: SSL_CIPHER_SUITE):%s\n", i, parsed[i]);
             #endif
             if(verify){
-                if(!strchr(parsed[i], '-') && !strchr(parsed[i], '_')){
+                int rc = regexec(&cipher_suite_regex, parsed[i], 0, NULL, 0);
+                if(likely(!rc)) snprintf(log_line_parsed->ssl_cipher, SSL_CIPHER_SUITE_MAX_LEN, "%s", parsed[i]); 
+                else if (rc == REG_NOMATCH) {
+                    #if ENABLE_PARSE_LOG_LINE_FPRINTS
                     fprintf(stderr, "SSL_CIPHER_SUITE is invalid\n");
-                    log_line_parsed->ssl_cipher_suite[0] = '\0';
-                } 
-                else snprintf(log_line_parsed->ssl_cipher_suite, SSL_CIPHER_SUITE_MAX_LEN, "%s", parsed[i]); 
+                    #endif
+                    log_line_parsed->ssl_cipher[0] = '\0';
+                }
+                else assert(0); // Can also use: regerror(rc, &cipher_suite_regex, msgbuf, sizeof(msgbuf));
             }
-            else snprintf(log_line_parsed->ssl_cipher_suite, SSL_CIPHER_SUITE_MAX_LEN, "%s", parsed[i]); 
+            else snprintf(log_line_parsed->ssl_cipher, SSL_CIPHER_SUITE_MAX_LEN, "%s", parsed[i]); 
             #if ENABLE_PARSE_LOG_LINE_FPRINTS
-            fprintf(stderr, "Extracted SSL_CIPHER_SUITE:%s\n", log_line_parsed->ssl_cipher_suite);
+            fprintf(stderr, "Extracted SSL_CIPHER_SUITE:%s\n", log_line_parsed->ssl_cipher);
             #endif
         }
 
@@ -1099,6 +1105,23 @@ static inline void extract_metrics(Log_line_parsed_t *line_parsed, Log_parser_me
     else if(!strcmp(line_parsed->ssl_proto, "SSLv3")) metrics->ssl_proto.sslv3++;
     else metrics->ssl_proto.other++;
 
+    /* Extract SSL cipher suite */
+    // TODO: Reduce number of reallocs
+    if(line_parsed->ssl_cipher && *line_parsed->ssl_cipher){
+        int i;
+        for(i = 0; i < metrics->ssl_cipher_arr.size; i++){
+            if(!strcmp(metrics->ssl_cipher_arr.ssl_ciphers[i].string, line_parsed->ssl_cipher)){
+                metrics->ssl_cipher_arr.ssl_ciphers[i].count++;
+                break;
+            }
+        }
+        if(metrics->ssl_cipher_arr.size == i){ // SSL cipher suite not found in array - need to append
+            metrics->ssl_cipher_arr.size++;
+            metrics->ssl_cipher_arr.ssl_ciphers = reallocz(metrics->ssl_cipher_arr.ssl_ciphers, metrics->ssl_cipher_arr.size * sizeof(struct log_parser_metrics_ssl_cipher));
+            snprintf(metrics->ssl_cipher_arr.ssl_ciphers[metrics->ssl_cipher_arr.size - 1].string, SSL_CIPHER_SUITE_MAX_LEN, "%s", line_parsed->ssl_cipher);
+            metrics->ssl_cipher_arr.ssl_ciphers[metrics->ssl_cipher_arr.size - 1].count = 1;
+        }
+    }
 }
 
 Log_parser_metrics_t parse_text_buf(Log_parser_buffs_t *parser_buffs, char *text, size_t text_size, log_line_field_t *fields, int num_fields, const char delimiter, const int verify){
