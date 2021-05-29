@@ -448,13 +448,14 @@ void *logsmanagement_plugin_main(void *ptr){
 
                 if(chart_data_arr[i]->vhost_size >= chart_data_arr[i]->vhost_size_max){
                     chart_data_arr[i]->vhost_size_max = chart_data_arr[i]->vhost_size * LOG_PARSER_METRICS_VHOST_BUFFS_SCALE_FACTOR + 1;
+
+                    chart_data_arr[i]->dim_vhosts = reallocz(chart_data_arr[i]->dim_vhosts, chart_data_arr[i]->vhost_size_max * sizeof(RRDDIM));
+                    chart_data_arr[i]->num_vhosts = reallocz(chart_data_arr[i]->num_vhosts, chart_data_arr[i]->vhost_size_max * sizeof(collected_number));
                 }
-                chart_data_arr[i]->dim_vhosts = reallocz(chart_data_arr[i]->dim_vhosts, chart_data_arr[i]->vhost_size_max * sizeof(RRDDIM));
                 
                 chart_data_arr[i]->dim_vhosts[chart_data_arr[i]->vhost_size - 1] = rrddim_add(chart_data_arr[i]->st_vhost, 
                     p_file_info->parser_metrics->vhost_arr.vhosts[j].name, NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
-
-                chart_data_arr[i]->num_vhosts = reallocz(chart_data_arr[i]->num_vhosts, chart_data_arr[i]->vhost_size_max * sizeof(collected_number));
+                
                 chart_data_arr[i]->num_vhosts[chart_data_arr[i]->vhost_size - 1] = p_file_info->parser_metrics->vhost_arr.vhosts[j].count;
                 p_file_info->parser_metrics->vhost_arr.vhosts[j].count = 0;
             }
@@ -475,12 +476,13 @@ void *logsmanagement_plugin_main(void *ptr){
 
                 if(chart_data_arr[i]->port_size >= chart_data_arr[i]->port_size_max){
                     chart_data_arr[i]->port_size_max = chart_data_arr[i]->port_size * LOG_PARSER_METRICS_PORT_BUFFS_SCALE_FACTOR + 1;
+
+                    chart_data_arr[i]->ports = reallocz(chart_data_arr[i]->ports, chart_data_arr[i]->port_size_max * sizeof(int));
+                    chart_data_arr[i]->dim_ports = reallocz(chart_data_arr[i]->dim_ports, chart_data_arr[i]->port_size_max * sizeof(RRDDIM));
+                    chart_data_arr[i]->num_ports = reallocz(chart_data_arr[i]->num_ports, chart_data_arr[i]->port_size_max * sizeof(collected_number));
                 }
 
-                chart_data_arr[i]->ports = reallocz(chart_data_arr[i]->ports, chart_data_arr[i]->port_size_max * sizeof(int));
                 chart_data_arr[i]->ports[chart_data_arr[i]->port_size - 1] = p_file_info->parser_metrics->port_arr.ports[j].port;
-
-                chart_data_arr[i]->dim_ports = reallocz(chart_data_arr[i]->dim_ports, chart_data_arr[i]->port_size_max * sizeof(RRDDIM));
 
                 if(unlikely(chart_data_arr[i]->ports[chart_data_arr[i]->port_size - 1] == INVALID_PORT)){
                     chart_data_arr[i]->dim_ports[chart_data_arr[i]->port_size - 1] = rrddim_add(chart_data_arr[i]->st_port, 
@@ -491,8 +493,7 @@ void *logsmanagement_plugin_main(void *ptr){
                     chart_data_arr[i]->dim_ports[chart_data_arr[i]->port_size - 1] = rrddim_add(chart_data_arr[i]->st_port, 
                         port_name, NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
                 }
-
-                chart_data_arr[i]->num_ports = reallocz(chart_data_arr[i]->num_ports, chart_data_arr[i]->port_size_max * sizeof(collected_number));
+                
                 chart_data_arr[i]->num_ports[chart_data_arr[i]->port_size - 1] = p_file_info->parser_metrics->port_arr.ports[j].count;
                 p_file_info->parser_metrics->port_arr.ports[j].count = 0;
             }
@@ -819,13 +820,14 @@ void *logsmanagement_plugin_main(void *ptr){
 
                     if(chart_data_arr[i]->vhost_size >= chart_data_arr[i]->vhost_size_max){
                         chart_data_arr[i]->vhost_size_max = chart_data_arr[i]->vhost_size * LOG_PARSER_METRICS_VHOST_BUFFS_SCALE_FACTOR + 1;
+
+                        chart_data_arr[i]->dim_vhosts = reallocz(chart_data_arr[i]->dim_vhosts, chart_data_arr[i]->vhost_size_max * sizeof(RRDDIM));
+                        chart_data_arr[i]->num_vhosts = reallocz(chart_data_arr[i]->num_vhosts, chart_data_arr[i]->vhost_size_max * sizeof(collected_number));
                     }
-                    chart_data_arr[i]->dim_vhosts = reallocz(chart_data_arr[i]->dim_vhosts, chart_data_arr[i]->vhost_size_max * sizeof(RRDDIM));
                     
                     chart_data_arr[i]->dim_vhosts[chart_data_arr[i]->vhost_size - 1] = rrddim_add(chart_data_arr[i]->st_vhost, 
                         p_file_info->parser_metrics->vhost_arr.vhosts[j].name, NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
-
-                    chart_data_arr[i]->num_vhosts = reallocz(chart_data_arr[i]->num_vhosts, chart_data_arr[i]->vhost_size * sizeof(collected_number));
+                    
                     chart_data_arr[i]->num_vhosts[chart_data_arr[i]->vhost_size - 1] = p_file_info->parser_metrics->vhost_arr.vhosts[j].count;
                 }
             }
@@ -845,12 +847,13 @@ void *logsmanagement_plugin_main(void *ptr){
 
                     if(chart_data_arr[i]->port_size >= chart_data_arr[i]->port_size_max){
                         chart_data_arr[i]->port_size_max = chart_data_arr[i]->port_size * LOG_PARSER_METRICS_PORT_BUFFS_SCALE_FACTOR + 1;
+
+                        chart_data_arr[i]->ports = reallocz(chart_data_arr[i]->ports, chart_data_arr[i]->port_size_max * sizeof(int));
+                        chart_data_arr[i]->dim_ports = reallocz(chart_data_arr[i]->dim_ports, chart_data_arr[i]->port_size_max * sizeof(RRDDIM));
+                        chart_data_arr[i]->num_ports = reallocz(chart_data_arr[i]->num_ports, chart_data_arr[i]->port_size_max * sizeof(collected_number));
                     }
 
-                    chart_data_arr[i]->ports = reallocz(chart_data_arr[i]->ports, chart_data_arr[i]->port_size_max * sizeof(int));
                     chart_data_arr[i]->ports[chart_data_arr[i]->port_size - 1] = p_file_info->parser_metrics->port_arr.ports[j].port;
-
-                    chart_data_arr[i]->dim_ports = reallocz(chart_data_arr[i]->dim_ports, chart_data_arr[i]->port_size_max * sizeof(RRDDIM));
 
                     if(unlikely(chart_data_arr[i]->ports[chart_data_arr[i]->port_size - 1] == INVALID_PORT)){
                     chart_data_arr[i]->dim_ports[chart_data_arr[i]->port_size - 1] = rrddim_add(chart_data_arr[i]->st_port, 
@@ -862,7 +865,6 @@ void *logsmanagement_plugin_main(void *ptr){
                             port_name, NULL, 1, 1, RRD_ALGORITHM_INCREMENTAL);
                     }
 
-                    chart_data_arr[i]->num_ports = reallocz(chart_data_arr[i]->num_ports, chart_data_arr[i]->port_size_max * sizeof(collected_number));
                     chart_data_arr[i]->num_ports[chart_data_arr[i]->port_size - 1] = p_file_info->parser_metrics->port_arr.ports[j].count;
                 }
             }

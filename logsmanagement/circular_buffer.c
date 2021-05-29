@@ -65,9 +65,10 @@ static void msg_parser(uv_work_t *req){
 
             if(p_file_info->parser_metrics->vhost_arr.size >= p_file_info->parser_metrics->vhost_arr.size_max){
                 p_file_info->parser_metrics->vhost_arr.size_max = p_file_info->parser_metrics->vhost_arr.size * LOG_PARSER_METRICS_VHOST_BUFFS_SCALE_FACTOR + 1;
+                
+                p_file_info->parser_metrics->vhost_arr.vhosts = reallocz(p_file_info->parser_metrics->vhost_arr.vhosts, 
+                    p_file_info->parser_metrics->vhost_arr.size_max * sizeof(struct log_parser_metrics_vhost));
             }
-            p_file_info->parser_metrics->vhost_arr.vhosts = reallocz(p_file_info->parser_metrics->vhost_arr.vhosts, 
-                p_file_info->parser_metrics->vhost_arr.size_max * sizeof(struct log_parser_metrics_vhost));
 
             snprintf(p_file_info->parser_metrics->vhost_arr.vhosts[p_file_info->parser_metrics->vhost_arr.size - 1].name, 
                 VHOST_MAX_LEN, "%s", parser_metrics.vhost_arr.vhosts[i].name);
@@ -91,10 +92,11 @@ static void msg_parser(uv_work_t *req){
 
             if(p_file_info->parser_metrics->port_arr.size >= p_file_info->parser_metrics->port_arr.size_max){
                 p_file_info->parser_metrics->port_arr.size_max = p_file_info->parser_metrics->port_arr.size * LOG_PARSER_METRICS_PORT_BUFFS_SCALE_FACTOR + 1;
-            }
-            p_file_info->parser_metrics->port_arr.ports = reallocz(p_file_info->parser_metrics->port_arr.ports, 
-                p_file_info->parser_metrics->port_arr.size_max * sizeof(struct log_parser_metrics_port));
 
+                p_file_info->parser_metrics->port_arr.ports = reallocz(p_file_info->parser_metrics->port_arr.ports, 
+                    p_file_info->parser_metrics->port_arr.size_max * sizeof(struct log_parser_metrics_port));
+            }
+            
             p_file_info->parser_metrics->port_arr.ports[p_file_info->parser_metrics->port_arr.size - 1].port = parser_metrics.port_arr.ports[i].port;
             p_file_info->parser_metrics->port_arr.ports[p_file_info->parser_metrics->port_arr.size - 1].count = parser_metrics.port_arr.ports[i].count;
         }
@@ -118,10 +120,11 @@ static void msg_parser(uv_work_t *req){
 
             if(p_file_info->parser_metrics->req_clients_alltime_arr.ipv4_size >= p_file_info->parser_metrics->req_clients_alltime_arr.ipv4_size_max){
                 p_file_info->parser_metrics->req_clients_alltime_arr.ipv4_size_max = p_file_info->parser_metrics->req_clients_alltime_arr.ipv4_size * LOG_PARSER_METRICS_REQ_CLIENTS_BUFFS_SCALE_FACTOR + 1;
+            
+                p_file_info->parser_metrics->req_clients_alltime_arr.ipv4_req_clients = reallocz(p_file_info->parser_metrics->req_clients_alltime_arr.ipv4_req_clients, 
+                    p_file_info->parser_metrics->req_clients_alltime_arr.ipv4_size_max * sizeof(*p_file_info->parser_metrics->req_clients_alltime_arr.ipv4_req_clients));
             }
-            p_file_info->parser_metrics->req_clients_alltime_arr.ipv4_req_clients = reallocz(p_file_info->parser_metrics->req_clients_alltime_arr.ipv4_req_clients, 
-                p_file_info->parser_metrics->req_clients_alltime_arr.ipv4_size_max * sizeof(*p_file_info->parser_metrics->req_clients_alltime_arr.ipv4_req_clients));
-
+            
             snprintf(p_file_info->parser_metrics->req_clients_alltime_arr.ipv4_req_clients[p_file_info->parser_metrics->req_clients_alltime_arr.ipv4_size - 1], 
                 REQ_CLIENT_MAX_LEN, "%s", parser_metrics.req_clients_current_arr.ipv4_req_clients[i]);
         }
@@ -135,9 +138,10 @@ static void msg_parser(uv_work_t *req){
 
             if(p_file_info->parser_metrics->req_clients_current_arr.ipv4_size >= p_file_info->parser_metrics->req_clients_current_arr.ipv4_size_max){
                 p_file_info->parser_metrics->req_clients_current_arr.ipv4_size_max = p_file_info->parser_metrics->req_clients_current_arr.ipv4_size * LOG_PARSER_METRICS_REQ_CLIENTS_BUFFS_SCALE_FACTOR + 1;
+            
+                p_file_info->parser_metrics->req_clients_current_arr.ipv4_req_clients = reallocz(p_file_info->parser_metrics->req_clients_current_arr.ipv4_req_clients, 
+                    p_file_info->parser_metrics->req_clients_current_arr.ipv4_size_max * sizeof(*p_file_info->parser_metrics->req_clients_current_arr.ipv4_req_clients));
             }
-            p_file_info->parser_metrics->req_clients_current_arr.ipv4_req_clients = reallocz(p_file_info->parser_metrics->req_clients_current_arr.ipv4_req_clients, 
-                p_file_info->parser_metrics->req_clients_current_arr.ipv4_size_max * sizeof(*p_file_info->parser_metrics->req_clients_current_arr.ipv4_req_clients));
 
             snprintf(p_file_info->parser_metrics->req_clients_current_arr.ipv4_req_clients[p_file_info->parser_metrics->req_clients_current_arr.ipv4_size - 1], 
                 REQ_CLIENT_MAX_LEN, "%s", parser_metrics.req_clients_current_arr.ipv4_req_clients[i]);
@@ -157,9 +161,10 @@ static void msg_parser(uv_work_t *req){
 
             if(p_file_info->parser_metrics->req_clients_alltime_arr.ipv6_size >= p_file_info->parser_metrics->req_clients_alltime_arr.ipv6_size_max){
                 p_file_info->parser_metrics->req_clients_alltime_arr.ipv6_size_max = p_file_info->parser_metrics->req_clients_alltime_arr.ipv6_size * LOG_PARSER_METRICS_REQ_CLIENTS_BUFFS_SCALE_FACTOR + 1;
+            
+                p_file_info->parser_metrics->req_clients_alltime_arr.ipv6_req_clients = reallocz(p_file_info->parser_metrics->req_clients_alltime_arr.ipv6_req_clients, 
+                    p_file_info->parser_metrics->req_clients_alltime_arr.ipv6_size_max * sizeof(*p_file_info->parser_metrics->req_clients_alltime_arr.ipv6_req_clients));
             }
-            p_file_info->parser_metrics->req_clients_alltime_arr.ipv6_req_clients = reallocz(p_file_info->parser_metrics->req_clients_alltime_arr.ipv6_req_clients, 
-                p_file_info->parser_metrics->req_clients_alltime_arr.ipv6_size_max * sizeof(*p_file_info->parser_metrics->req_clients_alltime_arr.ipv6_req_clients));
 
             snprintf(p_file_info->parser_metrics->req_clients_alltime_arr.ipv6_req_clients[p_file_info->parser_metrics->req_clients_alltime_arr.ipv6_size - 1], 
                 REQ_CLIENT_MAX_LEN, "%s", parser_metrics.req_clients_current_arr.ipv6_req_clients[i]);
@@ -174,9 +179,10 @@ static void msg_parser(uv_work_t *req){
 
             if(p_file_info->parser_metrics->req_clients_current_arr.ipv6_size >= p_file_info->parser_metrics->req_clients_current_arr.ipv6_size_max){
                 p_file_info->parser_metrics->req_clients_current_arr.ipv6_size_max = p_file_info->parser_metrics->req_clients_current_arr.ipv6_size * LOG_PARSER_METRICS_REQ_CLIENTS_BUFFS_SCALE_FACTOR + 1;
+            
+                p_file_info->parser_metrics->req_clients_current_arr.ipv6_req_clients = reallocz(p_file_info->parser_metrics->req_clients_current_arr.ipv6_req_clients, 
+                    p_file_info->parser_metrics->req_clients_current_arr.ipv6_size_max * sizeof(*p_file_info->parser_metrics->req_clients_current_arr.ipv6_req_clients));
             }
-            p_file_info->parser_metrics->req_clients_current_arr.ipv6_req_clients = reallocz(p_file_info->parser_metrics->req_clients_current_arr.ipv6_req_clients, 
-                p_file_info->parser_metrics->req_clients_current_arr.ipv6_size_max * sizeof(*p_file_info->parser_metrics->req_clients_current_arr.ipv6_req_clients));
 
             snprintf(p_file_info->parser_metrics->req_clients_current_arr.ipv6_req_clients[p_file_info->parser_metrics->req_clients_current_arr.ipv6_size - 1], 
                 REQ_CLIENT_MAX_LEN, "%s", parser_metrics.req_clients_current_arr.ipv6_req_clients[i]);
