@@ -635,13 +635,14 @@ static void config_init(){
             char *log_source_path = appconfig_get(&log_management_config, config_section->name, "log path", NULL);
             fprintf(stderr, "NDLGS log path value: %s for section: %s\n==== \n", log_source_path ? log_source_path : "NULL!", config_section->name);
             if(log_source_path && log_source_path[0]!='\0'){ // log source path exists and is valid
+                // TODO: Add option to enable parser only without log storage and queries.
                 struct File_info *p_file_info = monitor_log_file_init(log_source_path);
                 if(p_file_info){ // monitor_log_file_init() was successful
                     char *log_format = appconfig_get(&log_management_config, config_section->name, "log format", NULL);
                     fprintf(stderr, "NDLGS log format value: %s for section: %s\n==== \n", log_format ? log_format : "NULL!", config_section->name);
                     const char delimiter = ' '; // TODO!!: TO READ FROM CONFIG
                     if(!log_format){
-                        // TODO: Set default log format and delimiter if not found in config? 
+                        // TODO: Set default log format and delimiter if not found in config? Or auto-detect?
                     }
                     p_file_info->parser_config = read_parse_config(log_format, delimiter);
                     fprintf(stderr, "NDLGS Read parser_config for %s: %s\n", p_file_info->filename, p_file_info->parser_config ? "success!" : "failed!");
@@ -652,6 +653,62 @@ static void config_init(){
                         rc = uv_mutex_init(p_file_info->parser_mut);
                         if(rc) fatal("Failed to initialise parser_mut for %s\n", p_file_info->filename);
                         fprintf(stderr, "NDLGS parser_mut initialised for %s\n", p_file_info->filename);
+
+                        for(int j = 0; j < p_file_info->parser_config->num_fields; j++){
+                            if((p_file_info->parser_config->fields[j] == VHOST_WITH_PORT || p_file_info->parser_config->fields[j] == VHOST) 
+                                && appconfig_get_boolean(&log_management_config, config_section->name, "vhosts chart", 0)){ 
+                                p_file_info->parser_config->chart_config |= CHART_VHOST;
+                            }
+                            if((p_file_info->parser_config->fields[j] == VHOST_WITH_PORT || p_file_info->parser_config->fields[j] == PORT) 
+                                && appconfig_get_boolean(&log_management_config, config_section->name, "ports chart", 0)){ 
+                                p_file_info->parser_config->chart_config |= CHART_PORT;
+                            }
+                            if((p_file_info->parser_config->fields[j] == REQ_CLIENT) 
+                                && appconfig_get_boolean(&log_management_config, config_section->name, "IP versions chart", 0)){ 
+                                p_file_info->parser_config->chart_config |= CHART_IP_VERSION;
+                            }
+                            if((p_file_info->parser_config->fields[j] == REQ_CLIENT) 
+                                && appconfig_get_boolean(&log_management_config, config_section->name, "unique client IPs - current poll chart", 0)){ 
+                                p_file_info->parser_config->chart_config |= CHART_REQ_CLIENT_CURRENT;
+                            }
+                            if((p_file_info->parser_config->fields[j] == REQ_CLIENT) 
+                                && appconfig_get_boolean(&log_management_config, config_section->name, "unique client IPs - all-time chart", 0)){ 
+                                p_file_info->parser_config->chart_config |= CHART_REQ_CLIENT_ALL_TIME;
+                            }
+                            if((p_file_info->parser_config->fields[j] == REQ || p_file_info->parser_config->fields[j] == REQ_METHOD) 
+                                && appconfig_get_boolean(&log_management_config, config_section->name, "http request methods chart", 0)){ 
+                                p_file_info->parser_config->chart_config |= CHART_REQ_METHODS;
+                            }
+                            if((p_file_info->parser_config->fields[j] == REQ_PROTO) 
+                                && appconfig_get_boolean(&log_management_config, config_section->name, "http protocol versions chart", 0)){ 
+                                p_file_info->parser_config->chart_config |= CHART_REQ_PROTO;
+                            }
+                            if((p_file_info->parser_config->fields[j] == REQ_SIZE || p_file_info->parser_config->fields[j] == RESP_SIZE) 
+                                && appconfig_get_boolean(&log_management_config, config_section->name, "bandwidth chart", 0)){ 
+                                p_file_info->parser_config->chart_config |= CHART_BANDWIDTH;
+                            }
+                            // TODO: Add code for req_proc_time
+                            if((p_file_info->parser_config->fields[j] == RESP_CODE) 
+                                && appconfig_get_boolean(&log_management_config, config_section->name, "response code families chart", 0)){ 
+                                p_file_info->parser_config->chart_config |= CHART_RESP_CODE_FAMILY;
+                            }
+                            if((p_file_info->parser_config->fields[j] == RESP_CODE) 
+                                && appconfig_get_boolean(&log_management_config, config_section->name, "response codes chart", 0)){ 
+                                p_file_info->parser_config->chart_config |= CHART_RESP_CODE;
+                            }
+                            if((p_file_info->parser_config->fields[j] == RESP_CODE) 
+                                && appconfig_get_boolean(&log_management_config, config_section->name, "response code types chart", 0)){ 
+                                p_file_info->parser_config->chart_config |= CHART_RESP_CODE_TYPE;
+                            }
+                            if((p_file_info->parser_config->fields[j] == SSL_PROTO) 
+                                && appconfig_get_boolean(&log_management_config, config_section->name, "SSL protocols chart", 0)){ 
+                                p_file_info->parser_config->chart_config |= CHART_SSL_PROTO;
+                            }
+                            if((p_file_info->parser_config->fields[j] == SSL_CIPHER_SUITE) 
+                                && appconfig_get_boolean(&log_management_config, config_section->name, "SSL chipher suites chart", 0)){ 
+                                p_file_info->parser_config->chart_config |= CHART_SSL_CIPHER;
+                            }
+                        }
                     }
                     else{
                         // TODO: Terminate monitor_log_file_init() if p_file_info->parser_config is NULL? 

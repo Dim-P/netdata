@@ -30,6 +30,22 @@
 #define INVALID_CLIENT_IP_STR "inv"
 
 typedef enum{
+    CHART_VHOST = 1 << 0,            
+    CHART_PORT = 1 << 1,             
+    CHART_IP_VERSION = 1 << 2,
+    CHART_REQ_CLIENT_CURRENT = 1 << 3,
+    CHART_REQ_CLIENT_ALL_TIME = 1 << 4,
+    CHART_REQ_METHODS = 1 << 5,
+    CHART_REQ_PROTO = 1 << 6,
+    CHART_BANDWIDTH = 1 << 7,
+    CHART_RESP_CODE_FAMILY = 1 << 8,
+    CHART_RESP_CODE = 1 << 9,
+    CHART_RESP_CODE_TYPE = 1 << 10,
+    CHART_SSL_PROTO = 1 << 11,
+    CHART_SSL_CIPHER = 1 << 12
+} chart_type_t;
+
+typedef enum{
 	VHOST_WITH_PORT,  // nginx: $host:$server_port      apache: %v:%p
 	VHOST, 		      // nginx: $host ($http_host)      apache: %v
 	PORT,             // nginx: $server_port            apache: %p
@@ -78,6 +94,7 @@ typedef struct log_parser_config{
     log_line_field_t *fields;   
     int num_fields;             /**< Number of strings in the fields array. */
     char delimiter;       /**< Delimiter that separates the fields in the log format. */
+    unsigned long int chart_config;
 } Log_parser_config_t;
 
 typedef struct log_parser_metrics{
@@ -148,6 +165,6 @@ typedef struct log_parser_metrics{
 
 void search_keyword(char *src, char *dest, const char *keyword, const int ignore_case);
 Log_parser_config_t *read_parse_config(char *log_format, const char delimiter);
-Log_parser_metrics_t parse_text_buf(Log_parser_buffs_t *parser_buffs, char *text, size_t text_size, log_line_field_t *fields, int num_fields, const char delimiter, const int verify);
+Log_parser_metrics_t parse_text_buf(Log_parser_buffs_t *parser_buffs, char *text, size_t text_size, Log_parser_config_t *parser_config, const int verify);
 
 #endif  // PARSER_H_

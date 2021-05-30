@@ -489,7 +489,11 @@ Log_parser_config_t *read_parse_config(char *log_format, const char delimiter){
     return parser_config;
 }
 
-static Log_line_parsed_t *parse_log_line(Log_parser_buffs_t *parser_buffs, log_line_field_t *fields_format, const int num_fields_config, const char *line, const char delimiter, const int verify){
+static Log_line_parsed_t *parse_log_line(Log_parser_config_t *parser_config, Log_parser_buffs_t *parser_buffs, const char *line, const int verify){
+    log_line_field_t *fields_format = parser_config->fields;
+    const int num_fields_config = parser_config->num_fields;
+    const char delimiter = parser_config->delimiter;
+
     parser_buffs->log_line_parsed = (Log_line_parsed_t) {};
     Log_line_parsed_t *log_line_parsed = &parser_buffs->log_line_parsed;
 #if ENABLE_PARSE_LOG_LINE_FPRINTS
@@ -928,7 +932,7 @@ static Log_line_parsed_t *parse_log_line(Log_parser_buffs_t *parser_buffs, log_l
     return log_line_parsed;
 }
 
-static inline void extract_metrics(Log_line_parsed_t *line_parsed, Log_parser_metrics_t *metrics){
+static inline void extract_metrics(Log_parser_config_t *parser_config, Log_line_parsed_t *line_parsed, Log_parser_metrics_t *metrics){
 
     /* Extract number of parsed lines */
     metrics->num_lines_total++;
@@ -936,7 +940,7 @@ static inline void extract_metrics(Log_line_parsed_t *line_parsed, Log_parser_me
 
     /* Extract vhost */
     // TODO: Reduce number of reallocs
-    if(line_parsed->vhost && *line_parsed->vhost){
+    if((parser_config->chart_config & CHART_VHOST) && line_parsed->vhost && *line_parsed->vhost){
         int i;
         for(i = 0; i < metrics->vhost_arr.size; i++){
             if(!strcmp(metrics->vhost_arr.vhosts[i].name, line_parsed->vhost)){
@@ -954,7 +958,7 @@ static inline void extract_metrics(Log_line_parsed_t *line_parsed, Log_parser_me
 
     /* Extract port */
     // TODO: Reduce number of reallocs
-    if(line_parsed->port){
+    if((parser_config->chart_config & CHART_PORT) && line_parsed->port){
         int i;
         for(i = 0; i < metrics->port_arr.size; i++){
             if(metrics->port_arr.ports[i].port == line_parsed->port){
@@ -971,143 +975,159 @@ static inline void extract_metrics(Log_line_parsed_t *line_parsed, Log_parser_me
     }
 
     /* Extract client metrics */
-    if(line_parsed->req_client && *line_parsed->req_client){
-        if(!strcmp(line_parsed->req_client, INVALID_CLIENT_IP_STR)) metrics->ip_ver.invalid++;
+    if((parser_config->chart_config & (CHART_IP_VERSION | CHART_REQ_CLIENT_CURRENT | CHART_REQ_CLIENT_ALL_TIME)) && line_parsed->req_client && *line_parsed->req_client){
+        if(!strcmp(line_parsed->req_client, INVALID_CLIENT_IP_STR)){
+            if(parser_config->chart_config & CHART_IP_VERSION) metrics->ip_ver.invalid++;
+        }
         else if(strchr(line_parsed->req_client, ':')){
             /* IPv6 version */
-            metrics->ip_ver.v6++;
+            if(parser_config->chart_config & CHART_IP_VERSION) metrics->ip_ver.v6++;
 
             /* Unique Client IPv6 Address */
-            int i;
-            for(i = 0; i < metrics->req_clients_current_arr.ipv6_size; i++){
-                if(!strcmp(metrics->req_clients_current_arr.ipv6_req_clients[i], line_parsed->req_client)) break;
-            }
-            if(metrics->req_clients_current_arr.ipv6_size == i){ // Req client not found in array - need to append
-                metrics->req_clients_current_arr.ipv6_size++;
-                metrics->req_clients_current_arr.ipv6_req_clients = reallocz(metrics->req_clients_current_arr.ipv6_req_clients, 
-                    metrics->req_clients_current_arr.ipv6_size * sizeof(*metrics->req_clients_current_arr.ipv6_req_clients));
-                snprintf(metrics->req_clients_current_arr.ipv6_req_clients[metrics->req_clients_current_arr.ipv6_size - 1], 
-                    REQ_CLIENT_MAX_LEN, "%s", line_parsed->req_client);
+            if(parser_config->chart_config & (CHART_REQ_CLIENT_CURRENT | CHART_REQ_CLIENT_ALL_TIME)){
+                int i;
+                for(i = 0; i < metrics->req_clients_current_arr.ipv6_size; i++){
+                    if(!strcmp(metrics->req_clients_current_arr.ipv6_req_clients[i], line_parsed->req_client)) break;
+                }
+                if(metrics->req_clients_current_arr.ipv6_size == i){ // Req client not found in array - need to append
+                    metrics->req_clients_current_arr.ipv6_size++;
+                    metrics->req_clients_current_arr.ipv6_req_clients = reallocz(metrics->req_clients_current_arr.ipv6_req_clients, 
+                        metrics->req_clients_current_arr.ipv6_size * sizeof(*metrics->req_clients_current_arr.ipv6_req_clients));
+                    snprintf(metrics->req_clients_current_arr.ipv6_req_clients[metrics->req_clients_current_arr.ipv6_size - 1], 
+                        REQ_CLIENT_MAX_LEN, "%s", line_parsed->req_client);
+                }
             }
         }
         else{
             /* IPv4 version */
-            metrics->ip_ver.v4++;
+            if(parser_config->chart_config & CHART_IP_VERSION) metrics->ip_ver.v4++;
 
             /* Unique Client IPv4 Address */
-            int i;
-            for(i = 0; i < metrics->req_clients_current_arr.ipv4_size; i++){
-                if(!strcmp(metrics->req_clients_current_arr.ipv4_req_clients[i], line_parsed->req_client)) break;
-            }
-            if(metrics->req_clients_current_arr.ipv4_size == i){ // Req client not found in array - need to append
-                metrics->req_clients_current_arr.ipv4_size++;
-                metrics->req_clients_current_arr.ipv4_req_clients = reallocz(metrics->req_clients_current_arr.ipv4_req_clients, 
-                    metrics->req_clients_current_arr.ipv4_size * sizeof(*metrics->req_clients_current_arr.ipv4_req_clients));
-                snprintf(metrics->req_clients_current_arr.ipv4_req_clients[metrics->req_clients_current_arr.ipv4_size - 1], 
-                    REQ_CLIENT_MAX_LEN, "%s", line_parsed->req_client);
+            if(parser_config->chart_config & (CHART_REQ_CLIENT_CURRENT | CHART_REQ_CLIENT_ALL_TIME)){
+                int i;
+                for(i = 0; i < metrics->req_clients_current_arr.ipv4_size; i++){
+                    if(!strcmp(metrics->req_clients_current_arr.ipv4_req_clients[i], line_parsed->req_client)) break;
+                }
+                if(metrics->req_clients_current_arr.ipv4_size == i){ // Req client not found in array - need to append
+                    metrics->req_clients_current_arr.ipv4_size++;
+                    metrics->req_clients_current_arr.ipv4_req_clients = reallocz(metrics->req_clients_current_arr.ipv4_req_clients, 
+                        metrics->req_clients_current_arr.ipv4_size * sizeof(*metrics->req_clients_current_arr.ipv4_req_clients));
+                    snprintf(metrics->req_clients_current_arr.ipv4_req_clients[metrics->req_clients_current_arr.ipv4_size - 1], 
+                        REQ_CLIENT_MAX_LEN, "%s", line_parsed->req_client);
+                }
             }
         }
     }
 
     /* Extract request method */
-    if(!strcmp(line_parsed->req_method, "ACL")) metrics->req_method.acl++;
-    if(!strcmp(line_parsed->req_method, "BASELINE-CONTROL")) metrics->req_method.baseline_control++;
-    if(!strcmp(line_parsed->req_method, "BIND")) metrics->req_method.bind++;
-    if(!strcmp(line_parsed->req_method, "CHECKIN")) metrics->req_method.checkin++;
-    if(!strcmp(line_parsed->req_method, "CHECKOUT")) metrics->req_method.checkout++;
-    if(!strcmp(line_parsed->req_method, "CONNECT")) metrics->req_method.connect++;
-    if(!strcmp(line_parsed->req_method, "COPY")) metrics->req_method.copy++;
-    if(!strcmp(line_parsed->req_method, "DELETE")) metrics->req_method.delet++;
-    if(!strcmp(line_parsed->req_method, "GET")) metrics->req_method.get++;
-    if(!strcmp(line_parsed->req_method, "HEAD")) metrics->req_method.head++;
-    if(!strcmp(line_parsed->req_method, "LABEL")) metrics->req_method.label++;
-    if(!strcmp(line_parsed->req_method, "LINK")) metrics->req_method.link++;
-    if(!strcmp(line_parsed->req_method, "LOCK")) metrics->req_method.lock++;
-    if(!strcmp(line_parsed->req_method, "MERGE")) metrics->req_method.merge++;
-    if(!strcmp(line_parsed->req_method, "MKACTIVITY")) metrics->req_method.mkactivity++;
-    if(!strcmp(line_parsed->req_method, "MKCALENDAR")) metrics->req_method.mkcalendar++;
-    if(!strcmp(line_parsed->req_method, "MKCOL")) metrics->req_method.mkcol++;
-    if(!strcmp(line_parsed->req_method, "MKREDIRECTREF")) metrics->req_method.mkredirectref++;
-    if(!strcmp(line_parsed->req_method, "MKWORKSPACE")) metrics->req_method.mkworkspace++;
-    if(!strcmp(line_parsed->req_method, "MOVE")) metrics->req_method.move++;
-    if(!strcmp(line_parsed->req_method, "OPTIONS")) metrics->req_method.options++;
-    if(!strcmp(line_parsed->req_method, "ORDERPATCH")) metrics->req_method.orderpatch++;
-    if(!strcmp(line_parsed->req_method, "PATCH")) metrics->req_method.patch++;
-    if(!strcmp(line_parsed->req_method, "POST")) metrics->req_method.post++;
-    if(!strcmp(line_parsed->req_method, "PRI")) metrics->req_method.pri++;
-    if(!strcmp(line_parsed->req_method, "PROPFIND")) metrics->req_method.propfind++;
-    if(!strcmp(line_parsed->req_method, "PROPPATCH")) metrics->req_method.proppatch++;
-    if(!strcmp(line_parsed->req_method, "PUT")) metrics->req_method.put++;
-    if(!strcmp(line_parsed->req_method, "REBIND")) metrics->req_method.rebind++;
-    if(!strcmp(line_parsed->req_method, "REPORT")) metrics->req_method.report++;
-    if(!strcmp(line_parsed->req_method, "SEARCH")) metrics->req_method.search++;
-    if(!strcmp(line_parsed->req_method, "TRACE")) metrics->req_method.trace++;
-    if(!strcmp(line_parsed->req_method, "UNBIND")) metrics->req_method.unbind++;
-    if(!strcmp(line_parsed->req_method, "UNCHECKOUT")) metrics->req_method.uncheckout++;
-    if(!strcmp(line_parsed->req_method, "UNLINK")) metrics->req_method.unlink++;
-    if(!strcmp(line_parsed->req_method, "UNLOCK")) metrics->req_method.unlock++;
-    if(!strcmp(line_parsed->req_method, "UPDATE")) metrics->req_method.update++;
-    if(!strcmp(line_parsed->req_method, "UPDATEREDIRECTREF")) metrics->req_method.updateredirectref++;
+    if(parser_config->chart_config & CHART_REQ_METHODS){
+        if(!strcmp(line_parsed->req_method, "ACL")) metrics->req_method.acl++;
+        else if(!strcmp(line_parsed->req_method, "BASELINE-CONTROL")) metrics->req_method.baseline_control++;
+        else if(!strcmp(line_parsed->req_method, "BIND")) metrics->req_method.bind++;
+        else if(!strcmp(line_parsed->req_method, "CHECKIN")) metrics->req_method.checkin++;
+        else if(!strcmp(line_parsed->req_method, "CHECKOUT")) metrics->req_method.checkout++;
+        else if(!strcmp(line_parsed->req_method, "CONNECT")) metrics->req_method.connect++;
+        else if(!strcmp(line_parsed->req_method, "COPY")) metrics->req_method.copy++;
+        else if(!strcmp(line_parsed->req_method, "DELETE")) metrics->req_method.delet++;
+        else if(!strcmp(line_parsed->req_method, "GET")) metrics->req_method.get++;
+        else if(!strcmp(line_parsed->req_method, "HEAD")) metrics->req_method.head++;
+        else if(!strcmp(line_parsed->req_method, "LABEL")) metrics->req_method.label++;
+        else if(!strcmp(line_parsed->req_method, "LINK")) metrics->req_method.link++;
+        else if(!strcmp(line_parsed->req_method, "LOCK")) metrics->req_method.lock++;
+        else if(!strcmp(line_parsed->req_method, "MERGE")) metrics->req_method.merge++;
+        else if(!strcmp(line_parsed->req_method, "MKACTIVITY")) metrics->req_method.mkactivity++;
+        else if(!strcmp(line_parsed->req_method, "MKCALENDAR")) metrics->req_method.mkcalendar++;
+        else if(!strcmp(line_parsed->req_method, "MKCOL")) metrics->req_method.mkcol++;
+        else if(!strcmp(line_parsed->req_method, "MKREDIRECTREF")) metrics->req_method.mkredirectref++;
+        else if(!strcmp(line_parsed->req_method, "MKWORKSPACE")) metrics->req_method.mkworkspace++;
+        else if(!strcmp(line_parsed->req_method, "MOVE")) metrics->req_method.move++;
+        else if(!strcmp(line_parsed->req_method, "OPTIONS")) metrics->req_method.options++;
+        else if(!strcmp(line_parsed->req_method, "ORDERPATCH")) metrics->req_method.orderpatch++;
+        else if(!strcmp(line_parsed->req_method, "PATCH")) metrics->req_method.patch++;
+        else if(!strcmp(line_parsed->req_method, "POST")) metrics->req_method.post++;
+        else if(!strcmp(line_parsed->req_method, "PRI")) metrics->req_method.pri++;
+        else if(!strcmp(line_parsed->req_method, "PROPFIND")) metrics->req_method.propfind++;
+        else if(!strcmp(line_parsed->req_method, "PROPPATCH")) metrics->req_method.proppatch++;
+        else if(!strcmp(line_parsed->req_method, "PUT")) metrics->req_method.put++;
+        else if(!strcmp(line_parsed->req_method, "REBIND")) metrics->req_method.rebind++;
+        else if(!strcmp(line_parsed->req_method, "REPORT")) metrics->req_method.report++;
+        else if(!strcmp(line_parsed->req_method, "SEARCH")) metrics->req_method.search++;
+        else if(!strcmp(line_parsed->req_method, "TRACE")) metrics->req_method.trace++;
+        else if(!strcmp(line_parsed->req_method, "UNBIND")) metrics->req_method.unbind++;
+        else if(!strcmp(line_parsed->req_method, "UNCHECKOUT")) metrics->req_method.uncheckout++;
+        else if(!strcmp(line_parsed->req_method, "UNLINK")) metrics->req_method.unlink++;
+        else if(!strcmp(line_parsed->req_method, "UNLOCK")) metrics->req_method.unlock++;
+        else if(!strcmp(line_parsed->req_method, "UPDATE")) metrics->req_method.update++;
+        else if(!strcmp(line_parsed->req_method, "UPDATEREDIRECTREF")) metrics->req_method.updateredirectref++;
+    }
 
     /* Extract request protocol */
-    if(!strcmp(line_parsed->req_proto, "1") || !strcmp(line_parsed->req_proto, "1.0")) metrics->req_proto.http_1++;
-    else if(!strcmp(line_parsed->req_proto, "1.1")) metrics->req_proto.http_1_1++;
-    else if(!strcmp(line_parsed->req_proto, "2") || !strcmp(line_parsed->req_proto, "2.0")) metrics->req_proto.http_2++;
-    else metrics->req_proto.other++;
+    if(parser_config->chart_config & CHART_REQ_PROTO){
+        if(!strcmp(line_parsed->req_proto, "1") || !strcmp(line_parsed->req_proto, "1.0")) metrics->req_proto.http_1++;
+        else if(!strcmp(line_parsed->req_proto, "1.1")) metrics->req_proto.http_1_1++;
+        else if(!strcmp(line_parsed->req_proto, "2") || !strcmp(line_parsed->req_proto, "2.0")) metrics->req_proto.http_2++;
+        else metrics->req_proto.other++;
+    }
 
     /* Extract bytes received and sent */
-    metrics->bandwidth.req_size += line_parsed->req_size;
-    metrics->bandwidth.resp_size += line_parsed->resp_size;
+    if(parser_config->chart_config & CHART_BANDWIDTH){
+        metrics->bandwidth.req_size += line_parsed->req_size;
+        metrics->bandwidth.resp_size += line_parsed->resp_size;
+    }
 
-    /* Extract response code & response code family */
-    switch(line_parsed->resp_code / 100){
-        /* Note: 304 and 401 should be treated as resp_success */
-        case 1:
-            metrics->resp_code_family.resp_1xx++;
-            metrics->resp_code[line_parsed->resp_code - 100]++;
-            metrics->resp_code_type.resp_success++;
-            break;
-        case 2:
-            metrics->resp_code_family.resp_2xx++;
-            metrics->resp_code[line_parsed->resp_code - 100]++;
-            metrics->resp_code_type.resp_success++;
-            break;
-        case 3:
-            metrics->resp_code_family.resp_3xx++;
-            metrics->resp_code[line_parsed->resp_code - 100]++;
-            if(line_parsed->resp_code == 304) metrics->resp_code_type.resp_success++;
-            else metrics->resp_code_type.resp_redirect++;
-            break;
-        case 4:
-            metrics->resp_code_family.resp_4xx++;
-            metrics->resp_code[line_parsed->resp_code - 100]++;
-            if(line_parsed->resp_code == 401) metrics->resp_code_type.resp_success++;
-            else metrics->resp_code_type.resp_bad++;
-            break;
-        case 5:
-            metrics->resp_code_family.resp_5xx++;
-            metrics->resp_code[line_parsed->resp_code - 100]++;
-            metrics->resp_code_type.resp_error++;
-            break;
-        default:
-            metrics->resp_code_family.other++;
-            metrics->resp_code[500]++;
-            metrics->resp_code_type.other++;
-            break;
+    /* Extract response code family, response code & response code type */
+    if(parser_config->chart_config & (CHART_RESP_CODE_FAMILY | CHART_RESP_CODE | CHART_RESP_CODE_TYPE)){
+        switch(line_parsed->resp_code / 100){
+            /* Note: 304 and 401 should be treated as resp_success */
+            case 1:
+                metrics->resp_code_family.resp_1xx++;
+                metrics->resp_code[line_parsed->resp_code - 100]++;
+                metrics->resp_code_type.resp_success++;
+                break;
+            case 2:
+                metrics->resp_code_family.resp_2xx++;
+                metrics->resp_code[line_parsed->resp_code - 100]++;
+                metrics->resp_code_type.resp_success++;
+                break;
+            case 3:
+                metrics->resp_code_family.resp_3xx++;
+                metrics->resp_code[line_parsed->resp_code - 100]++;
+                if(line_parsed->resp_code == 304) metrics->resp_code_type.resp_success++;
+                else metrics->resp_code_type.resp_redirect++;
+                break;
+            case 4:
+                metrics->resp_code_family.resp_4xx++;
+                metrics->resp_code[line_parsed->resp_code - 100]++;
+                if(line_parsed->resp_code == 401) metrics->resp_code_type.resp_success++;
+                else metrics->resp_code_type.resp_bad++;
+                break;
+            case 5:
+                metrics->resp_code_family.resp_5xx++;
+                metrics->resp_code[line_parsed->resp_code - 100]++;
+                metrics->resp_code_type.resp_error++;
+                break;
+            default:
+                metrics->resp_code_family.other++;
+                metrics->resp_code[500]++;
+                metrics->resp_code_type.other++;
+                break;
+        }
     }
 
     /* Extract SSL protocol */
-    if(!strcmp(line_parsed->ssl_proto, "TLSv1")) metrics->ssl_proto.tlsv1++;
-    else if(!strcmp(line_parsed->ssl_proto, "TLSv1.1")) metrics->ssl_proto.tlsv1_1++;
-    else if(!strcmp(line_parsed->ssl_proto, "TLSv1.2")) metrics->ssl_proto.tlsv1_2++;
-    else if(!strcmp(line_parsed->ssl_proto, "TLSv1.3")) metrics->ssl_proto.tlsv1_3++;
-    else if(!strcmp(line_parsed->ssl_proto, "SSLv2")) metrics->ssl_proto.sslv2++;
-    else if(!strcmp(line_parsed->ssl_proto, "SSLv3")) metrics->ssl_proto.sslv3++;
-    else metrics->ssl_proto.other++;
+    if(parser_config->chart_config & CHART_SSL_PROTO){
+        if(!strcmp(line_parsed->ssl_proto, "TLSv1")) metrics->ssl_proto.tlsv1++;
+        else if(!strcmp(line_parsed->ssl_proto, "TLSv1.1")) metrics->ssl_proto.tlsv1_1++;
+        else if(!strcmp(line_parsed->ssl_proto, "TLSv1.2")) metrics->ssl_proto.tlsv1_2++;
+        else if(!strcmp(line_parsed->ssl_proto, "TLSv1.3")) metrics->ssl_proto.tlsv1_3++;
+        else if(!strcmp(line_parsed->ssl_proto, "SSLv2")) metrics->ssl_proto.sslv2++;
+        else if(!strcmp(line_parsed->ssl_proto, "SSLv3")) metrics->ssl_proto.sslv3++;
+        else metrics->ssl_proto.other++;
+    }
 
     /* Extract SSL cipher suite */
     // TODO: Reduce number of reallocs
-    if(line_parsed->ssl_cipher && *line_parsed->ssl_cipher){
+    if((parser_config->chart_config & CHART_SSL_CIPHER) && line_parsed->ssl_cipher && *line_parsed->ssl_cipher){
         int i;
         for(i = 0; i < metrics->ssl_cipher_arr.size; i++){
             if(!strcmp(metrics->ssl_cipher_arr.ssl_ciphers[i].string, line_parsed->ssl_cipher)){
@@ -1124,11 +1144,10 @@ static inline void extract_metrics(Log_line_parsed_t *line_parsed, Log_parser_me
     }
 }
 
-Log_parser_metrics_t parse_text_buf(Log_parser_buffs_t *parser_buffs, char *text, size_t text_size, log_line_field_t *fields, int num_fields, const char delimiter, const int verify){
+Log_parser_metrics_t parse_text_buf(Log_parser_buffs_t *parser_buffs, char *text, size_t text_size, Log_parser_config_t *parser_config, const int verify){
     Log_parser_metrics_t metrics = {0};
-    if(!text_size || !text || !*text) return metrics;
-
     metrics.vhost_arr.vhosts = NULL;
+    if(!text_size || !text || !*text) return metrics;
 
     char *line_start = text, *line_end = text;
     while(line_end = strchr(line_start, '\n')){
@@ -1152,10 +1171,10 @@ Log_parser_metrics_t parse_text_buf(Log_parser_buffs_t *parser_buffs, char *text
         parser_buffs->line[line_len] = '\0';
         // fprintf(stderr, "line:%s\n", parser_buffs->line);
         
-        Log_line_parsed_t *line_parsed = parse_log_line(parser_buffs, fields, num_fields, parser_buffs->line, delimiter, verify);
+        Log_line_parsed_t *line_parsed = parse_log_line(parser_config, parser_buffs, parser_buffs->line, verify);
         
         // TODO: Refactor the following, can be done inside parse_log_line() function to save a strcmp() call.
-        extract_metrics(line_parsed, &metrics);
+        extract_metrics(parser_config, line_parsed, &metrics);
         
         freez(line_parsed->req_URL);
 
