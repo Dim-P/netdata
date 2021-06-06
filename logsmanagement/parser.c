@@ -468,8 +468,8 @@ Log_parser_config_t *read_parse_config(char *log_format, const char delimiter){
 			continue;
 		}
 
-		if(strcmp(parsed_format[i], "$time_local") == 0 ||
-		   strcmp(parsed_format[i], "%t") == 0) {
+		if(strcmp(parsed_format[i], "$time_local") == 0 || strcmp(parsed_format[i], "[$time_local]") == 0 ||
+		   strcmp(parsed_format[i], "%t") == 0 || strcmp(parsed_format[i], "[%t]") == 0) {
 			fprintf(stderr, "TIME\n");
             parser_config->fields = reallocz(parser_config->fields, (num_fields + 1) * sizeof(log_line_field_t));
 			parser_config->fields[fields_off++] = TIME;
@@ -502,7 +502,7 @@ static Log_line_parsed_t *parse_log_line(Log_parser_config_t *parser_config, Log
     int num_fields_line = count_fields(line, delimiter);
     char **parsed = parse_csv(line, delimiter, num_fields_line);
 #if ENABLE_PARSE_LOG_LINE_FPRINTS
-    fprintf(stderr, "Number of items: %d\n", num_fields_line);
+    fprintf(stderr, "Number of items in line: %d and expected from config: %d\n", num_fields_line, num_fields_config);
 #endif
     // int parsed_offset = 0;
     assert(num_fields_config == num_fields_line); // TODO: REMOVE FROM PRODUCTION - Handle error instead?
