@@ -38,11 +38,12 @@ typedef enum{
     CHART_REQ_METHODS = 1 << 5,
     CHART_REQ_PROTO = 1 << 6,
     CHART_BANDWIDTH = 1 << 7,
-    CHART_RESP_CODE_FAMILY = 1 << 8,
-    CHART_RESP_CODE = 1 << 9,
-    CHART_RESP_CODE_TYPE = 1 << 10,
-    CHART_SSL_PROTO = 1 << 11,
-    CHART_SSL_CIPHER = 1 << 12
+    CHART_REQ_PROC_TIME = 1 << 8,
+    CHART_RESP_CODE_FAMILY = 1 << 9,
+    CHART_RESP_CODE = 1 << 10,
+    CHART_RESP_CODE_TYPE = 1 << 11,
+    CHART_SSL_PROTO = 1 << 12,
+    CHART_SSL_CIPHER = 1 << 13
 } chart_type_t;
 
 typedef enum{
@@ -143,6 +144,9 @@ typedef struct log_parser_metrics{
 	struct log_parser_metrics_bandwidth{
 		long long int req_size, resp_size;
 	} bandwidth;
+	struct log_parser_metrics_req_proc_time{
+		unsigned long int min, max, sum, count;
+	} req_proc_time;
 	struct log_parser_metrics_resp_code_family{
 		int resp_1xx, resp_2xx, resp_3xx, resp_4xx, resp_5xx, other; // TODO: Can there be "other"?
 	} resp_code_family; 

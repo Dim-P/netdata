@@ -687,7 +687,10 @@ static void config_init(){
                                 && appconfig_get_boolean(&log_management_config, config_section->name, "bandwidth chart", 0)){ 
                                 p_file_info->parser_config->chart_config |= CHART_BANDWIDTH;
                             }
-                            // TODO: Add code for req_proc_time
+                            if((p_file_info->parser_config->fields[j] == REQ_PROC_TIME) 
+                                && appconfig_get_boolean(&log_management_config, config_section->name, "timings chart", 0)){ 
+                                p_file_info->parser_config->chart_config |= CHART_REQ_PROC_TIME;
+                            }
                             if((p_file_info->parser_config->fields[j] == RESP_CODE) 
                                 && appconfig_get_boolean(&log_management_config, config_section->name, "response code families chart", 0)){ 
                                 p_file_info->parser_config->chart_config |= CHART_RESP_CODE_FAMILY;

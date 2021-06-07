@@ -504,7 +504,6 @@ static Log_line_parsed_t *parse_log_line(Log_parser_config_t *parser_config, Log
 #if ENABLE_PARSE_LOG_LINE_FPRINTS
     fprintf(stderr, "Number of items in line: %d and expected from config: %d\n", num_fields_line, num_fields_config);
 #endif
-    // int parsed_offset = 0;
     assert(num_fields_config == num_fields_line); // TODO: REMOVE FROM PRODUCTION - Handle error instead?
     for(int i = 0; i < num_fields_config; i++ ){
         #if ENABLE_PARSE_LOG_LINE_FPRINTS
@@ -528,7 +527,6 @@ static Log_line_parsed_t *parse_log_line(Log_parser_config_t *parser_config, Log
             // TODO: TEST! This case hasn't been tested!
             char *pch = strchr(parsed[i], ']');
             if(pch){
-                //parsed[i][strcspn(parsed[i], "]")] = 0;
                 *pch = '\0';
                 memmove(parsed[i], parsed[i]+1, strlen(parsed[i]));
             }
@@ -759,7 +757,9 @@ static Log_line_parsed_t *parse_log_line(Log_parser_config_t *parser_config, Log
             if(verify){
                 if(log_line_parsed->req_proc_time < 0){
                     log_line_parsed->req_proc_time = 0;
+                    #if ENABLE_PARSE_LOG_LINE_FPRINTS
                     fprintf(stderr, "REQ_PROC_TIME is invalid (<0)\n");
+                    #endif
                 }
             }
             #if ENABLE_PARSE_LOG_LINE_FPRINTS
@@ -924,8 +924,6 @@ static Log_line_parsed_t *parse_log_line(Log_parser_config_t *parser_config, Log
         }
 
 
-
-        //parsed_offset++;
     }
 
     free_csv_line(parsed);
@@ -1073,6 +1071,14 @@ static inline void extract_metrics(Log_parser_config_t *parser_config, Log_line_
     if(parser_config->chart_config & CHART_BANDWIDTH){
         metrics->bandwidth.req_size += line_parsed->req_size;
         metrics->bandwidth.resp_size += line_parsed->resp_size;
+    }
+
+    /* Extract request processing time */
+    if((parser_config->chart_config & CHART_REQ_PROC_TIME) && line_parsed->req_proc_time){
+        if(line_parsed->req_proc_time < metrics->req_proc_time.min || metrics->req_proc_time.min == 0) metrics->req_proc_time.min = line_parsed->req_proc_time;
+        if(line_parsed->req_proc_time > metrics->req_proc_time.max || metrics->req_proc_time.max == 0) metrics->req_proc_time.max = line_parsed->req_proc_time;
+        metrics->req_proc_time.sum += line_parsed->req_proc_time;
+        metrics->req_proc_time.count++;
     }
 
     /* Extract response code family, response code & response code type */

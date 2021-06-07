@@ -10,17 +10,18 @@
 #define NETDATA_CHART_PRIO_REQ_METHODS          NETDATA_CHART_PRIO_LOGS_BASE + 3
 #define NETDATA_CHART_PRIO_REQ_PROTO            NETDATA_CHART_PRIO_LOGS_BASE + 4
 #define NETDATA_CHART_PRIO_BANDWIDTH            NETDATA_CHART_PRIO_LOGS_BASE + 5
-#define NETDATA_CHART_PRIO_RESP_CODE_FAMILY     NETDATA_CHART_PRIO_LOGS_BASE + 6
-#define NETDATA_CHART_PRIO_RESP_CODE            NETDATA_CHART_PRIO_LOGS_BASE + 7
-#define NETDATA_CHART_PRIO_RESP_CODE_TYPE       NETDATA_CHART_PRIO_LOGS_BASE + 8
-#define NETDATA_CHART_PRIO_SSL_PROTO            NETDATA_CHART_PRIO_LOGS_BASE + 9
-#define NETDATA_CHART_PRIO_SSL_CIPHER_SUITE     NETDATA_CHART_PRIO_LOGS_BASE + 10
-#define NETDATA_CHART_PRIO_IP_VER               NETDATA_CHART_PRIO_LOGS_BASE + 11
-#define NETDATA_CHART_PRIO_REQ_CLIENT_CURRENT   NETDATA_CHART_PRIO_LOGS_BASE + 12
-#define NETDATA_CHART_PRIO_REQ_CLIENT_ALL_TIME  NETDATA_CHART_PRIO_LOGS_BASE + 13
+#define NETDATA_CHART_PRIO_REQ_PROC_TIME        NETDATA_CHART_PRIO_LOGS_BASE + 6
+#define NETDATA_CHART_PRIO_RESP_CODE_FAMILY     NETDATA_CHART_PRIO_LOGS_BASE + 7
+#define NETDATA_CHART_PRIO_RESP_CODE            NETDATA_CHART_PRIO_LOGS_BASE + 8
+#define NETDATA_CHART_PRIO_RESP_CODE_TYPE       NETDATA_CHART_PRIO_LOGS_BASE + 9
+#define NETDATA_CHART_PRIO_SSL_PROTO            NETDATA_CHART_PRIO_LOGS_BASE + 10
+#define NETDATA_CHART_PRIO_SSL_CIPHER_SUITE     NETDATA_CHART_PRIO_LOGS_BASE + 11
+#define NETDATA_CHART_PRIO_IP_VER               NETDATA_CHART_PRIO_LOGS_BASE + 12
+#define NETDATA_CHART_PRIO_REQ_CLIENT_CURRENT   NETDATA_CHART_PRIO_LOGS_BASE + 13
+#define NETDATA_CHART_PRIO_REQ_CLIENT_ALL_TIME  NETDATA_CHART_PRIO_LOGS_BASE + 14
 
 struct Chart_data{
-    char * rrd_type;
+    char *rrd_type;
 
     /* Number of lines */
     RRDSET *st_lines;
@@ -83,6 +84,11 @@ struct Chart_data{
     RRDSET *st_bandwidth;
     RRDDIM *dim_bandwidth_req_size, *dim_bandwidth_resp_size;
     collected_number num_bandwidth_req_size, num_bandwidth_resp_size;
+
+    /* Request processing time */
+    RRDSET *st_req_proc_time;
+    RRDDIM *dim_req_proc_time_min, *dim_req_proc_time_max, *dim_req_proc_time_avg;
+    collected_number num_req_proc_time_min, num_req_proc_time_max, num_req_proc_time_avg;
 
     /* Response code family */
     RRDSET *st_resp_code_family;
@@ -256,7 +262,6 @@ void *logsmanagement_plugin_main(void *ptr){
                     , localhost->rrd_update_every
                     , RRDSET_TYPE_AREA
             );
-            // TODO: Change dim_req_client_all_time_ipv4 and dim_req_client_all_time_ipv6 to RRD_ALGORITHM_INCREMENTAL
             chart_data_arr[i]->dim_req_client_all_time_ipv4 = rrddim_add(chart_data_arr[i]->st_req_client_all_time, "ipv4", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
             chart_data_arr[i]->dim_req_client_all_time_ipv6 = rrddim_add(chart_data_arr[i]->st_req_client_all_time, "ipv6", NULL, 1, 1, RRD_ALGORITHM_ABSOLUTE);
         }
@@ -357,6 +362,27 @@ void *logsmanagement_plugin_main(void *ptr){
             );
             chart_data_arr[i]->dim_bandwidth_req_size = rrddim_add(chart_data_arr[i]->st_bandwidth, "received", NULL, 8, 1000, RRD_ALGORITHM_INCREMENTAL);
             chart_data_arr[i]->dim_bandwidth_resp_size = rrddim_add(chart_data_arr[i]->st_bandwidth, "sent", NULL, -8, 1000, RRD_ALGORITHM_INCREMENTAL);
+        }
+
+        /* Request processing time - initialise */
+        if(p_file_info->parser_config->chart_config & CHART_REQ_PROC_TIME){
+            chart_data_arr[i]->st_req_proc_time = rrdset_create_localhost(
+                    chart_data_arr[i]->rrd_type
+                    , "timings"
+                    , NULL
+                    , "timings"
+                    , NULL
+                    , "Request Processing Time"
+                    , "milliseconds"
+                    , "logsmanagement.plugin"
+                    , NULL
+                    , NETDATA_CHART_PRIO_REQ_PROC_TIME
+                    , localhost->rrd_update_every
+                    , RRDSET_TYPE_LINE
+            );
+            chart_data_arr[i]->dim_req_proc_time_min = rrddim_add(chart_data_arr[i]->st_req_proc_time, "min", NULL, 1, 1000, RRD_ALGORITHM_ABSOLUTE);
+            chart_data_arr[i]->dim_req_proc_time_max = rrddim_add(chart_data_arr[i]->st_req_proc_time, "max", NULL, 1, 1000, RRD_ALGORITHM_ABSOLUTE);
+            chart_data_arr[i]->dim_req_proc_time_avg = rrddim_add(chart_data_arr[i]->st_req_proc_time, "avg", NULL, 1, 1000, RRD_ALGORITHM_ABSOLUTE);
         }
 
         /* Response code family - initialise */
@@ -675,6 +701,18 @@ void *logsmanagement_plugin_main(void *ptr){
             p_file_info->parser_metrics->bandwidth.resp_size = 0;
         }
 
+        /* Request proc time - collect first time */
+        if(p_file_info->parser_config->chart_config & CHART_REQ_PROC_TIME){
+            chart_data_arr[i]->num_req_proc_time_min = p_file_info->parser_metrics->req_proc_time.min;
+            p_file_info->parser_metrics->req_proc_time.min = 0;
+            chart_data_arr[i]->num_req_proc_time_max = p_file_info->parser_metrics->req_proc_time.max;
+            p_file_info->parser_metrics->req_proc_time.max = 0;
+            chart_data_arr[i]->num_req_proc_time_avg = p_file_info->parser_metrics->req_proc_time.count ? 
+                    p_file_info->parser_metrics->req_proc_time.sum / p_file_info->parser_metrics->req_proc_time.count : 0;
+            p_file_info->parser_metrics->req_proc_time.sum = 0;
+            p_file_info->parser_metrics->req_proc_time.count = 0;
+        }
+
         /* Response code family - collect first time */
         if(p_file_info->parser_config->chart_config & CHART_RESP_CODE_FAMILY){
             chart_data_arr[i]->num_resp_code_family_1xx = p_file_info->parser_metrics->resp_code_family.resp_1xx;
@@ -866,6 +904,14 @@ void *logsmanagement_plugin_main(void *ptr){
             rrddim_set_by_pointer(chart_data_arr[i]->st_bandwidth, chart_data_arr[i]->dim_bandwidth_req_size, chart_data_arr[i]->num_bandwidth_req_size);
             rrddim_set_by_pointer(chart_data_arr[i]->st_bandwidth, chart_data_arr[i]->dim_bandwidth_resp_size, chart_data_arr[i]->num_bandwidth_resp_size);
             rrdset_done(chart_data_arr[i]->st_bandwidth);
+        }
+
+        /* Request proc time - update chart first time */
+        if(p_file_info->parser_config->chart_config & CHART_REQ_PROC_TIME){
+            rrddim_set_by_pointer(chart_data_arr[i]->st_req_proc_time, chart_data_arr[i]->dim_req_proc_time_min, chart_data_arr[i]->num_req_proc_time_min);
+            rrddim_set_by_pointer(chart_data_arr[i]->st_req_proc_time, chart_data_arr[i]->dim_req_proc_time_max, chart_data_arr[i]->num_req_proc_time_max);
+            rrddim_set_by_pointer(chart_data_arr[i]->st_req_proc_time, chart_data_arr[i]->dim_req_proc_time_avg, chart_data_arr[i]->num_req_proc_time_avg);
+            rrdset_done(chart_data_arr[i]->st_req_proc_time);
         }
 
         /* Response code family - update chart first time */
@@ -1131,6 +1177,18 @@ void *logsmanagement_plugin_main(void *ptr){
                 p_file_info->parser_metrics->bandwidth.resp_size = 0;
             }
 
+            /* Request proc time - collect */
+            if(p_file_info->parser_config->chart_config & CHART_REQ_PROC_TIME){
+                chart_data_arr[i]->num_req_proc_time_min = p_file_info->parser_metrics->req_proc_time.min;
+                p_file_info->parser_metrics->req_proc_time.min = 0;
+                chart_data_arr[i]->num_req_proc_time_max = p_file_info->parser_metrics->req_proc_time.max;
+                p_file_info->parser_metrics->req_proc_time.max = 0;
+                chart_data_arr[i]->num_req_proc_time_avg = p_file_info->parser_metrics->req_proc_time.count ? 
+                    p_file_info->parser_metrics->req_proc_time.sum / p_file_info->parser_metrics->req_proc_time.count : 0;
+                p_file_info->parser_metrics->req_proc_time.sum = 0;
+                p_file_info->parser_metrics->req_proc_time.count = 0;
+            }
+
             /* Response code family - collect */
             if(p_file_info->parser_config->chart_config & CHART_RESP_CODE_FAMILY){
                 chart_data_arr[i]->num_resp_code_family_1xx += p_file_info->parser_metrics->resp_code_family.resp_1xx;
@@ -1330,6 +1388,15 @@ void *logsmanagement_plugin_main(void *ptr){
                 rrddim_set_by_pointer(chart_data_arr[i]->st_bandwidth, chart_data_arr[i]->dim_bandwidth_req_size, chart_data_arr[i]->num_bandwidth_req_size);
                 rrddim_set_by_pointer(chart_data_arr[i]->st_bandwidth, chart_data_arr[i]->dim_bandwidth_resp_size, chart_data_arr[i]->num_bandwidth_resp_size);
                 rrdset_done(chart_data_arr[i]->st_bandwidth);
+            }
+
+            /* Request proc time - update chart */
+            if(p_file_info->parser_config->chart_config & CHART_REQ_PROC_TIME){
+                rrdset_next(chart_data_arr[i]->st_req_proc_time);
+                rrddim_set_by_pointer(chart_data_arr[i]->st_req_proc_time, chart_data_arr[i]->dim_req_proc_time_min, chart_data_arr[i]->num_req_proc_time_min);
+                rrddim_set_by_pointer(chart_data_arr[i]->st_req_proc_time, chart_data_arr[i]->dim_req_proc_time_max, chart_data_arr[i]->num_req_proc_time_max);
+                rrddim_set_by_pointer(chart_data_arr[i]->st_req_proc_time, chart_data_arr[i]->dim_req_proc_time_avg, chart_data_arr[i]->num_req_proc_time_avg);
+                rrdset_done(chart_data_arr[i]->st_req_proc_time);
             }
 
             /* Response code family - update chart */

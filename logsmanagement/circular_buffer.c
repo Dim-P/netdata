@@ -263,6 +263,16 @@ static void msg_parser(uv_work_t *req){
         p_file_info->parser_metrics->bandwidth.resp_size += parser_metrics.bandwidth.resp_size;
     }
 
+    /* Request processing time */
+    if(p_file_info->parser_config->chart_config & CHART_REQ_PROC_TIME){
+        if(parser_metrics.req_proc_time.min < p_file_info->parser_metrics->req_proc_time.min 
+            || p_file_info->parser_metrics->req_proc_time.min == 0) p_file_info->parser_metrics->req_proc_time.min = parser_metrics.req_proc_time.min;
+        if(parser_metrics.req_proc_time.max > p_file_info->parser_metrics->req_proc_time.max 
+            || p_file_info->parser_metrics->req_proc_time.max == 0) p_file_info->parser_metrics->req_proc_time.max = parser_metrics.req_proc_time.max;
+        p_file_info->parser_metrics->req_proc_time.sum += parser_metrics.req_proc_time.sum;
+        p_file_info->parser_metrics->req_proc_time.count += parser_metrics.req_proc_time.count;
+    }
+
     /* Response code family */
     if(p_file_info->parser_config->chart_config & CHART_RESP_CODE_FAMILY){
         p_file_info->parser_metrics->resp_code_family.resp_1xx += parser_metrics.resp_code_family.resp_1xx;
