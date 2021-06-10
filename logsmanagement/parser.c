@@ -331,6 +331,12 @@ void search_keyword(char *src, char *dest, const char *keyword, const int ignore
  * @return Struct that contains the extracted log format configuration
  */
 Log_parser_config_t *read_parse_config(char *log_format, const char delimiter){
+    if(!log_format || !strcmp(log_format, "auto")){ // TODO: Add another case in OR where log_format is compared with a valid reg exp.
+        // TODO: Try auto-detection
+        // TODO: Set default log format and delimiter if not found in config? Or auto-detect?
+        fprintf(stderr, "NDLGS Attemtping auto-detection of log format\n");
+    }
+
 	int num_fields = count_fields(log_format, delimiter);
     if(num_fields <= 0) return NULL;
 

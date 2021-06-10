@@ -586,6 +586,79 @@ static struct File_info *monitor_log_file_init(const char *filename) {
     return p_file_info;
 }
 
+static char *read_last_line(char *filename, int max_line_width){
+	const int default_max_line_width = 4 * 1024;
+	uv_fs_t stat_req, open_req, read_req;
+	int64_t start_pos, end_pos;
+	uv_file file_handle;
+	uv_buf_t uvBuf;
+	char *buff;
+	int rc, line_pos, found_ln, bytes_read;
+
+	if(max_line_width <= 0) max_line_width = default_max_line_width;
+
+    rc = uv_fs_stat(main_loop, &stat_req, filename, NULL);
+    if (unlikely(rc)) {
+        fprintf_log(LOGS_MANAG_ERROR, stderr, "uv_fs_stat() error for %s: (%d) %s\n", filename, rc, uv_strerror(rc));
+        uv_fs_req_cleanup(&stat_req);
+        return NULL;
+    }
+    uv_stat_t *statbuf = uv_fs_get_statbuf(&stat_req);
+    end_pos = statbuf->st_size;
+    uv_fs_req_cleanup(&stat_req);
+
+    if(end_pos == 0) return NULL;
+    start_pos = end_pos - max_line_width;
+    if(start_pos < 0) start_pos = 0;
+
+    rc = uv_fs_open(main_loop, &open_req, filename, O_RDONLY, 0, NULL);
+    if (unlikely(rc < 0)) {
+        fprintf_log(LOGS_MANAG_ERROR, stderr, "file_open() error: %s (%d) %s\n",filename, rc, uv_strerror(rc));
+        uv_fs_req_cleanup(&open_req);
+        return NULL;
+    } 
+    file_handle = open_req.result;  // open_req->result of a uv_fs_t is the file descriptor in case of the uv_fs_open
+    uv_fs_req_cleanup(&open_req);
+
+    buff = callocz(1, (size_t) (end_pos - start_pos + 1) * sizeof(char));
+    uvBuf = uv_buf_init(buff, (unsigned int) (end_pos - start_pos + 1));
+    rc = uv_fs_read(main_loop, &read_req, file_handle, &uvBuf, 1, start_pos, NULL);
+    if (unlikely(rc < 0)){ 
+    	fprintf_log(LOGS_MANAG_ERROR, stderr, "uv_fs_read() error for %s (%d) %s\n", filename, rc, uv_strerror(rc));
+    	uv_fs_req_cleanup(&read_req);
+    	return NULL;
+    }
+    uv_fs_req_cleanup(&read_req);
+
+    buff[rc] = '\0';
+    // fprintf(stderr, "Last: start:%ld end:%ld end-start:%ld rc:%ld buff:%s\n", start_pos, end_pos, end_pos - start_pos, rc, buff);
+
+    bytes_read = rc;
+    line_pos = found_ln = 0;
+
+    for(int i = bytes_read - 2; i >= 0; i--){
+    	char ch = buff[i];
+    	if (ch == '\n'){
+    		found_ln = 1;
+    		line_pos = i;
+    		break;
+    	}
+    }
+    if(found_ln){
+    	char *line = callocz(1, (size_t) (bytes_read - line_pos - 1) * sizeof(char));
+    	memcpy(line, &buff[line_pos + 1], (size_t) (bytes_read - line_pos - 1));
+    	free(buff);
+    	return line;
+    }
+    if(start_pos == 0){
+    	return buff;
+    }
+
+    // Should not get here - error line too long
+    free(buff);
+    return NULL;
+}
+
 /**
  * @brief Read configuration of log sources to monitor.
  * @todo How to handle duplicate entries?
@@ -639,11 +712,10 @@ static void config_init(){
                 struct File_info *p_file_info = monitor_log_file_init(log_source_path);
                 if(p_file_info){ // monitor_log_file_init() was successful
                     char *log_format = appconfig_get(&log_management_config, config_section->name, "log format", NULL);
-                    fprintf(stderr, "NDLGS log format value: %s for section: %s\n==== \n", log_format ? log_format : "NULL!", config_section->name);
                     const char delimiter = ' '; // TODO!!: TO READ FROM CONFIG
-                    if(!log_format){
-                        // TODO: Set default log format and delimiter if not found in config? Or auto-detect?
-                    }
+                    fprintf(stderr, "NDLGS log format value: %s for section: %s\n==== \n", log_format ? log_format : "NULL!", config_section->name);
+                    char *last_line = read_last_line(p_file_info->filename, 0);
+                    fprintf(stderr, "NDLGS Last:|%s|\n", last_line);
                     p_file_info->parser_config = read_parse_config(log_format, delimiter);
                     fprintf(stderr, "NDLGS Read parser_config for %s: %s\n", p_file_info->filename, p_file_info->parser_config ? "success!" : "failed!");
                     if(p_file_info->parser_config){ 
