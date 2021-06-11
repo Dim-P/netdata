@@ -331,13 +331,7 @@ void search_keyword(char *src, char *dest, const char *keyword, const int ignore
  * @return Struct that contains the extracted log format configuration
  */
 Log_parser_config_t *read_parse_config(char *log_format, const char delimiter){
-    if(!log_format || !strcmp(log_format, "auto")){ // TODO: Add another case in OR where log_format is compared with a valid reg exp.
-        // TODO: Try auto-detection
-        // TODO: Set default log format and delimiter if not found in config? Or auto-detect?
-        fprintf(stderr, "NDLGS Attemtping auto-detection of log format\n");
-    }
-
-	int num_fields = count_fields(log_format, delimiter);
+    int num_fields = count_fields(log_format, delimiter);
     if(num_fields <= 0) return NULL;
 
     /* If first execution of this function, initialise regexs */
@@ -516,19 +510,47 @@ static Log_line_parsed_t *parse_log_line(Log_parser_config_t *parser_config, Log
         fprintf(stderr, "===\nField %d:%s\n", i, parsed[i]);
         #endif
 
-        if(fields_format[i] == VHOST_WITH_PORT && strcmp(parsed[i], "-")){
+        if(fields_format[i] == CUSTOM){
+            #if ENABLE_PARSE_LOG_LINE_FPRINTS
+            fprintf(stderr, "Item %d (type: CUSTOM or UNKNOWN):%s\n", i, parsed[i]);
+            #endif
+            continue;
+        }
+
+        if(fields_format[i] == VHOST_WITH_PORT){
             #if ENABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Item %d (type: VHOST_WITH_PORT):%s\n", i, parsed[i]);
             #endif
+
+            if(unlikely(!strcmp(parsed[i], "-"))){
+                log_line_parsed->vhost[0] = '\0';
+                log_line_parsed->port = INVALID_PORT;
+                log_line_parsed->parsing_errors++;
+                continue;
+            }
+
             char *sep = strrchr(parsed[i], ':');
-            if(sep) *sep = '\0';
-            else parsed[i][0] = '\0';
+            if(likely(sep)) *sep = '\0';
+            else { 
+                // parsed[i][0] = '\0';
+                log_line_parsed->vhost[0] = '\0';
+                log_line_parsed->port = INVALID_PORT;
+                log_line_parsed->parsing_errors++;
+                continue;
+            }
         }
 
-        if((fields_format[i] == VHOST_WITH_PORT || fields_format[i] == VHOST) && strcmp(parsed[i], "-")){
+        if(fields_format[i] == VHOST_WITH_PORT || fields_format[i] == VHOST){
             #if ENABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Item %d (type: VHOST):%s\n", i, parsed[i]);
             #endif
+
+            if(unlikely(!strcmp(parsed[i], "-"))){
+                log_line_parsed->vhost[0] = '\0';
+                log_line_parsed->parsing_errors++;
+                continue;
+            }
+
             // nginx $host and $http_host return ipv6 in [], apache doesn't
             // TODO: TEST! This case hasn't been tested!
             char *pch = strchr(parsed[i], ']');
@@ -544,6 +566,7 @@ static Log_line_parsed_t *parse_log_line(Log_parser_config_t *parser_config, Log
                     fprintf(stderr, "VHOST is invalid\n");
                     #endif
                     log_line_parsed->vhost[0] = '\0';
+                    log_line_parsed->parsing_errors++;
                 }
                 else assert(0); 
             }
@@ -551,22 +574,32 @@ static Log_line_parsed_t *parse_log_line(Log_parser_config_t *parser_config, Log
             #if ENABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Extracted VHOST:%s\n", log_line_parsed->vhost);
             #endif
+
+            if(fields_format[i] == VHOST) continue;
         }
 
-        if((fields_format[i] == VHOST_WITH_PORT || fields_format[i] == PORT) && strcmp(parsed[i], "-")){
+        if(fields_format[i] == VHOST_WITH_PORT || fields_format[i] == PORT){
             char *port;
             if(fields_format[i] == VHOST_WITH_PORT) port = &parsed[i][strlen(parsed[i]) + 1];
             else port = parsed[i];
             #if ENABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Item %d (type: PORT):%s\n", i, port);
             #endif
+
+            if(unlikely(!strcmp(parsed[i], "-"))){
+                log_line_parsed->port = INVALID_PORT;
+                log_line_parsed->parsing_errors++;
+                continue;
+            }
+
             if(likely(str2int(&log_line_parsed->port, port, 10) == STR2XX_SUCCESS)){
                 if(verify){
                     if(unlikely(log_line_parsed->port < 80 || log_line_parsed->port > 49151)){
-                        log_line_parsed->port = INVALID_PORT;
                         #if ENABLE_PARSE_LOG_LINE_FPRINTS
                         fprintf(stderr, "PORT is invalid (<80 or >49151)\n");
                         #endif
+                        log_line_parsed->port = INVALID_PORT;
+                        log_line_parsed->parsing_errors++;
                     }
                 }
             }
@@ -574,35 +607,56 @@ static Log_line_parsed_t *parse_log_line(Log_parser_config_t *parser_config, Log
                 #if ENABLE_PARSE_LOG_LINE_FPRINTS
                 fprintf(stderr, "Error while extracting PORT from string\n");
                 #endif
-                log_line_parsed->port = -1;
+                log_line_parsed->port = INVALID_PORT;
+                log_line_parsed->parsing_errors++;
             }
             #if ENABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Extracted PORT:%d\n", log_line_parsed->port);
             #endif
+
+            continue;
         }
 
-        if(fields_format[i] == REQ_SCHEME && strcmp(parsed[i], "-")){
+        if(fields_format[i] == REQ_SCHEME){
             #if ENABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Item %d (type: REQ_SCHEME):%s\n", i, parsed[i]);
             #endif
+
+            if(unlikely(!strcmp(parsed[i], "-"))){
+                log_line_parsed->req_scheme[0] = '\0';
+                log_line_parsed->parsing_errors++;
+                continue;
+            }
+
             snprintf(log_line_parsed->req_scheme, REQ_SCHEME_MAX_LEN, "%s", parsed[i]); 
             if(verify){
                 if(strlen(parsed[i]) >= REQ_SCHEME_MAX_LEN || 
                     (strcmp(log_line_parsed->req_scheme, "http") && 
                      strcmp(log_line_parsed->req_scheme, "https"))){
+                    #if ENABLE_PARSE_LOG_LINE_FPRINTS
                     fprintf(stderr, "REQ_SCHEME is invalid (must be either 'http' or 'https')\n");
+                    #endif
                     log_line_parsed->req_scheme[0] = '\0';
+                    log_line_parsed->parsing_errors++;
                 }
             }
             #if ENABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Extracted REQ_SCHEME:%s\n", log_line_parsed->req_scheme);
             #endif
+            continue;
         }
 
-        if(fields_format[i] == REQ_CLIENT && strcmp(parsed[i], "-")){
+        if(fields_format[i] == REQ_CLIENT){
             #if ENABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Item %d (type: REQ_CLIENT):%s\n", i, parsed[i]);
             #endif
+
+            if(unlikely(!strcmp(parsed[i], "-"))){
+                log_line_parsed->req_client[0] = '\0';
+                log_line_parsed->parsing_errors++;
+                continue;
+            }
+
             if(verify){
                 int rc = regexec(&req_client_regex, parsed[i], 0, NULL, 0);
                 if(likely(!rc)) snprintf(log_line_parsed->req_client, REQ_CLIENT_MAX_LEN, "%s", parsed[i]);
@@ -611,6 +665,7 @@ static Log_line_parsed_t *parse_log_line(Log_parser_config_t *parser_config, Log
                     fprintf(stderr, "REQ_CLIENT is invalid\n");
                     #endif
                     snprintf(log_line_parsed->req_client, REQ_CLIENT_MAX_LEN, "%s", INVALID_CLIENT_IP_STR);
+                    log_line_parsed->parsing_errors++;
                 }
                 else assert(0); // Can also use: regerror(rc, &req_client_regex, msgbuf, sizeof(msgbuf));
             }
@@ -618,6 +673,8 @@ static Log_line_parsed_t *parse_log_line(Log_parser_config_t *parser_config, Log
             #if ENABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Extracted REQ_CLIENT:%s\n", log_line_parsed->req_client);
             #endif
+
+            continue;
         }
 
         char *req_first_sep, *req_last_sep = NULL;
@@ -627,84 +684,109 @@ static Log_line_parsed_t *parse_log_line(Log_parser_config_t *parser_config, Log
             #endif
             req_first_sep = strchr(parsed[i], ' ');
             req_last_sep = strrchr(parsed[i], ' ');
-            if(!req_first_sep || req_first_sep == req_last_sep) parsed[i][0] = '\0';
+            if(!req_first_sep || req_first_sep == req_last_sep) {
+                // parsed[i][0] = '\0';
+                log_line_parsed->req_method[0] = '\0';
+                log_line_parsed->req_URL = NULL;
+                log_line_parsed->req_proto[0] = '\0';
+                log_line_parsed->parsing_errors++;
+                continue;
+            }
             else *req_first_sep = *req_last_sep = '\0';
         }
 
-        if((fields_format[i] == REQ || fields_format[i] == REQ_METHOD) && strcmp(parsed[i], "-")){
+        if(fields_format[i] == REQ || fields_format[i] == REQ_METHOD){
             #if ENABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Item %d (type: REQ_METHOD):%s\n", i, parsed[i]);
             #endif
-            snprintf(log_line_parsed->req_method, REQ_METHOD_MAX_LEN, "%s", parsed[i]); 
-            if(verify){
-                if(strlen(parsed[i]) >= REQ_METHOD_MAX_LEN || 
-                    (strcmp(log_line_parsed->req_method, "ACL") && 
-                     strcmp(log_line_parsed->req_method, "BASELINE-CONTROL") && 
-                     strcmp(log_line_parsed->req_method, "BIND") && 
-                     strcmp(log_line_parsed->req_method, "CHECKIN") && 
-                     strcmp(log_line_parsed->req_method, "CHECKOUT") && 
-                     strcmp(log_line_parsed->req_method, "CONNECT") && 
-                     strcmp(log_line_parsed->req_method, "COPY") && 
-                     strcmp(log_line_parsed->req_method, "DELETE") && 
-                     strcmp(log_line_parsed->req_method, "GET") && 
-                     strcmp(log_line_parsed->req_method, "HEAD") && 
-                     strcmp(log_line_parsed->req_method, "LABEL") && 
-                     strcmp(log_line_parsed->req_method, "LINK") && 
-                     strcmp(log_line_parsed->req_method, "LOCK") && 
-                     strcmp(log_line_parsed->req_method, "MERGE") && 
-                     strcmp(log_line_parsed->req_method, "MKACTIVITY") && 
-                     strcmp(log_line_parsed->req_method, "MKCALENDAR") && 
-                     strcmp(log_line_parsed->req_method, "MKCOL") && 
-                     strcmp(log_line_parsed->req_method, "MKREDIRECTREF") && 
-                     strcmp(log_line_parsed->req_method, "MKWORKSPACE") && 
-                     strcmp(log_line_parsed->req_method, "MOVE") && 
-                     strcmp(log_line_parsed->req_method, "OPTIONS") && 
-                     strcmp(log_line_parsed->req_method, "ORDERPATCH") && 
-                     strcmp(log_line_parsed->req_method, "PATCH") && 
-                     strcmp(log_line_parsed->req_method, "POST") && 
-                     strcmp(log_line_parsed->req_method, "PRI") && 
-                     strcmp(log_line_parsed->req_method, "PROPFIND") && 
-                     strcmp(log_line_parsed->req_method, "PROPPATCH") && 
-                     strcmp(log_line_parsed->req_method, "PUT") && 
-                     strcmp(log_line_parsed->req_method, "REBIND") && 
-                     strcmp(log_line_parsed->req_method, "REPORT") && 
-                     strcmp(log_line_parsed->req_method, "SEARCH") && 
-                     strcmp(log_line_parsed->req_method, "TRACE") && 
-                     strcmp(log_line_parsed->req_method, "UNBIND") && 
-                     strcmp(log_line_parsed->req_method, "UNCHECKOUT") && 
-                     strcmp(log_line_parsed->req_method, "UNLINK") && 
-                     strcmp(log_line_parsed->req_method, "UNLOCK") && 
-                     strcmp(log_line_parsed->req_method, "UPDATE") && 
-                     strcmp(log_line_parsed->req_method, "UPDATEREDIRECTREF"))){
-                    #if ENABLE_PARSE_LOG_LINE_FPRINTS
-                    fprintf(stderr, "REQ_METHOD is invalid\n");
-                    #endif
-                    log_line_parsed->req_method[0] = '\0';
-                }
+
+            if(unlikely(!strcmp(parsed[i], "-"))){
+                log_line_parsed->req_method[0] = '\0';
+                log_line_parsed->parsing_errors++;
             }
-            #if ENABLE_PARSE_LOG_LINE_FPRINTS
-            fprintf(stderr, "Extracted REQ_METHOD:%s\n", log_line_parsed->req_method);
-            #endif
+            else{
+                snprintf(log_line_parsed->req_method, REQ_METHOD_MAX_LEN, "%s", parsed[i]); 
+                if(verify){
+                    if(strlen(parsed[i]) >= REQ_METHOD_MAX_LEN || 
+                        (strcmp(log_line_parsed->req_method, "ACL") && 
+                         strcmp(log_line_parsed->req_method, "BASELINE-CONTROL") && 
+                         strcmp(log_line_parsed->req_method, "BIND") && 
+                         strcmp(log_line_parsed->req_method, "CHECKIN") && 
+                         strcmp(log_line_parsed->req_method, "CHECKOUT") && 
+                         strcmp(log_line_parsed->req_method, "CONNECT") && 
+                         strcmp(log_line_parsed->req_method, "COPY") && 
+                         strcmp(log_line_parsed->req_method, "DELETE") && 
+                         strcmp(log_line_parsed->req_method, "GET") && 
+                         strcmp(log_line_parsed->req_method, "HEAD") && 
+                         strcmp(log_line_parsed->req_method, "LABEL") && 
+                         strcmp(log_line_parsed->req_method, "LINK") && 
+                         strcmp(log_line_parsed->req_method, "LOCK") && 
+                         strcmp(log_line_parsed->req_method, "MERGE") && 
+                         strcmp(log_line_parsed->req_method, "MKACTIVITY") && 
+                         strcmp(log_line_parsed->req_method, "MKCALENDAR") && 
+                         strcmp(log_line_parsed->req_method, "MKCOL") && 
+                         strcmp(log_line_parsed->req_method, "MKREDIRECTREF") && 
+                         strcmp(log_line_parsed->req_method, "MKWORKSPACE") && 
+                         strcmp(log_line_parsed->req_method, "MOVE") && 
+                         strcmp(log_line_parsed->req_method, "OPTIONS") && 
+                         strcmp(log_line_parsed->req_method, "ORDERPATCH") && 
+                         strcmp(log_line_parsed->req_method, "PATCH") && 
+                         strcmp(log_line_parsed->req_method, "POST") && 
+                         strcmp(log_line_parsed->req_method, "PRI") && 
+                         strcmp(log_line_parsed->req_method, "PROPFIND") && 
+                         strcmp(log_line_parsed->req_method, "PROPPATCH") && 
+                         strcmp(log_line_parsed->req_method, "PUT") && 
+                         strcmp(log_line_parsed->req_method, "REBIND") && 
+                         strcmp(log_line_parsed->req_method, "REPORT") && 
+                         strcmp(log_line_parsed->req_method, "SEARCH") && 
+                         strcmp(log_line_parsed->req_method, "TRACE") && 
+                         strcmp(log_line_parsed->req_method, "UNBIND") && 
+                         strcmp(log_line_parsed->req_method, "UNCHECKOUT") && 
+                         strcmp(log_line_parsed->req_method, "UNLINK") && 
+                         strcmp(log_line_parsed->req_method, "UNLOCK") && 
+                         strcmp(log_line_parsed->req_method, "UPDATE") && 
+                         strcmp(log_line_parsed->req_method, "UPDATEREDIRECTREF"))){
+                        #if ENABLE_PARSE_LOG_LINE_FPRINTS
+                        fprintf(stderr, "REQ_METHOD is invalid\n");
+                        #endif
+                        log_line_parsed->req_method[0] = '\0';
+                        log_line_parsed->parsing_errors++;
+                    }
+                }
+                #if ENABLE_PARSE_LOG_LINE_FPRINTS
+                fprintf(stderr, "Extracted REQ_METHOD:%s\n", log_line_parsed->req_method);
+                #endif
+            }
+            
+            if(fields_format[i] == REQ_METHOD) continue;
         }
 
-        if((fields_format[i] == REQ || fields_format[i] == REQ_URL) && strcmp(parsed[i], "-")){
-            if(fields_format[i] == REQ){ 
-                log_line_parsed->req_URL = req_first_sep ? strdupz(req_first_sep + 1) : NULL;
-            }   
+        if(fields_format[i] == REQ || fields_format[i] == REQ_URL){
+            if(fields_format[i] == REQ) log_line_parsed->req_URL = req_first_sep ? strdupz(req_first_sep + 1) : NULL;
             else log_line_parsed->req_URL = strdupz(parsed[i]);
             #if ENABLE_PARSE_LOG_LINE_FPRINTS
-            fprintf(stderr, "Item %d (type: REQ_URL):%s\n", i, log_line_parsed->req_URL);   
+            fprintf(stderr, "Item %d (type: REQ_URL):%s\n", i, log_line_parsed->req_URL ? log_line_parsed->req_URL : "NULL!");   
             //if(verify){} ??
-            fprintf(stderr, "Extracted REQ_URL:%s\n", log_line_parsed->req_URL);
+            if(unlikely(!strcmp(parsed[i], "-"))){
+                log_line_parsed->req_URL = NULL;
+                log_line_parsed->parsing_errors++;
+            }
+            fprintf(stderr, "Extracted REQ_URL:%s\n", log_line_parsed->req_URL ? log_line_parsed->req_URL : "NULL!");
             #endif
+
+            if(fields_format[i] == REQ_URL) continue;
         }
 
         if((fields_format[i] == REQ || fields_format[i] == REQ_PROTO) && strcmp(parsed[i], "-")){
             char *req_proto = NULL;
-            if(fields_format[i] == REQ){ 
-                req_proto = req_last_sep ? req_last_sep + 1 : NULL;
-            }
+            if(fields_format[i] == REQ) req_proto = req_last_sep ? req_last_sep + 1 : NULL;
             else req_proto = parsed[i];
+
+            if(unlikely(!strcmp(parsed[i], "-"))){
+                log_line_parsed->req_proto[0] = '\0';
+                log_line_parsed->parsing_errors++;
+            }
+
             if(verify){
                 if(!req_proto || !*req_proto || strlen(req_proto) < 6 || strncmp(req_proto, "HTTP/", 5) || 
                     (strcmp(&req_proto[5], "1") && 
@@ -716,6 +798,7 @@ static Log_line_parsed_t *parse_log_line(Log_parser_config_t *parser_config, Log
                     fprintf(stderr, "REQ_PROTO is invalid\n");
                     #endif
                     log_line_parsed->req_proto[0] = '\0';
+                    log_line_parsed->parsing_errors++;
                 }
                 else snprintf(log_line_parsed->req_proto, REQ_PROTO_MAX_LEN, "%s", &req_proto[5]); 
             }
@@ -724,6 +807,8 @@ static Log_line_parsed_t *parse_log_line(Log_parser_config_t *parser_config, Log
             fprintf(stderr, "Item %d (type: REQ_PROTO):%s\n", i, req_proto);
             fprintf(stderr, "Extracted REQ_PROTO:%s\n", log_line_parsed->req_proto);
             #endif
+
+            if(fields_format[i] == REQ_PROTO) continue;
         }
 
         if(fields_format[i] == REQ_SIZE){
@@ -736,15 +821,23 @@ static Log_line_parsed_t *parse_log_line(Log_parser_config_t *parser_config, Log
             else if(str2int(&log_line_parsed->req_size, parsed[i], 10) == STR2XX_SUCCESS){
                 if(verify){
                     if(log_line_parsed->req_size < 0){
-                        log_line_parsed->req_size = 0;
+                        #if ENABLE_PARSE_LOG_LINE_FPRINTS
                         fprintf(stderr, "REQ_SIZE is invalid (<0)\n");
+                        #endif
+                        log_line_parsed->req_size = 0;
+                        log_line_parsed->parsing_errors++;
                     }
                 }
             }
-            else fprintf(stderr, "Error while extracting REQ_SIZE from string\n");
+            else{
+                fprintf(stderr, "Error while extracting REQ_SIZE from string\n");
+                log_line_parsed->parsing_errors++;
+            }
             #if ENABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Extracted REQ_SIZE:%d\n", log_line_parsed->req_size);
             #endif
+
+            continue;
         }
 
         if(fields_format[i] == REQ_PROC_TIME && strcmp(parsed[i], "-")){
@@ -894,10 +987,18 @@ static Log_line_parsed_t *parse_log_line(Log_parser_config_t *parser_config, Log
             #endif
         }
 
-        if(fields_format[i] == TIME && strcmp(parsed[i], "-")){
+        if(fields_format[i] == TIME){
             #if ENABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Items %d + %d (type: TIME - 2 fields):%s %s\n", i, i+1, parsed[i], parsed[i+1]);
             #endif
+
+            if(!strcmp(parsed[i], "-")){
+                log_line_parsed->timestamp = 0;
+                log_line_parsed->parsing_errors++;
+                ++i;
+                continue;
+            }
+
             char *pch = strchr(parsed[i], '[');
             if(pch) memmove(parsed[i], parsed[i]+1, strlen(parsed[i])); //%d/%b/%Y:%H:%M:%S %z
             struct tm ltm = {0};
@@ -921,7 +1022,7 @@ static Log_line_parsed_t *parse_log_line(Log_parser_config_t *parser_config, Log
             fprintf(stderr, "Timezone: int:%d, hrs:%d, mins:%d\n", timezone, timezone_h, timezone_m);
             #endif
 
-            log_line_parsed->timestamp = (uint64_t) mktime(&ltm) + (uint64_t) timezone_h * 3600 + (uint64_t) timezone_m * 60;
+            log_line_parsed->timestamp = (int64_t) mktime(&ltm) + (int64_t) timezone_h * 3600 + (int64_t) timezone_m * 60;
             #if ENABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Extracted TIME:%lu\n", log_line_parsed->timestamp);
             #endif
@@ -1211,4 +1312,13 @@ Log_parser_metrics_t parse_text_buf(Log_parser_buffs_t *parser_buffs, char *text
 
     //fprintf(stderr, "NDLGS Total numLines: %lld\n", metrics.num_lines);
     return metrics;
+}
+
+Log_parser_config_t *auto_detect_parse_config(Log_parser_buffs_t *parser_buffs, const char delimiter){
+    // char *log_format = strdupz("%v:%p %D %h %l %u %t \"%r\" %>s %O \"%{Referer}i\" \"%{User-Agent}i\"");
+    char *log_format = strdupz("$host:$server_port $remote_addr - - [$time_local] \"$request\" $status $body_bytes_sent $request_length $request_time $upstream_response_time");
+    Log_parser_config_t *parser_config = read_parse_config(log_format, delimiter);
+    Log_line_parsed_t *line_parsed = parse_log_line(parser_config, parser_buffs, parser_buffs->line, 1);
+    fprintf(stderr, "Auto-detection errors: %d\n", line_parsed->parsing_errors);
+    assert(0);
 }

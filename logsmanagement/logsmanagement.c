@@ -586,7 +586,7 @@ static struct File_info *monitor_log_file_init(const char *filename) {
     return p_file_info;
 }
 
-static char *read_last_line(char *filename, int max_line_width){
+static char *read_last_line(const char *filename, int max_line_width){
 	const int default_max_line_width = 4 * 1024;
 	uv_fs_t stat_req, open_req, read_req;
 	int64_t start_pos, end_pos;
@@ -723,16 +723,27 @@ static void config_init(){
         const char delimiter = ' '; // TODO!!: TO READ FROM CONFIG
         fprintf(stderr, "NDLGS log format value: %s for section: %s\n==== \n", log_format ? log_format : "NULL!", config_section->name);
 
-        // Log_parser_buffs_t parser_buff = callocz(1, sizeof(Log_parser_buffs_t));
-        // parser_buff->line = read_last_line(p_file_info->filename, 0);
-        // if(parser_buff->line) goto next_section;
-        // fprintf(stderr, "NDLGS Last:|%s|\n", last_line);
-        // parse_log_line()
-        // free(parser_buff->line);
-        // free(parser_buff);
 
-        p_file_info->parser_config = read_parse_config(log_format, delimiter);
-        fprintf(stderr, "NDLGS Read parser_config for %s: %s\n", p_file_info->filename, p_file_info->parser_config ? "success!" : "failed!");
+		if(!log_format || !strcmp(log_format, "auto")){ // TODO: Add another case in OR where log_format is compared with a valid reg exp.
+	        fprintf(stderr, "NDLGS Attempting auto-detection of log format for:%s\n", p_file_info->filename);
+	        // TODO: Set default log format and delimiter if not found in config? Or auto-detect?
+	        Log_parser_buffs_t *parser_buff = callocz(1, sizeof(Log_parser_buffs_t));
+	        parser_buff->line = read_last_line(p_file_info->filename, 0);
+	        fprintf(stderr, "NDLGS Last:|%s|\n", parser_buff->line ? parser_buff->line : "NULL!");
+	        if(!parser_buff->line){ 
+		        free(parser_buff);
+	        	goto next_section;
+	        }
+
+	        p_file_info->parser_config = auto_detect_parse_config(parser_buff, delimiter);
+	        
+	        free(parser_buff->line);
+	        free(parser_buff);
+		}
+		else{
+			p_file_info->parser_config = read_parse_config(log_format, delimiter);
+        	fprintf(stderr, "NDLGS Read parser_config for %s: %s\n", p_file_info->filename, p_file_info->parser_config ? "success!" : "failed!");
+		}
         if(!p_file_info->parser_config) goto next_section; // TODO: Terminate monitor_log_file_init() if p_file_info->parser_config is NULL? 
 
 

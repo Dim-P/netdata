@@ -23,7 +23,7 @@
 #define LOG_PARSER_METRICS_SLL_CIPHER_BUFFS_SCALE_FACTOR 1.5
 
 /* Debug prints */
-#define ENABLE_PARSE_LOG_LINE_FPRINTS 0
+#define ENABLE_PARSE_LOG_LINE_FPRINTS 1
 #define MEASURE_PARSE_TEXT_TIME 1
 
 #define INVALID_PORT -1
@@ -82,7 +82,8 @@ typedef struct log_line_parsed{
 		int ups_resp_time;
 		char ssl_proto[SSL_PROTO_MAX_LEN];
 		char ssl_cipher[SSL_CIPHER_SUITE_MAX_LEN];
-		uint64_t timestamp;
+		int64_t timestamp;
+		int parsing_errors;
 } Log_line_parsed_t;
 
 typedef struct log_parser_buffs{
@@ -93,8 +94,8 @@ typedef struct log_parser_buffs{
 
 typedef struct log_parser_config{
     log_line_field_t *fields;   
-    int num_fields;             /**< Number of strings in the fields array. */
-    char delimiter;       /**< Delimiter that separates the fields in the log format. */
+    int num_fields;             		/**< Number of strings in the fields array. */
+    char delimiter;       				/**< Delimiter that separates the fields in the log format. */
     unsigned long int chart_config;
 } Log_parser_config_t;
 
