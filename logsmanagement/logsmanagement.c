@@ -645,8 +645,8 @@ static char *read_last_line(const char *filename, int max_line_width){
     	}
     }
     if(found_ln){
-    	char *line = callocz(1, (size_t) (bytes_read - line_pos - 1) * sizeof(char));
-    	memcpy(line, &buff[line_pos + 1], (size_t) (bytes_read - line_pos - 1));
+    	char *line = callocz(1, (size_t) (bytes_read - line_pos - 2) * sizeof(char));
+    	memcpy(line, &buff[line_pos + 1], (size_t) (bytes_read - line_pos - 2));
     	free(buff);
     	return line;
     }
@@ -736,12 +736,14 @@ static void config_init(){
 	        }
 
 	        p_file_info->parser_config = auto_detect_parse_config(parser_buff, delimiter);
-	        
+            // if(!p_file_info->parser_config || !p_file_info->parser_config->num_fields) assert(0); // TODO: Remove after testing!
+
 	        free(parser_buff->line);
 	        free(parser_buff);
 		}
 		else{
 			p_file_info->parser_config = read_parse_config(log_format, delimiter);
+			freez(log_format);
         	fprintf(stderr, "NDLGS Read parser_config for %s: %s\n", p_file_info->filename, p_file_info->parser_config ? "success!" : "failed!");
 		}
         if(!p_file_info->parser_config) goto next_section; // TODO: Terminate monitor_log_file_init() if p_file_info->parser_config is NULL? 

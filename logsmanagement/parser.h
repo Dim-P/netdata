@@ -171,5 +171,6 @@ typedef struct log_parser_metrics{
 void search_keyword(char *src, char *dest, const char *keyword, const int ignore_case);
 Log_parser_config_t *read_parse_config(char *log_format, const char delimiter);
 Log_parser_metrics_t parse_text_buf(Log_parser_buffs_t *parser_buffs, char *text, size_t text_size, Log_parser_config_t *parser_config, const int verify);
+Log_parser_config_t *auto_detect_parse_config(Log_parser_buffs_t *parser_buffs, const char delimiter);
 
 #endif  // PARSER_H_

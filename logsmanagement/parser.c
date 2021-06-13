@@ -20,6 +20,20 @@
 static regex_t vhost_regex, req_client_regex, cipher_suite_regex;
 static int regexs_initialised = 0;
 
+const char* const csv_auto_format_guess_matrix[] = {
+    "$host:$server_port $remote_addr - - [$time_local] \"$request\" $status $body_bytes_sent $request_length $request_time $upstream_response_time", // csvVhostCustom4
+    "$host:$server_port $remote_addr - - [$time_local] \"$request\" $status $body_bytes_sent - - $request_length $request_time",                     // csvVhostCustom3
+    "$host:$server_port $remote_addr - - [$time_local] \"$request\" $status $body_bytes_sent $request_length $request_time $upstream_response_time", // csvVhostCustom2
+    "$host:$server_port $remote_addr - - [$time_local] \"$request\" $status $body_bytes_sent $request_length $request_time",                         // csvVhostCustom1
+    "$host:$server_port $remote_addr - - [$time_local] \"$request\" $status $body_bytes_sent",                                                       // csvVhostCommon
+    "$remote_addr - - [$time_local] \"$request\" $status $body_bytes_sent - - $request_length $request_time $upstream_response_time",               // csvCustom4
+    "$remote_addr - - [$time_local] \"$request\" $status $body_bytes_sent - - $request_length $request_time",                                       // csvCustom3
+    "$remote_addr - - [$time_local] \"$request\" $status $body_bytes_sent $request_length $request_time $upstream_response_time",                   // csvCustom2
+    "$remote_addr - - [$time_local] \"$request\" $status $body_bytes_sent $request_length $request_time",                                           // csvCustom1
+    "$remote_addr - - [$time_local] \"$request\" $status $body_bytes_sent",                                                                         // csvCommon
+    NULL}
+;
+
 typedef enum {
     STR2XX_SUCCESS = 0,
     STR2XX_OVERFLOW,
@@ -45,34 +59,66 @@ typedef enum {
  */
 static inline str2xx_errno str2int(int *out, char *s, int base) {
     char *end;
-    if (s[0] == '\0' || isspace(s[0]))
+    if (s[0] == '\0' || isspace(s[0])){
+        #if ENABLE_PARSE_LOG_LINE_FPRINTS
+        fprintf(stderr, "str2int error: STR2XX_INCONVERTIBLE 1\n");
+        #endif
         return STR2XX_INCONVERTIBLE;
+    }
     errno = 0;
     long l = strtol(s, &end, base);
     /* Both checks are needed because INT_MAX == LONG_MAX is possible. */
-    if (l > INT_MAX || (errno == ERANGE && l == LONG_MAX))
+    if (l > INT_MAX || (errno == ERANGE && l == LONG_MAX)){
+        #if ENABLE_PARSE_LOG_LINE_FPRINTS
+        fprintf(stderr, "str2int error: STR2XX_OVERFLOW\n");
+        #endif
         return STR2XX_OVERFLOW;
-    if (l < INT_MIN || (errno == ERANGE && l == LONG_MIN))
+    }
+    if (l < INT_MIN || (errno == ERANGE && l == LONG_MIN)){
+        #if ENABLE_PARSE_LOG_LINE_FPRINTS
+        fprintf(stderr, "str2int error: STR2XX_UNDERFLOW\n");
+        #endif
         return STR2XX_UNDERFLOW;
-    if (*end != '\0')
+    }
+    if (*end != '\0'){
+        #if ENABLE_PARSE_LOG_LINE_FPRINTS
+        fprintf(stderr, "str2int error: STR2XX_INCONVERTIBLE 2\n");
+        #endif
         return STR2XX_INCONVERTIBLE;
+    }
     *out = l;
     return STR2XX_SUCCESS;
 }
 
 static inline str2xx_errno str2float(float *out, char *s) {
     char *end;
-    if (s[0] == '\0' || isspace(s[0]))
+    if (s[0] == '\0' || isspace(s[0])){ 
+        #if ENABLE_PARSE_LOG_LINE_FPRINTS
+        fprintf(stderr, "str2float error: STR2XX_INCONVERTIBLE 1\n");
+        #endif
         return STR2XX_INCONVERTIBLE;
+    }
     errno = 0;
     float f = strtof(s, &end);
     /* Both checks are needed because INT_MAX == LONG_MAX is possible. */
-    if (errno == ERANGE && f == HUGE_VALF)
+    if (errno == ERANGE && f == HUGE_VALF){
+        #if ENABLE_PARSE_LOG_LINE_FPRINTS
+        fprintf(stderr, "str2float error: STR2XX_OVERFLOW\n");
+        #endif
         return STR2XX_OVERFLOW;
-    if (errno == ERANGE && f == -HUGE_VALF)
+    }
+    if (errno == ERANGE && f == -HUGE_VALF){
+        #if ENABLE_PARSE_LOG_LINE_FPRINTS
+        fprintf(stderr, "str2float error: STR2XX_UNDERFLOW\n");
+        #endif
         return STR2XX_UNDERFLOW;
-    if (*end != '\0')
+    }
+    if (*end != '\0'){
+        #if ENABLE_PARSE_LOG_LINE_FPRINTS
+        fprintf(stderr, "str2float error: STR2XX_INCONVERTIBLE 2\n");
+        #endif
         return STR2XX_INCONVERTIBLE;
+    }
     *out = f;
     return STR2XX_SUCCESS;
 }
@@ -484,7 +530,6 @@ Log_parser_config_t *read_parse_config(char *log_format, const char delimiter){
 
 	}
 
-    freez(log_format);
     for(int i = 0; parsed_format[i] != NULL; i++) freez(parsed_format[i]);
     return parser_config;
 }
@@ -497,14 +542,18 @@ static Log_line_parsed_t *parse_log_line(Log_parser_config_t *parser_config, Log
     parser_buffs->log_line_parsed = (Log_line_parsed_t) {};
     Log_line_parsed_t *log_line_parsed = &parser_buffs->log_line_parsed;
 #if ENABLE_PARSE_LOG_LINE_FPRINTS
-    fprintf(stderr, "Original line: %s\n", line);
+    fprintf(stderr, "Original line:%s\n", line);
 #endif
     int num_fields_line = count_fields(line, delimiter);
     char **parsed = parse_csv(line, delimiter, num_fields_line);
 #if ENABLE_PARSE_LOG_LINE_FPRINTS
     fprintf(stderr, "Number of items in line: %d and expected from config: %d\n", num_fields_line, num_fields_config);
 #endif
-    assert(num_fields_config == num_fields_line); // TODO: REMOVE FROM PRODUCTION - Handle error instead?
+    // assert(num_fields_config == num_fields_line); // TODO: REMOVE FROM PRODUCTION - Handle error instead?
+    if(num_fields_config != num_fields_line){ 
+        free_csv_line(parsed);
+        return NULL;
+    }
     for(int i = 0; i < num_fields_config; i++ ){
         #if ENABLE_PARSE_LOG_LINE_FPRINTS
         fprintf(stderr, "===\nField %d:%s\n", i, parsed[i]);
@@ -777,7 +826,7 @@ static Log_line_parsed_t *parse_log_line(Log_parser_config_t *parser_config, Log
             if(fields_format[i] == REQ_URL) continue;
         }
 
-        if((fields_format[i] == REQ || fields_format[i] == REQ_PROTO) && strcmp(parsed[i], "-")){
+        if(fields_format[i] == REQ || fields_format[i] == REQ_PROTO){
             char *req_proto = NULL;
             if(fields_format[i] == REQ) req_proto = req_last_sep ? req_last_sep + 1 : NULL;
             else req_proto = parsed[i];
@@ -840,36 +889,60 @@ static Log_line_parsed_t *parse_log_line(Log_parser_config_t *parser_config, Log
             continue;
         }
 
-        if(fields_format[i] == REQ_PROC_TIME && strcmp(parsed[i], "-")){
+        if(fields_format[i] == REQ_PROC_TIME){
             #if ENABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Item %d (type: REQ_PROC_TIME):%s\n", i, parsed[i]);
             #endif
+
+            if(unlikely(!strcmp(parsed[i], "-"))){
+                log_line_parsed->req_proc_time = 0;
+                log_line_parsed->parsing_errors++;
+            }
+
             if(strchr(parsed[i], '.')){ // nginx time is in seconds with a milliseconds resolution.
                 float f = 0;
                 if(str2float(&f, parsed[i]) == STR2XX_SUCCESS) log_line_parsed->req_proc_time = (int) (f * 1.0E6);
-                else fprintf(stderr, "Error while extracting REQ_PROC_TIME from string\n");
+                else{ 
+                    fprintf(stderr, "Error while extracting REQ_PROC_TIME from string\n");
+                    log_line_parsed->req_proc_time = 0;
+                    log_line_parsed->parsing_errors++;
+                }
             }
             else{ // apache time is in microseconds
-                if(str2int(&log_line_parsed->req_proc_time, parsed[i], 10) != STR2XX_SUCCESS)
+                if(str2int(&log_line_parsed->req_proc_time, parsed[i], 10) != STR2XX_SUCCESS){
+                    #if ENABLE_PARSE_LOG_LINE_FPRINTS
                     fprintf(stderr, "Error while extracting REQ_PROC_TIME from string\n");
+                    #endif
+                    log_line_parsed->req_proc_time = 0;
+                    log_line_parsed->parsing_errors++;
+                }
             }
             if(verify){
                 if(log_line_parsed->req_proc_time < 0){
-                    log_line_parsed->req_proc_time = 0;
                     #if ENABLE_PARSE_LOG_LINE_FPRINTS
                     fprintf(stderr, "REQ_PROC_TIME is invalid (<0)\n");
                     #endif
+                    log_line_parsed->req_proc_time = 0;
+                    log_line_parsed->parsing_errors++;
                 }
             }
             #if ENABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Extracted REQ_PROC_TIME:%d\n", log_line_parsed->req_proc_time);
             #endif
+
+            continue;
         }
 
-        if(fields_format[i] == RESP_CODE && strcmp(parsed[i], "-")){
+        if(fields_format[i] == RESP_CODE){
             #if ENABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Item %d (type: RESP_CODE):%s\n", i, parsed[i]);
             #endif
+
+            if(unlikely(!strcmp(parsed[i], "-"))){
+                log_line_parsed->resp_code = 0;
+                log_line_parsed->parsing_errors++;
+            }
+
             if(str2int(&log_line_parsed->resp_code, parsed[i], 10) == STR2XX_SUCCESS){  
                 if(verify){
                     // rfc7231
@@ -879,17 +952,25 @@ static Log_line_parsed_t *parse_log_line(Log_parser_config_t *parser_config, Log
                     // Client errors (400–499),
                     // Server errors (500–599).
                     if(log_line_parsed->resp_code < 100 || log_line_parsed->resp_code > 599){
-                        log_line_parsed->resp_code = 0;
                         #if ENABLE_PARSE_LOG_LINE_FPRINTS
                         fprintf(stderr, "RESP_CODE is invalid (<100 or >600)\n");
                         #endif
+                        log_line_parsed->resp_code = 0;
+                        log_line_parsed->parsing_errors++;
                     }
                 }
             }
-            else fprintf(stderr, "Error while extracting RESP_CODE from string\n");
+            else{ 
+                #if ENABLE_PARSE_LOG_LINE_FPRINTS
+                fprintf(stderr, "Error while extracting RESP_CODE from string\n");
+                #endif
+                log_line_parsed->parsing_errors++;
+            }
             #if ENABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Extracted RESP_CODE:%d\n", log_line_parsed->resp_code);
             #endif
+
+            continue;
         }
 
         if(fields_format[i] == RESP_SIZE){
@@ -902,21 +983,37 @@ static Log_line_parsed_t *parse_log_line(Log_parser_config_t *parser_config, Log
             else if(str2int(&log_line_parsed->resp_size, parsed[i], 10) == STR2XX_SUCCESS){
                 if(verify){
                     if(log_line_parsed->resp_size < 0){
-                        log_line_parsed->resp_size = 0;
+                        #if ENABLE_PARSE_LOG_LINE_FPRINTS
                         fprintf(stderr, "RESP_SIZE is invalid (<0)\n");
+                        #endif
+                        log_line_parsed->resp_size = 0;
+                        log_line_parsed->parsing_errors++;
                     }
                 }
             }
-            else fprintf(stderr, "Error while extracting RESP_SIZE from string\n");
+            else {
+                #if ENABLE_PARSE_LOG_LINE_FPRINTS
+                fprintf(stderr, "Error while extracting RESP_SIZE from string\n");
+                #endif
+                log_line_parsed->parsing_errors++;
+            }
             #if ENABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Extracted RESP_SIZE:%d\n", log_line_parsed->resp_size);
             #endif
+
+            continue;
         }
 
         if(fields_format[i] == UPS_RESP_TIME && strcmp(parsed[i], "-")){
             #if ENABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Item %d (type: UPS_RESP_TIME):%s\n", i, parsed[i]);
             #endif
+
+            if(unlikely(!strcmp(parsed[i], "-"))){
+                log_line_parsed->ups_resp_time = 0;
+                log_line_parsed->parsing_errors++;
+            }
+
             /* Times of several responses are separated by commas and colons. Following the 
              * Go parser implementation, where only the first one is kept, the others are 
              * discarded. Also, there must be no space in between them. Needs testing... */
@@ -926,26 +1023,46 @@ static Log_line_parsed_t *parse_log_line(Log_parser_config_t *parser_config, Log
             if(strchr(parsed[i], '.')){ // nginx time is in seconds with a milliseconds resolution.
                 float f = 0;
                 if(str2float(&f, parsed[i]) == STR2XX_SUCCESS) log_line_parsed->ups_resp_time = (int) (f * 1.0E6);
-                else fprintf(stderr, "Error while extracting UPS_RESP_TIME from string\n");
+                else { 
+                    #if ENABLE_PARSE_LOG_LINE_FPRINTS
+                    fprintf(stderr, "Error while extracting UPS_RESP_TIME from string\n");
+                    #endif
+                    log_line_parsed->ups_resp_time = 0;
+                    log_line_parsed->parsing_errors++;
+                }
             }
             else{ // unlike in the REQ_PROC_TIME case, apache doesn't have an equivalent here
+                #if ENABLE_PARSE_LOG_LINE_FPRINTS
                 fprintf(stderr, "Error while extracting UPS_RESP_TIME from string\n");
+                #endif
+                log_line_parsed->parsing_errors++;
             }
             if(verify){
                 if(log_line_parsed->ups_resp_time < 0){
-                    log_line_parsed->ups_resp_time = 0;
+                    #if ENABLE_PARSE_LOG_LINE_FPRINTS
                     fprintf(stderr, "UPS_RESP_TIME is invalid (<0)\n");
+                    #endif
+                    log_line_parsed->ups_resp_time = 0;
+                    log_line_parsed->parsing_errors++;
                 }
             }
             #if ENABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Extracted UPS_RESP_TIME:%d\n", log_line_parsed->ups_resp_time);
             #endif
+
+            continue;
         }
 
-        if(fields_format[i] == SSL_PROTO && strcmp(parsed[i], "-")){
+        if(fields_format[i] == SSL_PROTO){
             #if ENABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Item %d (type: SSL_PROTO):%s\n", i, parsed[i]);
             #endif
+
+            if(unlikely(!strcmp(parsed[i], "-"))){
+                log_line_parsed->ssl_proto[0] = '\0';
+                log_line_parsed->parsing_errors++;
+            }
+
             if(verify){
                 if(strcmp(parsed[i], "TLSv1") && 
                      strcmp(parsed[i], "TLSv1.1") &&
@@ -957,6 +1074,7 @@ static Log_line_parsed_t *parse_log_line(Log_parser_config_t *parser_config, Log
                     fprintf(stderr, "SSL_PROTO is invalid\n");
                     #endif
                     log_line_parsed->ssl_proto[0] = '\0';
+                    log_line_parsed->parsing_errors++;
                 }
                 else snprintf(log_line_parsed->ssl_proto, SSL_PROTO_MAX_LEN, "%s", parsed[i]); 
             }
@@ -964,12 +1082,20 @@ static Log_line_parsed_t *parse_log_line(Log_parser_config_t *parser_config, Log
             #if ENABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Extracted SSL_PROTO:%s\n", log_line_parsed->ssl_proto);
             #endif
+
+            continue;
         }
 
-        if(fields_format[i] == SSL_CIPHER_SUITE && strcmp(parsed[i], "-")){
+        if(fields_format[i] == SSL_CIPHER_SUITE){
             #if ENABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Item %d (type: SSL_CIPHER_SUITE):%s\n", i, parsed[i]);
             #endif
+
+            if(unlikely(!strcmp(parsed[i], "-"))){
+                log_line_parsed->ssl_cipher[0] = '\0';
+                log_line_parsed->parsing_errors++;
+            }
+
             if(verify){
                 int rc = regexec(&cipher_suite_regex, parsed[i], 0, NULL, 0);
                 if(likely(!rc)) snprintf(log_line_parsed->ssl_cipher, SSL_CIPHER_SUITE_MAX_LEN, "%s", parsed[i]); 
@@ -978,6 +1104,7 @@ static Log_line_parsed_t *parse_log_line(Log_parser_config_t *parser_config, Log
                     fprintf(stderr, "SSL_CIPHER_SUITE is invalid\n");
                     #endif
                     log_line_parsed->ssl_cipher[0] = '\0';
+                    log_line_parsed->parsing_errors++;
                 }
                 else assert(0); // Can also use: regerror(rc, &cipher_suite_regex, msgbuf, sizeof(msgbuf));
             }
@@ -985,6 +1112,8 @@ static Log_line_parsed_t *parse_log_line(Log_parser_config_t *parser_config, Log
             #if ENABLE_PARSE_LOG_LINE_FPRINTS
             fprintf(stderr, "Extracted SSL_CIPHER_SUITE:%s\n", log_line_parsed->ssl_cipher);
             #endif
+
+            continue;
         }
 
         if(fields_format[i] == TIME){
@@ -1002,7 +1131,15 @@ static Log_line_parsed_t *parse_log_line(Log_parser_config_t *parser_config, Log
             char *pch = strchr(parsed[i], '[');
             if(pch) memmove(parsed[i], parsed[i]+1, strlen(parsed[i])); //%d/%b/%Y:%H:%M:%S %z
             struct tm ltm = {0};
-            if(strptime(parsed[i], "%d/%b/%Y:%H:%M:%S", &ltm) == NULL) fatal("Cannot parse time");
+            if(strptime(parsed[i], "%d/%b/%Y:%H:%M:%S", &ltm) == NULL){
+                #if ENABLE_PARSE_LOG_LINE_FPRINTS
+                fprintf(stderr, "TIME field parsing failed\n");
+                #endif
+                log_line_parsed->timestamp = 0;
+                log_line_parsed->parsing_errors++;
+                ++i;
+                continue;
+            }
 
             // char month[20];
             // sscanf(parsed[i], "%d/%[^/]/%d:%d:%d:%d", &ltm.tm_mday, month, &ltm.tm_year, &ltm.tm_hour, &ltm.tm_min, &ltm.tm_sec);            
@@ -1019,7 +1156,7 @@ static Log_line_parsed_t *parse_log_line(Log_parser_config_t *parser_config, Log
             long int timezone_h = timezone / 100;
             long int timezone_m = timezone % 100;
             #if ENABLE_PARSE_LOG_LINE_FPRINTS
-            fprintf(stderr, "Timezone: int:%d, hrs:%d, mins:%d\n", timezone, timezone_h, timezone_m);
+            fprintf(stderr, "Timezone: int:%ld, hrs:%ld, mins:%ld\n", timezone, timezone_h, timezone_m);
             #endif
 
             log_line_parsed->timestamp = (int64_t) mktime(&ltm) + (int64_t) timezone_h * 3600 + (int64_t) timezone_m * 60;
@@ -1285,6 +1422,7 @@ Log_parser_metrics_t parse_text_buf(Log_parser_buffs_t *parser_buffs, char *text
         // fprintf(stderr, "line:%s\n", parser_buffs->line);
         
         Log_line_parsed_t *line_parsed = parse_log_line(parser_config, parser_buffs, parser_buffs->line, verify);
+        // TODO: Error handling in case line_parsed == NULL !!
         
         // TODO: Refactor the following, can be done inside parse_log_line() function to save a strcmp() call.
         extract_metrics(parser_config, line_parsed, &metrics);
@@ -1315,10 +1453,20 @@ Log_parser_metrics_t parse_text_buf(Log_parser_buffs_t *parser_buffs, char *text
 }
 
 Log_parser_config_t *auto_detect_parse_config(Log_parser_buffs_t *parser_buffs, const char delimiter){
-    // char *log_format = strdupz("%v:%p %D %h %l %u %t \"%r\" %>s %O \"%{Referer}i\" \"%{User-Agent}i\"");
-    char *log_format = strdupz("$host:$server_port $remote_addr - - [$time_local] \"$request\" $status $body_bytes_sent $request_length $request_time $upstream_response_time");
-    Log_parser_config_t *parser_config = read_parse_config(log_format, delimiter);
-    Log_line_parsed_t *line_parsed = parse_log_line(parser_config, parser_buffs, parser_buffs->line, 1);
-    fprintf(stderr, "Auto-detection errors: %d\n", line_parsed->parsing_errors);
-    assert(0);
+    for(int i = 0; csv_auto_format_guess_matrix[i] != NULL; i++){
+        fprintf(stderr, "Auto detection iteration: %d\n", i);
+        Log_parser_config_t *parser_config = read_parse_config(csv_auto_format_guess_matrix[i], delimiter);
+        Log_line_parsed_t *line_parsed = parse_log_line(parser_config, parser_buffs, parser_buffs->line, 1);
+        if(line_parsed){
+            freez(line_parsed->req_URL);
+            fprintf(stderr, "Auto-detection errors: %d iter:%d\n", line_parsed->parsing_errors, i);
+            if(line_parsed->parsing_errors == 0){
+                fprintf(stderr, "Auto detected log format (iter:%d):%s\n", i, csv_auto_format_guess_matrix[i]);
+                return parser_config;
+            }
+        }
+        freez(parser_config->fields);
+        freez(parser_config);
+    }
+    return NULL;
 }
