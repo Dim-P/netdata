@@ -5,9 +5,11 @@
  *  @author Dimitris Pantazis
  */
 
+#include "../libnetdata/libnetdata.h"
 #include "circular_buffer.h"
 #include "compression.h"
 #include "helper.h"
+#include "parser.h"
 
 static uv_loop_t *circ_buff_loop = NULL;
 
@@ -15,38 +17,343 @@ static uv_loop_t *circ_buff_loop = NULL;
  * @brief Cleans up after an execution of the msg_parser function. 
  */
 static void msg_parser_cleanup(uv_work_t *req, int status){
-    free(req);
+    freez(req);
 }
 
 /**
  * @brief Performs all the processing required for a raw log message
  * @details For the time being, this function compresses a raw log message. In the
  * future, additional processing (such as parsing and/or streaming) will be performed.
+ * @todo Metrics addition part needs refactoring.
  */
 static void msg_parser(uv_work_t *req){
-    Circ_buff_t *buff = (Circ_buff_t *) req->data;
+    struct File_info *p_file_info = (struct File_info *) req->data;
+    Circ_buff_t *buff = p_file_info->msg_buff;
 
     uv_mutex_lock(&buff->mut);
-    m_assert(buff->parsed_index != buff->head_index, 
-        "More msg_parser() called than Message_t items in buff that need parsing");
-
+    m_assert(buff->parse_next_index != buff->head_index, "More msg_parser() called than Message_t items in buff that need parsing");
     /* This needs to be within mut lock as another msg_parser() in different thread 
      * (albeit unlikely) could be changing parsed_index at the same time as this thread */
-    Message_t *buff_msg_current = &buff->msgs[(buff->parsed_index) & BUFF_SIZE_MASK];  
+    Log_parser_buffs_t *parser_buff_current =  &buff->parser_buffs[(buff->parse_next_index) & BUFF_SIZE_MASK]; 
+    Message_t *buff_msg_current = &buff->msgs[(buff->parse_next_index++) & BUFF_SIZE_MASK]; 
     uv_mutex_unlock(&buff->mut);
+
+    if(p_file_info->parser_config){ 
+        // TODO: verify bool should be set through log source configuration.
+        Log_parser_metrics_t parser_metrics = parse_text_buf(parser_buff_current, buff_msg_current->text, buff_msg_current->text_size, 
+            p_file_info->parser_config, 1);
+        if(parser_metrics.num_lines_rate == 0) fatal("Parsed buffer did not contain any text or was of 0 size.");
+
+        uv_mutex_lock(p_file_info->parser_mut);
+        // This part needs refactoring
+
+        /* Number of lines */
+        p_file_info->parser_metrics->num_lines_total += parser_metrics.num_lines_total;
+        p_file_info->parser_metrics->num_lines_rate += parser_metrics.num_lines_rate;
+        fprintf(stderr, "NDLGS NumLines: Total:%lld Rate:%lld\n", p_file_info->parser_metrics->num_lines_total, p_file_info->parser_metrics->num_lines_rate);
+
+        /* Vhost */
+        if(p_file_info->parser_config->chart_config & CHART_VHOST){
+            for(int i = 0; i < parser_metrics.vhost_arr.size; i++){
+                int j;
+                for(j = 0; j < p_file_info->parser_metrics->vhost_arr.size ; j++){
+                    if(!strcmp(parser_metrics.vhost_arr.vhosts[i].name, p_file_info->parser_metrics->vhost_arr.vhosts[j].name)) {
+                        p_file_info->parser_metrics->vhost_arr.vhosts[j].count += parser_metrics.vhost_arr.vhosts[i].count;
+                        break;
+                    }
+                }
+                if(p_file_info->parser_metrics->vhost_arr.size == j){
+                    p_file_info->parser_metrics->vhost_arr.size++;
+
+                    if(p_file_info->parser_metrics->vhost_arr.size >= p_file_info->parser_metrics->vhost_arr.size_max){
+                        p_file_info->parser_metrics->vhost_arr.size_max = p_file_info->parser_metrics->vhost_arr.size * LOG_PARSER_METRICS_VHOST_BUFFS_SCALE_FACTOR + 1;
+                        
+                        p_file_info->parser_metrics->vhost_arr.vhosts = reallocz(p_file_info->parser_metrics->vhost_arr.vhosts, 
+                            p_file_info->parser_metrics->vhost_arr.size_max * sizeof(struct log_parser_metrics_vhost));
+                    }
+
+                    snprintf(p_file_info->parser_metrics->vhost_arr.vhosts[p_file_info->parser_metrics->vhost_arr.size - 1].name, 
+                        VHOST_MAX_LEN, "%s", parser_metrics.vhost_arr.vhosts[i].name);
+
+                    p_file_info->parser_metrics->vhost_arr.vhosts[p_file_info->parser_metrics->vhost_arr.size - 1].count = parser_metrics.vhost_arr.vhosts[i].count;
+                }
+            }
+            freez(parser_metrics.vhost_arr.vhosts); // TODO: Avoid mallocz()/freez() in future by reusing buffs
+        }
+
+        /* Port */
+        if(p_file_info->parser_config->chart_config & CHART_PORT){
+            for(int i = 0; i < parser_metrics.port_arr.size; i++){
+                int j;
+                for(j = 0; j < p_file_info->parser_metrics->port_arr.size ; j++){
+                    if(parser_metrics.port_arr.ports[i].port == p_file_info->parser_metrics->port_arr.ports[j].port) {
+                        p_file_info->parser_metrics->port_arr.ports[j].count += parser_metrics.port_arr.ports[i].count;
+                        break;
+                    }
+                }
+                if(p_file_info->parser_metrics->port_arr.size == j){
+                    p_file_info->parser_metrics->port_arr.size++;
+
+                    if(p_file_info->parser_metrics->port_arr.size >= p_file_info->parser_metrics->port_arr.size_max){
+                        p_file_info->parser_metrics->port_arr.size_max = p_file_info->parser_metrics->port_arr.size * LOG_PARSER_METRICS_PORT_BUFFS_SCALE_FACTOR + 1;
+
+                        p_file_info->parser_metrics->port_arr.ports = reallocz(p_file_info->parser_metrics->port_arr.ports, 
+                            p_file_info->parser_metrics->port_arr.size_max * sizeof(struct log_parser_metrics_port));
+                    }
+                    
+                    p_file_info->parser_metrics->port_arr.ports[p_file_info->parser_metrics->port_arr.size - 1].port = parser_metrics.port_arr.ports[i].port;
+                    p_file_info->parser_metrics->port_arr.ports[p_file_info->parser_metrics->port_arr.size - 1].count = parser_metrics.port_arr.ports[i].count;
+                }
+            }
+            freez(parser_metrics.port_arr.ports); // TODO: Avoid mallocz()/freez() in future by reusing buffs
+        }
+
+        /* Req Client - IP version */
+        if(p_file_info->parser_config->chart_config & CHART_IP_VERSION){
+            p_file_info->parser_metrics->ip_ver.v4 += parser_metrics.ip_ver.v4;
+            p_file_info->parser_metrics->ip_ver.v6 += parser_metrics.ip_ver.v6;
+            p_file_info->parser_metrics->ip_ver.invalid += parser_metrics.ip_ver.invalid;
+        }
+
+        for(int i = 0; i < parser_metrics.req_clients_current_arr.ipv4_size; i++){
+            int j;
+
+            /* Request Client - Unique IPv4 clients all-time */
+            if(p_file_info->parser_config->chart_config & CHART_REQ_CLIENT_ALL_TIME){
+                for(j = 0; j < p_file_info->parser_metrics->req_clients_alltime_arr.ipv4_size ; j++){
+                    if(!strcmp(parser_metrics.req_clients_current_arr.ipv4_req_clients[i], p_file_info->parser_metrics->req_clients_alltime_arr.ipv4_req_clients[j])) break;
+                }
+                if(p_file_info->parser_metrics->req_clients_alltime_arr.ipv4_size == j){
+                    p_file_info->parser_metrics->req_clients_alltime_arr.ipv4_size++;
+
+                    if(p_file_info->parser_metrics->req_clients_alltime_arr.ipv4_size >= p_file_info->parser_metrics->req_clients_alltime_arr.ipv4_size_max){
+                        p_file_info->parser_metrics->req_clients_alltime_arr.ipv4_size_max = p_file_info->parser_metrics->req_clients_alltime_arr.ipv4_size * LOG_PARSER_METRICS_REQ_CLIENTS_BUFFS_SCALE_FACTOR + 1;
+                    
+                        p_file_info->parser_metrics->req_clients_alltime_arr.ipv4_req_clients = reallocz(p_file_info->parser_metrics->req_clients_alltime_arr.ipv4_req_clients, 
+                            p_file_info->parser_metrics->req_clients_alltime_arr.ipv4_size_max * sizeof(*p_file_info->parser_metrics->req_clients_alltime_arr.ipv4_req_clients));
+                    }
+                    
+                    snprintf(p_file_info->parser_metrics->req_clients_alltime_arr.ipv4_req_clients[p_file_info->parser_metrics->req_clients_alltime_arr.ipv4_size - 1], 
+                        REQ_CLIENT_MAX_LEN, "%s", parser_metrics.req_clients_current_arr.ipv4_req_clients[i]);
+                }
+            }
+
+            /* Request Client - Unique IPv4 clients current poll */
+            if(p_file_info->parser_config->chart_config & CHART_REQ_CLIENT_CURRENT){
+                for(j = 0; j < p_file_info->parser_metrics->req_clients_current_arr.ipv4_size ; j++){
+                    if(!strcmp(parser_metrics.req_clients_current_arr.ipv4_req_clients[i], p_file_info->parser_metrics->req_clients_current_arr.ipv4_req_clients[j])) break;
+                }
+                if(p_file_info->parser_metrics->req_clients_current_arr.ipv4_size == j){
+                    p_file_info->parser_metrics->req_clients_current_arr.ipv4_size++;
+
+                    if(p_file_info->parser_metrics->req_clients_current_arr.ipv4_size >= p_file_info->parser_metrics->req_clients_current_arr.ipv4_size_max){
+                        p_file_info->parser_metrics->req_clients_current_arr.ipv4_size_max = p_file_info->parser_metrics->req_clients_current_arr.ipv4_size * LOG_PARSER_METRICS_REQ_CLIENTS_BUFFS_SCALE_FACTOR + 1;
+                    
+                        p_file_info->parser_metrics->req_clients_current_arr.ipv4_req_clients = reallocz(p_file_info->parser_metrics->req_clients_current_arr.ipv4_req_clients, 
+                            p_file_info->parser_metrics->req_clients_current_arr.ipv4_size_max * sizeof(*p_file_info->parser_metrics->req_clients_current_arr.ipv4_req_clients));
+                    }
+
+                    snprintf(p_file_info->parser_metrics->req_clients_current_arr.ipv4_req_clients[p_file_info->parser_metrics->req_clients_current_arr.ipv4_size - 1], 
+                        REQ_CLIENT_MAX_LEN, "%s", parser_metrics.req_clients_current_arr.ipv4_req_clients[i]);
+                }
+            }
+        }
+        if(p_file_info->parser_config->chart_config & (CHART_REQ_CLIENT_CURRENT | CHART_REQ_CLIENT_ALL_TIME)){
+            freez(parser_metrics.req_clients_current_arr.ipv4_req_clients); // TODO: Avoid mallocz()/freez() in future by reusing buffs
+        }
+
+        for(int i = 0; i < parser_metrics.req_clients_current_arr.ipv6_size; i++){
+            int j;
+
+            /* Request Client - Unique IPv6 clients all-time */
+            if(p_file_info->parser_config->chart_config & CHART_REQ_CLIENT_ALL_TIME){
+                for(j = 0; j < p_file_info->parser_metrics->req_clients_alltime_arr.ipv6_size ; j++){
+                    if(!strcmp(parser_metrics.req_clients_current_arr.ipv6_req_clients[i], p_file_info->parser_metrics->req_clients_alltime_arr.ipv6_req_clients[j])) break;
+                }
+                if(p_file_info->parser_metrics->req_clients_alltime_arr.ipv6_size == j){
+                    p_file_info->parser_metrics->req_clients_alltime_arr.ipv6_size++;
+
+                    if(p_file_info->parser_metrics->req_clients_alltime_arr.ipv6_size >= p_file_info->parser_metrics->req_clients_alltime_arr.ipv6_size_max){
+                        p_file_info->parser_metrics->req_clients_alltime_arr.ipv6_size_max = p_file_info->parser_metrics->req_clients_alltime_arr.ipv6_size * LOG_PARSER_METRICS_REQ_CLIENTS_BUFFS_SCALE_FACTOR + 1;
+                    
+                        p_file_info->parser_metrics->req_clients_alltime_arr.ipv6_req_clients = reallocz(p_file_info->parser_metrics->req_clients_alltime_arr.ipv6_req_clients, 
+                            p_file_info->parser_metrics->req_clients_alltime_arr.ipv6_size_max * sizeof(*p_file_info->parser_metrics->req_clients_alltime_arr.ipv6_req_clients));
+                    }
+
+                    snprintf(p_file_info->parser_metrics->req_clients_alltime_arr.ipv6_req_clients[p_file_info->parser_metrics->req_clients_alltime_arr.ipv6_size - 1], 
+                        REQ_CLIENT_MAX_LEN, "%s", parser_metrics.req_clients_current_arr.ipv6_req_clients[i]);
+                }
+            }
+
+            /* Request Client - Unique IPv6 clients current poll */
+            if(p_file_info->parser_config->chart_config & CHART_REQ_CLIENT_CURRENT){
+                for(j = 0; j < p_file_info->parser_metrics->req_clients_current_arr.ipv6_size ; j++){
+                    if(!strcmp(parser_metrics.req_clients_current_arr.ipv6_req_clients[i], p_file_info->parser_metrics->req_clients_current_arr.ipv6_req_clients[j])) break;
+                }
+                if(p_file_info->parser_metrics->req_clients_current_arr.ipv6_size == j){
+                    p_file_info->parser_metrics->req_clients_current_arr.ipv6_size++;
+
+                    if(p_file_info->parser_metrics->req_clients_current_arr.ipv6_size >= p_file_info->parser_metrics->req_clients_current_arr.ipv6_size_max){
+                        p_file_info->parser_metrics->req_clients_current_arr.ipv6_size_max = p_file_info->parser_metrics->req_clients_current_arr.ipv6_size * LOG_PARSER_METRICS_REQ_CLIENTS_BUFFS_SCALE_FACTOR + 1;
+                    
+                        p_file_info->parser_metrics->req_clients_current_arr.ipv6_req_clients = reallocz(p_file_info->parser_metrics->req_clients_current_arr.ipv6_req_clients, 
+                            p_file_info->parser_metrics->req_clients_current_arr.ipv6_size_max * sizeof(*p_file_info->parser_metrics->req_clients_current_arr.ipv6_req_clients));
+                    }
+
+                    snprintf(p_file_info->parser_metrics->req_clients_current_arr.ipv6_req_clients[p_file_info->parser_metrics->req_clients_current_arr.ipv6_size - 1], 
+                        REQ_CLIENT_MAX_LEN, "%s", parser_metrics.req_clients_current_arr.ipv6_req_clients[i]);
+                }
+            }
+        }
+        if(p_file_info->parser_config->chart_config & (CHART_REQ_CLIENT_CURRENT | CHART_REQ_CLIENT_ALL_TIME)){
+            freez(parser_metrics.req_clients_current_arr.ipv6_req_clients); // TODO: Avoid mallocz()/freez() in future by reusing buffs
+        }
+
+        /* Request methods */
+        if(p_file_info->parser_config->chart_config & CHART_REQ_METHODS){
+            p_file_info->parser_metrics->req_method.acl += parser_metrics.req_method.acl;
+            p_file_info->parser_metrics->req_method.baseline_control += parser_metrics.req_method.baseline_control;
+            p_file_info->parser_metrics->req_method.bind += parser_metrics.req_method.bind;
+            p_file_info->parser_metrics->req_method.checkin += parser_metrics.req_method.checkin;
+            p_file_info->parser_metrics->req_method.checkout += parser_metrics.req_method.checkout;
+            p_file_info->parser_metrics->req_method.connect += parser_metrics.req_method.copy;
+            p_file_info->parser_metrics->req_method.delet += parser_metrics.req_method.delet;
+            p_file_info->parser_metrics->req_method.get += parser_metrics.req_method.get;
+            p_file_info->parser_metrics->req_method.head += parser_metrics.req_method.head;
+            p_file_info->parser_metrics->req_method.label += parser_metrics.req_method.label;
+            p_file_info->parser_metrics->req_method.link += parser_metrics.req_method.link;
+            p_file_info->parser_metrics->req_method.lock += parser_metrics.req_method.lock;
+            p_file_info->parser_metrics->req_method.merge += parser_metrics.req_method.merge;
+            p_file_info->parser_metrics->req_method.mkactivity += parser_metrics.req_method.mkactivity;
+            p_file_info->parser_metrics->req_method.mkcalendar += parser_metrics.req_method.mkcalendar;
+            p_file_info->parser_metrics->req_method.mkcol += parser_metrics.req_method.mkcol;
+            p_file_info->parser_metrics->req_method.mkredirectref += parser_metrics.req_method.mkredirectref;
+            p_file_info->parser_metrics->req_method.mkworkspace += parser_metrics.req_method.mkworkspace;
+            p_file_info->parser_metrics->req_method.move += parser_metrics.req_method.move;
+            p_file_info->parser_metrics->req_method.options += parser_metrics.req_method.options;
+            p_file_info->parser_metrics->req_method.orderpatch += parser_metrics.req_method.orderpatch;
+            p_file_info->parser_metrics->req_method.patch += parser_metrics.req_method.patch;
+            p_file_info->parser_metrics->req_method.post += parser_metrics.req_method.post;
+            p_file_info->parser_metrics->req_method.pri += parser_metrics.req_method.pri;
+            p_file_info->parser_metrics->req_method.propfind += parser_metrics.req_method.propfind;
+            p_file_info->parser_metrics->req_method.proppatch += parser_metrics.req_method.proppatch;
+            p_file_info->parser_metrics->req_method.put += parser_metrics.req_method.put;
+            p_file_info->parser_metrics->req_method.rebind += parser_metrics.req_method.rebind;
+            p_file_info->parser_metrics->req_method.report += parser_metrics.req_method.report;
+            p_file_info->parser_metrics->req_method.search += parser_metrics.req_method.search;
+            p_file_info->parser_metrics->req_method.trace += parser_metrics.req_method.trace;
+            p_file_info->parser_metrics->req_method.unbind += parser_metrics.req_method.unbind;
+            p_file_info->parser_metrics->req_method.uncheckout += parser_metrics.req_method.uncheckout;
+            p_file_info->parser_metrics->req_method.unlink += parser_metrics.req_method.unlink;
+            p_file_info->parser_metrics->req_method.unlock += parser_metrics.req_method.unlock;
+            p_file_info->parser_metrics->req_method.update += parser_metrics.req_method.update;
+            p_file_info->parser_metrics->req_method.updateredirectref += parser_metrics.req_method.updateredirectref;
+        }
+
+        /* Request protocol */
+        if(p_file_info->parser_config->chart_config & CHART_REQ_PROTO){
+            p_file_info->parser_metrics->req_proto.http_1 += parser_metrics.req_proto.http_1;
+            p_file_info->parser_metrics->req_proto.http_1_1 += parser_metrics.req_proto.http_1_1;
+            p_file_info->parser_metrics->req_proto.http_2 += parser_metrics.req_proto.http_2;
+            p_file_info->parser_metrics->req_proto.other += parser_metrics.req_proto.other;
+        }
+
+        /* Request bandwidth */
+        if(p_file_info->parser_config->chart_config & CHART_BANDWIDTH){
+            p_file_info->parser_metrics->bandwidth.req_size += parser_metrics.bandwidth.req_size;
+            p_file_info->parser_metrics->bandwidth.resp_size += parser_metrics.bandwidth.resp_size;
+        }
+
+        /* Request processing time */
+        if(p_file_info->parser_config->chart_config & CHART_REQ_PROC_TIME){
+            if(parser_metrics.req_proc_time.min < p_file_info->parser_metrics->req_proc_time.min 
+                || p_file_info->parser_metrics->req_proc_time.min == 0) p_file_info->parser_metrics->req_proc_time.min = parser_metrics.req_proc_time.min;
+            if(parser_metrics.req_proc_time.max > p_file_info->parser_metrics->req_proc_time.max 
+                || p_file_info->parser_metrics->req_proc_time.max == 0) p_file_info->parser_metrics->req_proc_time.max = parser_metrics.req_proc_time.max;
+            p_file_info->parser_metrics->req_proc_time.sum += parser_metrics.req_proc_time.sum;
+            p_file_info->parser_metrics->req_proc_time.count += parser_metrics.req_proc_time.count;
+        }
+
+        /* Response code family */
+        if(p_file_info->parser_config->chart_config & CHART_RESP_CODE_FAMILY){
+            p_file_info->parser_metrics->resp_code_family.resp_1xx += parser_metrics.resp_code_family.resp_1xx;
+            p_file_info->parser_metrics->resp_code_family.resp_2xx += parser_metrics.resp_code_family.resp_2xx;
+            p_file_info->parser_metrics->resp_code_family.resp_3xx += parser_metrics.resp_code_family.resp_3xx;
+            p_file_info->parser_metrics->resp_code_family.resp_4xx += parser_metrics.resp_code_family.resp_4xx;
+            p_file_info->parser_metrics->resp_code_family.resp_5xx += parser_metrics.resp_code_family.resp_5xx;
+            p_file_info->parser_metrics->resp_code_family.other += parser_metrics.resp_code_family.other;
+        }
+
+        /* Response code */
+        if(p_file_info->parser_config->chart_config & CHART_RESP_CODE){
+            for(int i = 0; i < 501; i++) p_file_info->parser_metrics->resp_code[i] += parser_metrics.resp_code[i];
+        }
+
+        /* Response code type */
+        if(p_file_info->parser_config->chart_config & CHART_RESP_CODE_TYPE){
+            p_file_info->parser_metrics->resp_code_type.resp_success += parser_metrics.resp_code_type.resp_success;
+            p_file_info->parser_metrics->resp_code_type.resp_redirect += parser_metrics.resp_code_type.resp_redirect;
+            p_file_info->parser_metrics->resp_code_type.resp_bad += parser_metrics.resp_code_type.resp_bad;
+            p_file_info->parser_metrics->resp_code_type.resp_error += parser_metrics.resp_code_type.resp_error;
+            p_file_info->parser_metrics->resp_code_type.other += parser_metrics.resp_code_type.other;
+        }
+
+        /* SSL protocol */
+        if(p_file_info->parser_config->chart_config & CHART_SSL_PROTO){
+            p_file_info->parser_metrics->ssl_proto.tlsv1 += parser_metrics.ssl_proto.tlsv1;
+            p_file_info->parser_metrics->ssl_proto.tlsv1_1 += parser_metrics.ssl_proto.tlsv1_1;
+            p_file_info->parser_metrics->ssl_proto.tlsv1_2 += parser_metrics.ssl_proto.tlsv1_2;
+            p_file_info->parser_metrics->ssl_proto.tlsv1_3 += parser_metrics.ssl_proto.tlsv1_3;
+            p_file_info->parser_metrics->ssl_proto.sslv2 += parser_metrics.ssl_proto.sslv2;
+            p_file_info->parser_metrics->ssl_proto.sslv3 += parser_metrics.ssl_proto.sslv3;
+            p_file_info->parser_metrics->ssl_proto.other += parser_metrics.ssl_proto.other;
+        }
+
+        /* SSL cipher suite */
+        if(p_file_info->parser_config->chart_config & CHART_SSL_CIPHER){
+            for(int i = 0; i < parser_metrics.ssl_cipher_arr.size; i++){
+                int j;
+                for(j = 0; j < p_file_info->parser_metrics->ssl_cipher_arr.size ; j++){
+                    if(!strcmp(parser_metrics.ssl_cipher_arr.ssl_ciphers[i].string, p_file_info->parser_metrics->ssl_cipher_arr.ssl_ciphers[j].string)) {
+                        p_file_info->parser_metrics->ssl_cipher_arr.ssl_ciphers[j].count += parser_metrics.ssl_cipher_arr.ssl_ciphers[i].count;
+                        break;
+                    }
+                }
+                if(p_file_info->parser_metrics->ssl_cipher_arr.size == j){
+                    p_file_info->parser_metrics->ssl_cipher_arr.size++;
+
+                    if(p_file_info->parser_metrics->ssl_cipher_arr.size >= p_file_info->parser_metrics->ssl_cipher_arr.size_max){
+                        p_file_info->parser_metrics->ssl_cipher_arr.size_max = p_file_info->parser_metrics->ssl_cipher_arr.size * LOG_PARSER_METRICS_SLL_CIPHER_BUFFS_SCALE_FACTOR + 1;
+                        
+                        p_file_info->parser_metrics->ssl_cipher_arr.ssl_ciphers = reallocz(p_file_info->parser_metrics->ssl_cipher_arr.ssl_ciphers, 
+                            p_file_info->parser_metrics->ssl_cipher_arr.size_max * sizeof(struct log_parser_metrics_ssl_cipher));
+                    }
+
+                    snprintf(p_file_info->parser_metrics->ssl_cipher_arr.ssl_ciphers[p_file_info->parser_metrics->ssl_cipher_arr.size - 1].string, 
+                        SSL_CIPHER_SUITE_MAX_LEN, "%s", parser_metrics.ssl_cipher_arr.ssl_ciphers[i].string);
+
+                    p_file_info->parser_metrics->ssl_cipher_arr.ssl_ciphers[p_file_info->parser_metrics->ssl_cipher_arr.size - 1].count = parser_metrics.ssl_cipher_arr.ssl_ciphers[i].count;
+                }
+            }
+            freez(parser_metrics.ssl_cipher_arr.ssl_ciphers); // TODO: Avoid mallocz()/freez() in future by reusing buffs
+        }
+
+        uv_mutex_unlock(p_file_info->parser_mut);
+    }
 
     compress_text(buff_msg_current);
 #if VALIDATE_COMPRESSION
-    Message_t *temp_msg = m_malloc(sizeof(Message_t));
+    Message_t *temp_msg = callocz(1, sizeof(Message_t));
     temp_msg->text_compressed_size = buff_msg_current->text_compressed_size;
-    temp_msg->text_compressed = m_malloc(temp_msg->text_compressed_size);
+    temp_msg->text_compressed = callocz(1, temp_msg->text_compressed_size);
     memcpy(temp_msg->text_compressed, buff_msg_current->text_compressed, buff_msg_current->text_compressed_size);
-    decompress_text(temp_msg);
+    temp_msg->text_size = buff_msg_current->text_size;
+    decompress_text(temp_msg, NULL);
     int cmp_res = memcmp(buff_msg_current->text, temp_msg->text, buff_msg_current->text_size);
     m_assert(!cmp_res, "Decompressed text != compressed text!");
-    free(temp_msg->text);
-    free(temp_msg->text_compressed);
-    free(temp_msg);
+    freez(temp_msg->text);
+    freez(temp_msg->text_compressed);
+    freez(temp_msg);
 #endif  // VALIDATE_COMPRESSION
 
     uv_mutex_lock(&buff->mut);
@@ -75,7 +382,7 @@ void circ_buff_write(struct File_info *p_file_info) {
     uv_mutex_lock(&buff->mut);
     if (((buff->head_index + 1) & BUFF_SIZE_MASK) == (buff->tail_index & BUFF_SIZE_MASK)) {
         uv_mutex_unlock(&buff->mut);
-        fprintf_log(WARNING, stderr, "Buffer out of space! Losing data!\n");
+        fprintf_log(LOGS_MANAG_WARNING, stderr, "Buffer out of space! Losing data!\n");
         return;
     }
     uv_mutex_unlock(&buff->mut);
@@ -95,10 +402,10 @@ void circ_buff_write(struct File_info *p_file_info) {
     p_file_info->buff_size = 0;
     p_file_info->buff_size_max = temp_size_max;
 
-    fprintf_log(DEBUG, stderr, "timestamp of msg to write in buff: %" PRIu64 "\n",
+    fprintf_log(LOGS_MANAG_DEBUG, stderr, "timestamp of msg to write in buff: %" PRIu64 "\n",
                 buff_msg_current->timestamp);
-    fprintf_log(DEBUG, stderr, "buff_msg->text_size: %zuB\n", buff_msg_current->text_size);
-    fprintf_log(DEBUG, stderr, "buff_msg->text_size_max: %zuB\n", buff_msg_current->text_size_max);
+    fprintf_log(LOGS_MANAG_DEBUG, stderr, "buff_msg->text_size: %zuB\n", buff_msg_current->text_size);
+    fprintf_log(LOGS_MANAG_DEBUG, stderr, "buff_msg->text_size_max: %zuB\n", buff_msg_current->text_size_max);
 
     p_file_info->filesize += buff_msg_current->text_size - 1;
 
@@ -107,13 +414,15 @@ void circ_buff_write(struct File_info *p_file_info) {
     buff->size++;
     uv_mutex_unlock(&buff->mut);
 
+    if(p_file_info->parser_config){
     // TODO: Can we get rid of malloc here?
-    uv_work_t *req = m_malloc(sizeof(uv_work_t));
-    req->data = (void *) buff; 
-    uv_queue_work(circ_buff_loop, req, msg_parser, msg_parser_cleanup);
+        uv_work_t *req = mallocz(sizeof(uv_work_t));
+        req->data = (void *) p_file_info; 
+        uv_queue_work(circ_buff_loop, req, msg_parser, msg_parser_cleanup);
+    }
 
     end_time = get_unix_time_ms();
-    fprintf_log(INFO, stderr, "It took %" PRIu64 "ms to insert message into buffer.\n", end_time - start_time);
+    fprintf_log(LOGS_MANAG_INFO, stderr, "It took %" PRIu64 "ms to insert message into buffer.\n", end_time - start_time);
 }
 
 /**
@@ -131,7 +440,7 @@ Message_t *circ_buff_read(Circ_buff_t *buff) {
     if ((buff->parsed_index & BUFF_SIZE_MASK) == (buff->read_index & BUFF_SIZE_MASK)) {
         buff->tail_index = buff->read_index;
         uv_mutex_unlock(&buff->mut);
-        fprintf_log(DEBUG, stderr, "No more items to read from circular buffer!\n");
+        fprintf_log(LOGS_MANAG_DEBUG, stderr, "No more items to read from circular buffer!\n");
         return NULL;
     }
     Message_t *p_msg = &buff->msgs[(buff->read_index++) & BUFF_SIZE_MASK];
@@ -150,35 +459,37 @@ Message_t *circ_buff_read(Circ_buff_t *buff) {
  * i.e. circ_buff_search() and circ_buff_read() are mutually exclusive due 
  * to db_set_lock() and db_release_lock() in queries and when writing to DB.
  * @param buff Buffer to be searched
- * @param query_params Query parameters to search according to.
+ * @param p_query_params Query parameters to search according to.
  */
-void circ_buff_search(Circ_buff_t *buff, DB_query_params_t *query_params) {
+void circ_buff_search(Circ_buff_t *buff, logs_query_params_t *p_query_params, size_t max_query_page_size) {
     uv_mutex_lock(&buff->mut);
     uint8_t head_index_tmp = (buff->head_index & BUFF_SIZE_MASK);
     uv_mutex_unlock(&buff->mut);
 
     if (head_index_tmp == (buff->tail_index & BUFF_SIZE_MASK)) {
-        fprintf_log(INFO, stderr, "Circ buff empty! Won't be searched.\n");
+        fprintf_log(LOGS_MANAG_INFO, stderr, "Circ buff empty! Won't be searched.\n");
         return;  // Nothing to do if buff is emtpy
     }
 
-    for (uint8_t i = (buff->tail_index & BUFF_SIZE_MASK);
-         i != head_index_tmp; i = (i + 1) % CIRCULAR_BUFF_SIZE) {
-        fprintf_log(DEBUG, stderr, "tail:%d head:%d i:%d\n",
-                    buff->tail_index & BUFF_SIZE_MASK, head_index_tmp, i);
-        if (buff->msgs[i].timestamp >= query_params->start_timestamp && buff->msgs[i].timestamp < query_params->end_timestamp) {
-            fprintf_log(DEBUG, stderr, "Found text in circ buffer with timestamp: %" PRIu64 "\n",
-                        buff->msgs[i].timestamp);
-            size_t query_params_results_size_new = query_params->results_size + buff->msgs[i].text_size;
-            query_params->results = m_realloc(query_params->results, query_params_results_size_new);
-            fprintf_log(DEBUG, stdout, "Text to add: %s\n", buff->msgs[i].text);
-            memcpy(&query_params->results[query_params->results_size],
-                   buff->msgs[i].text, buff->msgs[i].text_size);
-            query_params->results_size = query_params_results_size_new - 1;
+    for (uint8_t i = (buff->tail_index & BUFF_SIZE_MASK); i != head_index_tmp; i = (i + 1) % CIRCULAR_BUFF_SIZE) {
+        fprintf_log(LOGS_MANAG_DEBUG, stderr, "tail:%d head:%d i:%d\n", buff->tail_index & BUFF_SIZE_MASK, head_index_tmp, i);
+
+        if (buff->msgs[i].timestamp >= p_query_params->start_timestamp && buff->msgs[i].timestamp <= p_query_params->end_timestamp) {
+            fprintf_log(LOGS_MANAG_INFO, stderr, "Found text in circ buffer with timestamp: %" PRIu64 "\n", buff->msgs[i].timestamp);
+            fprintf_log(LOGS_MANAG_DEBUG, stdout, "Text to add: %s\n", buff->msgs[i].text);
+
+            buffer_increase(p_query_params->results_buff, buff->msgs[i].text_size);
+            memcpy(&p_query_params->results_buff->buffer[p_query_params->results_buff->len], buff->msgs[i].text, buff->msgs[i].text_size);
+            // buffer_overflow_check(p_query_params->results_buff);
+            p_query_params->results_buff->len += buff->msgs[i].text_size - 1; // -1 due to terminating NUL char
+
+            if(p_query_params->results_buff->len >= max_query_page_size){
+                p_query_params->end_timestamp = buff->msgs[i].timestamp;
+                // p_query_params->results_buff->len++; // In this case keep NUL char
+                break;
+            }
         }
     }
-
-    query_params->start_timestamp = buff->msgs[head_index_tmp - 1].timestamp + 1;
 }
 
 uint8_t circ_buff_get_size(Circ_buff_t *buff) {
@@ -203,22 +514,22 @@ static void circ_buff_loop_run(void *arg){
  */ 
 Circ_buff_t *circ_buff_init() {
     int rc = 0;
-    Circ_buff_t *buff = m_malloc(sizeof(Circ_buff_t));
+    Circ_buff_t *buff = callocz(1, sizeof(Circ_buff_t));
     *buff = (Circ_buff_t){0};
-    buff->tail_index = buff->read_index = buff->parsed_index = buff->head_index = 0;
+    buff->tail_index = buff->read_index = buff->parsed_index = buff->parse_next_index = buff->head_index = 0;
     buff->size = 0;
     rc = uv_mutex_init(&buff->mut);
     if (unlikely(rc)){
-        fprintf_log(ERROR, stderr, "uv_mutex_init() error: (%d) %s\n", rc, uv_strerror(rc));
-        fatal();
+        fprintf_log(LOGS_MANAG_ERROR, stderr, "uv_mutex_init() error: (%d) %s\n", rc, uv_strerror(rc));
+        fatal("uv_mutex_init() error: (%d) %s\n", rc, uv_strerror(rc));
     }
     if(!circ_buff_loop){
-        circ_buff_loop = m_malloc(sizeof(uv_loop_t));
+        circ_buff_loop = mallocz(sizeof(uv_loop_t));
         rc = uv_loop_init(circ_buff_loop);
-        if (unlikely(rc)) fatal();
-        uv_thread_t *circ_buff_loop_run_thread = m_malloc(sizeof(uv_thread_t));
+        if (unlikely(rc)) fatal("uv_loop_init() error");
+        uv_thread_t *circ_buff_loop_run_thread = mallocz(sizeof(uv_thread_t));
         rc = uv_thread_create(circ_buff_loop_run_thread, circ_buff_loop_run, NULL);
-        if (unlikely(rc)) fatal();
+        if (unlikely(rc)) fatal("uv_thread_create() error");
     }
     return buff;
 }

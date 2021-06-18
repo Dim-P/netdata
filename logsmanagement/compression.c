@@ -19,11 +19,11 @@ void compress_text(Message_t *msg) {
     const uint64_t start_time = get_unix_time_ms();
 
     size_t const outbufCapacity = LZ4F_compressFrameBound(msg->text_size, &kPrefs);
-    fprintf_log(DEBUG, stderr, "Max outbufCapacity: %zuB\n", outbufCapacity);
+    fprintf_log(LOGS_MANAG_DEBUG, stderr, "Max outbufCapacity: %zuB\n", outbufCapacity);
     if (!msg->text_compressed || outbufCapacity > msg->text_compressed_size_max) {
         msg->text_compressed_size_max = outbufCapacity * BUFF_SCALE_FACTOR;
-        msg->text_compressed = m_realloc(msg->text_compressed, msg->text_compressed_size_max);
-        fprintf_log(DEBUG, stderr, "Realloc'ing circ buff compressed item to: %zuB\n", msg->text_compressed_size_max);
+        msg->text_compressed = reallocz(msg->text_compressed, msg->text_compressed_size_max);
+        fprintf_log(LOGS_MANAG_DEBUG, stderr, "Realloc'ing circ buff compressed item to: %zuB\n", msg->text_compressed_size_max);
     }
 
     msg->text_compressed_size = LZ4F_compressFrame(msg->text_compressed, outbufCapacity,
@@ -31,9 +31,9 @@ void compress_text(Message_t *msg) {
                                                    &kPrefs);
 
     end_time = get_unix_time_ms();
-    fprintf_log(INFO, stderr, "Original size: %zuB Compressed size: %zuB Ratio: x%zu\n",
+    fprintf_log(LOGS_MANAG_INFO, stderr, "Original size: %zuB Compressed size: %zuB Ratio: x%zu\n",
                 msg->text_size, msg->text_compressed_size, msg->text_size / msg->text_compressed_size);
-    fprintf_log(INFO, stderr, "It took %" PRIu64 "ms to compress.\n", end_time - start_time);
+    fprintf_log(LOGS_MANAG_INFO, stderr, "It took %" PRIu64 "ms to compress.\n", end_time - start_time);
 }
 
 #if 0 
@@ -69,7 +69,7 @@ void decompress_text(Message_t *msg, char* out_buf) {
     LZ4F_dctx *dctx;
     size_t dctxStatus = LZ4F_createDecompressionContext(&dctx, LZ4F_VERSION);
     if (LZ4F_isError(dctxStatus)) {
-        fprintf_log(ERROR, stderr, "LZ4F_dctx creation error: %s\n", LZ4F_getErrorName(dctxStatus));
+        fprintf_log(LOGS_MANAG_ERROR, stderr, "LZ4F_dctx creation error: %s\n", LZ4F_getErrorName(dctxStatus));
     }
 
     // Retrieve Frame header
@@ -77,19 +77,19 @@ void decompress_text(Message_t *msg, char* out_buf) {
     size_t consumedSize = LZ4F_HEADER_SIZE_MAX;  // Ensure that header will be read
     size_t const fires = LZ4F_getFrameInfo(dctx, &info, msg->text_compressed, &consumedSize);
     if (LZ4F_isError(fires)) {
-        fprintf_log(ERROR, stderr, "LZ4F_getFrameInfo error: %s\n", LZ4F_getErrorName(fires));
+        fprintf_log(LOGS_MANAG_ERROR, stderr, "LZ4F_getFrameInfo error: %s\n", LZ4F_getErrorName(fires));
     }
-    fprintf_log(DEBUG, stderr, "Header size: %zu\n", consumedSize);
+    fprintf_log(LOGS_MANAG_DEBUG, stderr, "Header size: %zu\n", consumedSize);
     //fprintf(stderr, "msg->text_size: %zu, info.contentSize: %llu\n", msg->text_size, info.contentSize);
     m_assert(msg->text_size == info.contentSize, "msg->text_size should be equal to info.contentSize");
 
     // Decompress
     msg->text_size = (size_t) info.contentSize;  // Expected size of decompressed text
     if(out_buf == NULL)
-        msg->text = m_malloc(msg->text_size);        // Destination buffer
+        msg->text = mallocz(msg->text_size);        // Destination buffer
     size_t srcSize = msg->text_compressed_size;  // text_compressed_size needs to be known!
-    fprintf_log(DEBUG, stderr, "sizeof decompressed content (msg->text_size): %zu\n", msg->text_size);
-    fprintf_log(DEBUG, stderr, "sizeof msg->text_compressed (bytes to decompress): %zu\n", srcSize);
+    fprintf_log(LOGS_MANAG_DEBUG, stderr, "sizeof decompressed content (msg->text_size): %zu\n", msg->text_size);
+    fprintf_log(LOGS_MANAG_DEBUG, stderr, "sizeof msg->text_compressed (bytes to decompress): %zu\n", srcSize);
 
     size_t ret = 1;
     size_t decompressedSize = 0;
@@ -101,16 +101,16 @@ void decompress_text(Message_t *msg, char* out_buf) {
         dstBuffer = &out_buf;
     int i = 0;
     while (ret != 0) {
-        fprintf_log(DEBUG, stderr, "Iter: %d\n", i++);
+        fprintf_log(LOGS_MANAG_DEBUG, stderr, "Iter: %d\n", i++);
         ret = LZ4F_decompress(dctx, *dstBuffer + decompressedSize, &dstSize,
                               (char *)msg->text_compressed + consumedSize,  // Cast to (char *) as (void *) arithmetic is illegal.
                               &srcSize, /* LZ4F_decompressOptions_t */ NULL);
         if (LZ4F_isError(ret)) 
-            fprintf_log(ERROR, stderr, "Decompression error: %s\n", LZ4F_getErrorName(ret));
+            fprintf_log(LOGS_MANAG_ERROR, stderr, "Decompression error: %s\n", LZ4F_getErrorName(ret));
 
-        fprintf_log(DEBUG, stderr, "Number of decompressed bytes (dstSize): %zu\n", dstSize);
-        fprintf_log(DEBUG, stderr, "Number of consumed bytes (srcSize): %zu\n", srcSize);
-        fprintf_log(DEBUG, stderr, "ret of LZ4F_decompress: %zu\n", ret);
+        fprintf_log(LOGS_MANAG_DEBUG, stderr, "Number of decompressed bytes (dstSize): %zu\n", dstSize);
+        fprintf_log(LOGS_MANAG_DEBUG, stderr, "Number of consumed bytes (srcSize): %zu\n", srcSize);
+        fprintf_log(LOGS_MANAG_DEBUG, stderr, "ret of LZ4F_decompress: %zu\n", ret);
 
         consumedSize += srcSize;
         decompressedSize += dstSize;
@@ -121,9 +121,9 @@ void decompress_text(Message_t *msg, char* out_buf) {
     // Free decompression context
     dctxStatus = LZ4F_freeDecompressionContext(dctx); /* note : free works on NULL */
     if (LZ4F_isError(dctxStatus)) {
-        fprintf_log(ERROR, stderr, "LZ4F_dctx creation error: %s\n", LZ4F_getErrorName(dctxStatus));
+        fprintf_log(LOGS_MANAG_ERROR, stderr, "LZ4F_dctx creation error: %s\n", LZ4F_getErrorName(dctxStatus));
     }
 
     const uint64_t end_time = get_unix_time_ms();
-    fprintf_log(DEBUG, stderr, "It took %" PRId64 "ms to decompress.\n", end_time - start_time);
+    fprintf_log(LOGS_MANAG_DEBUG, stderr, "It took %" PRId64 "ms to decompress.\n", end_time - start_time);
 }

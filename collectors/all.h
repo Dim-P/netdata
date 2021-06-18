@@ -19,6 +19,8 @@
 
 #include "plugins.d/plugins_d.h"
 
+#include "logsmanagement.plugin/plugin_logsmanagement.h"
+
 
 // ----------------------------------------------------------------------------
 // netdata chart priorities

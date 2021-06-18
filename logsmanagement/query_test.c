@@ -20,12 +20,12 @@ static void pipe_read_cb(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf
         uv_close((uv_handle_t *)client, NULL);
         return;
     }
-    fprintf(stderr, "Read through pipe: %.*s\n", (int) nread, buf->base);
+    fprintf_log(LOGS_MANAG_INFO, stderr, "Read through pipe: %.*s\n", (int) nread, buf->base);
 
     // Deserialise streamed string
     char *pEnd;
     int log_files_no = strtol(strtok(buf->base, ","), &pEnd, 10);
-    DB_query_params_t *query_params = malloc(log_files_no * sizeof(DB_query_params_t));
+    logs_query_params_t *query_params = malloc(log_files_no * sizeof(logs_query_params_t));
     uv_thread_t *test_execute_query_thread_id = malloc(log_files_no * sizeof(uv_thread_t));
     for (int i = 0; i < log_files_no; i++) {
         query_params[i].start_timestamp = strtoll(strtok(NULL, ","), &pEnd, 10);
@@ -33,12 +33,14 @@ static void pipe_read_cb(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf
         query_params[i].filename = malloc(100 * sizeof(char));
         query_params[i].filename = strtok(NULL, ",");
         query_params[i].keyword = strtok(NULL, ",");
-        query_params[i].results_size = (size_t)strtoll(strtok(NULL, ","), &pEnd, 10);
+        size_t buff_size = (size_t)strtoll(strtok(NULL, ","), &pEnd, 10);
+        // fprintf_log(LOGS_MANAG_INFO, "size_of_buff in pipe_read_cb(): %zd\n", buff_size);
+        query_params[i].results_buff = buffer_create(buff_size);
 
 
         int rc = uv_thread_create(&test_execute_query_thread_id[i], test_execute_query_thread, &query_params[i]);
         if (unlikely(rc))
-            fprintf_log(ERROR, stderr, "Creation of thread failed: %s\n", uv_strerror(rc));
+            fprintf_log(LOGS_MANAG_ERROR, stderr, "Creation of thread failed: %s\n", uv_strerror(rc));
         m_assert(!rc, "Creation of thread failed");
     }
 
@@ -53,17 +55,17 @@ static void connection_cb(uv_stream_t *server, int status) {
     int rc = 0;
 
     if (status == -1) {
-        fprintf(stderr, "uv_listen connection_cb error\n");
+        fprintf_log(LOGS_MANAG_ERROR, stderr, "uv_listen connection_cb error\n");
         m_assert(0, "uv_listen connection_cb error!");
     }
 
-    fprintf(stderr, "Received connection on " PIPENAME "\n");
+    fprintf_log(LOGS_MANAG_INFO, stderr, "Received connection on " LOGS_MANAGEMENT_STRESS_TEST_PIPENAME "\n");
 
     uv_pipe_t *client = (uv_pipe_t *)malloc(sizeof(uv_pipe_t));
     uv_pipe_init(&query_thread_uv_loop, client, 0);
     if (uv_accept(server, (uv_stream_t *)client) == 0) {
         if ((rc = uv_read_start((uv_stream_t *)client, alloc_cb, pipe_read_cb))) {
-            fprintf(stderr, "uv_read_start(): %s\n", uv_strerror(rc));
+            fprintf_log(LOGS_MANAG_INFO, stderr, "uv_read_start(): %s\n", uv_strerror(rc));
             uv_close((uv_handle_t *)&client, NULL);
             m_assert(0, "uv_read_start() error");
         }
@@ -74,18 +76,19 @@ static void connection_cb(uv_stream_t *server, int status) {
 
 void remove_pipe(int sig) {
     uv_fs_t req;
-    uv_fs_unlink(&query_thread_uv_loop, &req, PIPENAME, NULL);
+    uv_fs_unlink(&query_thread_uv_loop, &req, LOGS_MANAGEMENT_STRESS_TEST_PIPENAME, NULL);
     uv_fs_req_cleanup(&req);
     // exit(0);
 }
 
 void test_execute_query_thread(void *args) {
-    DB_query_params_t query_params = *((DB_query_params_t *)args);
+    logs_query_params_t query_params = *((logs_query_params_t *)args);
     int rc = 0;
     uv_file file_handle;
     uv_buf_t uv_buf;
     int64_t file_offset = 0;
-    size_t results_size = query_params.results_size;
+    size_t results_size_max = query_params.results_buff->size;
+    uint64_t final_timestamp = query_params.end_timestamp;
 
     uv_loop_t thread_loop;
     uv_loop_init(&thread_loop);
@@ -94,10 +97,10 @@ void test_execute_query_thread(void *args) {
     uv_fs_t open_req;
     rc = uv_fs_open(&thread_loop, &open_req, query_params.filename, O_RDONLY, 0, NULL);
     if (unlikely(rc < 0)) {
-        fprintf_log(ERROR, stderr, "file_open() error: %s (%d) %s\n", query_params.filename, rc, uv_strerror(rc));
+        fprintf_log(LOGS_MANAG_ERROR, stderr, "file_open() error: %s (%d) %s\n", query_params.filename, rc, uv_strerror(rc));
         m_assert(rc >= 0, "uv_fs_open() failed");
     } else {
-        fprintf(stderr, "Opened file: %s\n", query_params.filename);
+        fprintf_log(LOGS_MANAG_INFO, stderr, "Opened file: %s\n", query_params.filename);
         file_handle = open_req.result;  // open_req->result of a uv_fs_t is the file descriptor in case of the uv_fs_open
     }
     uv_fs_req_cleanup(&open_req);
@@ -109,10 +112,10 @@ void test_execute_query_thread(void *args) {
     do {
         rc = uv_fs_read(&thread_loop, &read_req, file_handle, &uv_buf, 1, file_offset, NULL);
         if (rc < 0)
-            fprintf_log(ERROR, stderr, "uv_fs_read() error for %s\n", query_params.filename);
+            fprintf_log(LOGS_MANAG_ERROR, stderr, "uv_fs_read() error for %s\n", query_params.filename);
         m_assert(rc >= 0, "uv_fs_read() failed");
         file_offset++;
-        // fprintf(stderr, "%c", buf[0]);
+        // fprintf_log(stderr, "%c", buf[0]);
     } while (buf[0] != '\n');
     uv_fs_req_cleanup(&read_req);
 
@@ -121,31 +124,33 @@ void test_execute_query_thread(void *args) {
     uint64_t query_start_time, query_total_time = 0;
     while (1) {
         query_start_time = get_unix_time_ms();
-        query_params.results = execute_query(
-            query_params.start_timestamp, query_params.end_timestamp,
-            query_params.filename, NULL, &query_params.results_size);
+        (void) execute_query(&query_params);
         query_total_time += (get_unix_time_ms() - query_start_time);
-        if (!query_params.results)
+        if (query_params.results_buff->len == 0)
             break;
-        buf = realloc(buf, query_params.results_size);
-        uv_buf = uv_buf_init(buf, query_params.results_size);
+
+        buf = realloc(buf, query_params.results_buff->len);
+        uv_buf = uv_buf_init(buf, query_params.results_buff->len);
         rc = uv_fs_read(&thread_loop, &read_req, file_handle, &uv_buf, 1, file_offset, NULL);
         if (rc < 0)
-            fprintf_log(ERROR, stderr, "uv_fs_read() error for %s\n", query_params.filename);
+            fprintf_log(LOGS_MANAG_ERROR, stderr, "uv_fs_read() error for %s\n", query_params.filename);
         m_assert(rc >= 0, "uv_fs_read() failed");
 
-        // fprintf(stderr, "\n%.*s\n", 1000, query_params.results);
-        // fprintf(stderr, "\n%.*s\n\n", 1000, buf);
-        rc = memcmp(buf, query_params.results, query_params.results_size);
-        if (rc)
-            fprintf(stderr, "Mismatch between DB and log file data in %s\n", query_params.filename);
+        // fprintf_log(LOGS_MANAG_DEBUG, stderr, "\n%.*s\n=====***********=====\n", 1000, query_params.results_buff->buffer);
+        // fprintf_log(LOGS_MANAG_DEBUG, stderr, "\n%.*s\n\n", 1000, buf);
+        rc = memcmp(buf, query_params.results_buff->buffer, query_params.results_buff->len);
+        if (rc) fprintf_log(LOGS_MANAG_ERROR, stderr, "Mismatch between DB and log file data in %s\n", query_params.filename);
         m_assert(!rc, "Mismatch between DB and log file data!");
 
-        file_offset += query_params.results_size;
-        fprintf(stderr, "Query file offset %" PRId64 " for %s\n", file_offset, query_params.filename);
-        free(query_params.results);
-        query_params.results_size = results_size;  // Set desired max size of results again
+        file_offset += query_params.results_buff->len;
+        fprintf_log(LOGS_MANAG_INFO, stderr, "Query file offset %" PRId64 " for %s\n", file_offset, query_params.filename);
         uv_fs_req_cleanup(&read_req);
+
+        // Simulate real query which would do buffer_create() and buffer_free() everytime 
+        buffer_free(query_params.results_buff); 
+        query_params.results_buff = buffer_create(results_size_max);
+        query_params.start_timestamp = query_params.end_timestamp + 1;
+        query_params.end_timestamp = final_timestamp;
     }
 
 #if 1
@@ -153,24 +158,24 @@ void test_execute_query_thread(void *args) {
     uv_fs_t stat_req;
     rc = uv_fs_stat(&thread_loop, &stat_req, query_params.filename, NULL);
     if (rc) {
-        fprintf_log(ERROR, stderr, "uv_fs_stat() error for %s: (%d) %s\n", query_params.filename, rc, uv_strerror(rc));
+        fprintf_log(LOGS_MANAG_ERROR, stderr, "uv_fs_stat() error for %s: (%d) %s\n", query_params.filename, rc, uv_strerror(rc));
         m_assert(!rc, "uv_fs_stat() failed");
     } else {
         // Request succeeded; get filesize
         uv_stat_t *statbuf = uv_fs_get_statbuf(&stat_req);
-        // fprintf_log(INFO, stderr, "Size of %s: %lldKB\n", query_params.filename, (long long)statbuf->st_size / 1000);
+        // fprintf_log(LOGS_MANAG_INFO, stderr, "Size of %s: %lldKB\n", query_params.filename, (long long)statbuf->st_size / 1000);
         if (statbuf->st_size != file_offset)
-            fprintf_log(ERROR, stderr, "Mismatch between log filesize (%lld) and data size returned from query (%" PRId64 ") for: %s\n",
+            fprintf_log(LOGS_MANAG_ERROR, stderr, "Mismatch between log filesize (%lld) and data size returned from query (%" PRId64 ") for: %s\n",
                         (long long)statbuf->st_size, file_offset, query_params.filename);
         m_assert(statbuf->st_size == file_offset, "Mismatch between log filesize and data size in DB!");
-        fprintf(stderr, "Log filesize and data size from query match for %s\n", query_params.filename);
+        fprintf_log(LOGS_MANAG_INFO, stderr, "Log filesize and data size from query match for %s\n", query_params.filename);
     }
     uv_fs_req_cleanup(&stat_req);
 #endif
 
     const uint64_t end_time = get_unix_time_ms();
-    fprintf(stderr,
-            "==============================\nStress test queries for '%s' completed with success!\n"
+    fprintf_log(LOGS_MANAG_INFO, stderr,
+            "\n==============================\nStress test queries for '%s' completed with success!\n"
             "Total duration: %" PRIu64 "ms to retrieve and compare %" PRId64 "KB.\nQuery execution total duration: %" PRIu64 "ms\n==============================\n",
             query_params.filename, end_time - start_time, file_offset / 1000, query_total_time);
 
@@ -179,24 +184,25 @@ void test_execute_query_thread(void *args) {
 
 void run_stress_test_queries_thread(void *args) {
     int rc = 0;
-    uv_loop_init(&query_thread_uv_loop);
+    rc = uv_loop_init(&query_thread_uv_loop);
+    if (unlikely(rc)) fatal("Failed to initialise query_thread_uv_loop\n");
 
     if ((rc = uv_pipe_init(&query_thread_uv_loop, &query_data_pipe, 0))) {
-        fprintf(stderr, "uv_pipe_init(): %s\n", uv_strerror(rc));
+        fprintf_log(LOGS_MANAG_INFO, stderr, "uv_pipe_init(): %s\n", uv_strerror(rc));
         m_assert(0, "uv_pipe_init() failed");
     }
     signal(SIGINT, remove_pipe);
-    if ((rc = uv_pipe_bind(&query_data_pipe, PIPENAME))) {
-        fprintf_log(ERROR, stderr, "uv_pipe_bind() error %s. Trying again.\n", uv_err_name(rc));
+    if ((rc = uv_pipe_bind(&query_data_pipe, LOGS_MANAGEMENT_STRESS_TEST_PIPENAME))) {
+        fprintf_log(LOGS_MANAG_ERROR, stderr, "uv_pipe_bind() error %s. Trying again.\n", uv_err_name(rc));
         // Try removing pipe and binding again
         remove_pipe(0);  // Delete pipe if it exists
         // uv_close((uv_handle_t *)&query_data_pipe, NULL);
-        rc = uv_pipe_bind(&query_data_pipe, PIPENAME);
-        fprintf_log(ERROR, stderr, "uv_pipe_bind() error %s\n", uv_err_name(rc));
+        rc = uv_pipe_bind(&query_data_pipe, LOGS_MANAGEMENT_STRESS_TEST_PIPENAME);
+        fprintf_log(LOGS_MANAG_ERROR, stderr, "uv_pipe_bind() error %s\n", uv_err_name(rc));
         m_assert(!rc, "uv_pipe_bind() error!");
     }
     if ((rc = uv_listen((uv_stream_t *)&query_data_pipe, 1, connection_cb))) {
-        fprintf_log(ERROR, stderr, "uv_pipe_listen() error %s\n", uv_err_name(rc));
+        fprintf_log(LOGS_MANAG_ERROR, stderr, "uv_pipe_listen() error %s\n", uv_err_name(rc));
         m_assert(!rc, "uv_pipe_listen() error!");
     }
     uv_run(&query_thread_uv_loop, UV_RUN_DEFAULT);

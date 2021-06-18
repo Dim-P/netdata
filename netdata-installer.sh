@@ -219,6 +219,7 @@ USAGE: ${PROGRAM} [options]
   --disable-plugin-freeipmi
   --disable-https            Explicitly disable TLS support
   --disable-dbengine         Explicitly disable DB engine support
+  --enable-logsmanagement    Enable the logs management plugin. Default is disabled.
   --enable-plugin-nfacct     Enable nfacct plugin. Default: enable it when libmnl and libnetfilter_acct are available.
   --disable-plugin-nfacct
   --enable-plugin-xenstat    Enable the xenstat plugin. Default: enable it when libxenstat and libyajl are available
@@ -302,6 +303,7 @@ while [ -n "${1}" ]; do
       NETDATA_CONFIGURE_OPTIONS="${NETDATA_CONFIGURE_OPTIONS//--disable-dbengine/} --disable-dbengine"
       NETDATA_DISABLE_DBENGINE=1
       ;;
+    "--enable-logsmanagement") NETDATA_LOGSMANAGEMENT=1 NETDATA_CONFIGURE_OPTIONS="${NETDATA_CONFIGURE_OPTIONS//--enable-logsmanagement/} --enable-logsmanagement" ;;
     "--enable-plugin-nfacct") NETDATA_CONFIGURE_OPTIONS="${NETDATA_CONFIGURE_OPTIONS//--enable-plugin-nfacct/} --enable-plugin-nfacct" ;;
     "--disable-plugin-nfacct") NETDATA_CONFIGURE_OPTIONS="${NETDATA_CONFIGURE_OPTIONS//--disable-plugin-nfacct/} --disable-plugin-nfacct" ;;
     "--enable-plugin-xenstat") NETDATA_CONFIGURE_OPTIONS="${NETDATA_CONFIGURE_OPTIONS//--enable-plugin-xenstat/} --enable-plugin-xenstat" ;;

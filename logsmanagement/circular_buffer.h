@@ -40,13 +40,15 @@ typedef struct Circ_buff {
     uint8_t tail_index;                 /**< Index pointing at the oldest valid msg in the buffer */
     uint8_t read_index;                 /**< Index pointing at one item after the last read msg */
     uint8_t parsed_index;               /**< Index pointing at one item after the last parsed (i.e. ready to be read) msg */
+    uint8_t parse_next_index;           /**< Index pointing at the next item to be parsed. Required due to asynchronous logic of parser. */
     uint8_t size;
     uv_mutex_t mut;
+    Log_parser_buffs_t parser_buffs[CIRCULAR_BUFF_SIZE];
 } Circ_buff_t;
 
 void circ_buff_write(struct File_info *p_file_info);
 Message_t *circ_buff_read(Circ_buff_t *buff);
-void circ_buff_search(Circ_buff_t *buff, DB_query_params_t *query_params);
+void circ_buff_search(Circ_buff_t *buff, logs_query_params_t *query_params, size_t max_query_page_size);
 uint8_t circ_buff_get_size(Circ_buff_t *buff);
 Circ_buff_t *circ_buff_init();
 
