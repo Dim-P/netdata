@@ -825,17 +825,17 @@ void db_search(logs_query_params_t *p_query_params, struct File_info *p_file_inf
 	    buffer_increase(p_query_params->results_buff, temp_msg.text_size);
 	    if(!p_query_params->keyword || !*p_query_params->keyword || !strcmp(p_query_params->keyword, " ")){
 	    	decompress_text(&temp_msg, &p_query_params->results_buff->buffer[p_query_params->results_buff->len]);
+	    	p_query_params->results_buff->len += temp_msg.text_size - 1; // -1 due to terminating NUL char
 	        // buffer_overflow_check(p_query_params->results_buff);
 	    } 
 	    else {
 	    	decompress_text(&temp_msg, NULL);
-		    search_keyword(temp_msg.text, &p_query_params->results_buff->buffer[p_query_params->results_buff->len], p_query_params->keyword, 1);
+	    	const size_t size = search_keyword(temp_msg.text, &p_query_params->results_buff->buffer[p_query_params->results_buff->len], p_query_params->keyword, 1);
+		    p_query_params->results_buff->len += size ? size - 1 : 0; // -1 due to terminating NUL char
 		    freez(temp_msg.text);
 	    }
 
 	    freez(temp_msg.text_compressed);
-
-        p_query_params->results_buff->len += temp_msg.text_size - 1; // -1 due to terminating NUL char
         
         fprintf_log(LOGS_MANAG_DEBUG, stderr, "Timestamp decompressed: %" PRIu64 "\n", (uint64_t)temp_msg.timestamp);
 
