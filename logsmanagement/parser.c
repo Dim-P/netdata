@@ -329,11 +329,12 @@ static inline char **parse_csv( const char *line, const char delimiter, int num_
  * @param keyword The keyword to be searched for in the source buffer
  * @param ignore_case Case insensitive search if 1, it does not matter if keyword characters 
  * are upper or lower case. 
+ * @return Size of results
  * @todo Sanitise keyword (escape regex special characters)
  */
-void search_keyword(char *src, char *dest, const char *keyword, const int ignore_case){
+size_t search_keyword(char *src, char *dest, const char *keyword, const int ignore_case){
 	char regexString[REGEX_SIZE];
-	snprintf(regexString, REGEX_SIZE, ".*(%s).*", "error");
+	snprintf(regexString, REGEX_SIZE, ".*(%s).*", keyword);
 
 	regex_t regex_compiled;
 	regmatch_t groupArray[1];
@@ -343,6 +344,8 @@ void search_keyword(char *src, char *dest, const char *keyword, const int ignore
 		fprintf_log(LOGS_MANAG_ERROR, stderr, "Could not compile regular expression.\n");
 		fatal("Could not compile regular expression.\n");
 	};
+
+    fprintf_log(LOGS_MANAG_DEBUG, stderr, "Searching for keyword:%s in source:\n%s\n=====***********=====\n", keyword, src);
 
 	size_t dest_off = 0;
 	char *cursor = src;
@@ -363,10 +366,13 @@ void search_keyword(char *src, char *dest, const char *keyword, const int ignore
 		cursor += offset;
 	}
 
+    if(dest_off) dest[dest_off++] = '\0';
+
 	regfree(&regex_compiled);
 
-	fprintf_log(LOGS_MANAG_INFO, stderr, "Searching for keyword: %s \n=====***********=====\n%s\n=====***********=====\n", keyword, src);
-	fprintf_log(LOGS_MANAG_INFO, stderr, "Results of search\n=====***********=====\n%s\n=====***********=====\n", dest);
+	fprintf_log(LOGS_MANAG_DEBUG, stderr, "Results of search\n%.*s\n=====***********=====\n", dest_off, dest);
+
+    return dest_off;
 }
 
 /**

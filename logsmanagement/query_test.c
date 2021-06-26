@@ -25,7 +25,7 @@ static void pipe_read_cb(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf
     // Deserialise streamed string
     char *pEnd;
     int log_files_no = strtol(strtok(buf->base, ","), &pEnd, 10);
-    logs_query_params_t *query_params = malloc(log_files_no * sizeof(logs_query_params_t));
+    logs_query_params_t *query_params = calloc(1, log_files_no * sizeof(logs_query_params_t));
     uv_thread_t *test_execute_query_thread_id = malloc(log_files_no * sizeof(uv_thread_t));
     for (int i = 0; i < log_files_no; i++) {
         query_params[i].start_timestamp = strtoll(strtok(NULL, ","), &pEnd, 10);

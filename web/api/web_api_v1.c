@@ -995,6 +995,66 @@ inline int web_client_api_request_v1_info(RRDHOST *host, struct web_client *w, c
     return HTTP_RESP_OK;
 }
 
+#ifdef ENABLE_LOGSMANAGEMENT
+inline int web_client_api_request_v1_logsmanagement(RRDHOST *host, struct web_client *w, char *url) {
+
+    BUFFER *wb = w->response.data;
+    buffer_flush(wb);
+
+    logs_query_params_t query_params = {0};
+    size_t buf_size = 1048576; // Default query quota size 1 MiB
+    
+    while(url) {
+        char *value = mystrsep(&url, "&");
+        if (!value || !*value) continue;
+
+        char *name = mystrsep(&value, "=");
+        if(!name || !*name) continue;
+        if(!value || !*value) continue;
+
+        if(!strcmp(name, "from")) {
+            query_params.start_timestamp = strtol(value, NULL, 10);
+        }
+        else if(!strcmp(name, "end")) {
+            query_params.end_timestamp = strtol(value, NULL, 10);
+        }
+        else if(!strcmp(name, "quota")) {
+            buf_size = (size_t) strtol(value, NULL, 10);
+        }
+        else if(!strcmp(name, "chart_name")) {
+            query_params.chart_name = value;
+        }
+        else if(!strcmp(name, "keyword")) {
+            query_params.keyword = value;
+        }
+    }
+
+    BUFFER *buf = buffer_create(buf_size);
+    buf->len = 0; // Remove?
+    query_params.results_buff = buf;
+
+    wb->contenttype = CT_TEXT_PLAIN;
+
+    switch(execute_query(&query_params)){
+        case -1:
+            buffer_sprintf(wb, "Chart name not found!");
+            break;
+        case -2:
+            buffer_sprintf(wb, "Query returned no results!");
+        default:
+            buffer_sprintf(wb, "%s", buf->buffer);
+            break;
+    } 
+    
+    buffer_free(buf);
+
+    // TODO: Requested from, end and size..... Actual returned from, end and size.....
+
+    buffer_no_cacheable(wb);
+    return HTTP_RESP_OK;
+}
+#endif
+
 static struct api_command {
     const char *command;
     uint32_t hash;
@@ -1019,6 +1079,9 @@ static struct api_command {
         { "alarm_variables", 0, WEB_CLIENT_ACL_DASHBOARD, web_client_api_request_v1_alarm_variables },
         { "alarm_count",     0, WEB_CLIENT_ACL_DASHBOARD, web_client_api_request_v1_alarm_count     },
         { "allmetrics",      0, WEB_CLIENT_ACL_DASHBOARD, web_client_api_request_v1_allmetrics      },
+#ifdef ENABLE_LOGSMANAGEMENT
+        { "logsmanagement",  0, WEB_CLIENT_ACL_DASHBOARD, web_client_api_request_v1_logsmanagement  },
+#endif
         { "manage/health",   0, WEB_CLIENT_ACL_MGMT,      web_client_api_request_v1_mgmt_health     },
         // terminator
         { NULL,              0, WEB_CLIENT_ACL_NONE,      NULL                                      },

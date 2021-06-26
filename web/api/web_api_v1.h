@@ -7,6 +7,9 @@
 #include "web/api/badges/web_buffer_svg.h"
 #include "web/api/formatters/rrd2json.h"
 #include "web/api/health/health_cmdapi.h"
+#ifdef ENABLE_LOGSMANAGEMENT
+#include "logsmanagement/query.h"
+#endif
 
 extern uint32_t web_client_api_request_v1_data_options(char *o);
 extern uint32_t web_client_api_request_v1_data_format(char *name);
@@ -26,6 +29,9 @@ extern int web_client_api_request_v1_registry(RRDHOST *host, struct web_client *
 extern int web_client_api_request_v1_info(RRDHOST *host, struct web_client *w, char *url);
 extern int web_client_api_request_v1(RRDHOST *host, struct web_client *w, char *url);
 extern int web_client_api_request_v1_info_fill_buffer(RRDHOST *host, BUFFER *wb);
+#ifdef ENABLE_LOGSMANAGEMENT
+extern int web_client_api_request_v1_logsmanagement(RRDHOST *host, struct web_client *w, char *url);
+#endif
 extern void host_labels2json(RRDHOST *host, BUFFER *wb, size_t indentation);
 
 extern void web_client_api_v1_init(void);
