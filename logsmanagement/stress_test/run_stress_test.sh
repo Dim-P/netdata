@@ -28,7 +28,7 @@ cd ../../..
 yes | sudo ./netdata-uninstaller.sh --yes --env /tmp/netdata/etc/netdata/.environment
 sudo rm -rf /tmp/netdata/etc/netdata # Remove /etc/netdata if it persists for some reason
 cd netdata
-sudo CFLAGS="-O1 -ggdb -DNETDATA_INTERNAL_CHECKS=1 -DDEBUG_LEV=2 -DLOGS_MANAGEMENT_STRESS_TEST=1" ./netdata-installer.sh --dont-start-it --disable-cloud --disable-ebpf --disable-lto --enable-logsmanagement --install /tmp
+sudo CFLAGS="-O1 -ggdb -DNETDATA_INTERNAL_CHECKS=1 -DLOGS_MANAG_DEBUG_LEV=2 -DLOGS_MANAGEMENT_STRESS_TEST=1" ./netdata-installer.sh --dont-start-it --disable-cloud --disable-ebpf --disable-lto --enable-logsmanagement --install /tmp
 # make && sudo make install
 
 cd logsmanagement/stress_test

@@ -881,5 +881,7 @@ void logsmanagement_main(void) {
 #endif  // LOGS_MANAGEMENT_STRESS_TEST
 
     // Run uvlib loop
+
+    error("Test printing logs management error message!\n");
     uv_run(main_loop, UV_RUN_DEFAULT);
 }

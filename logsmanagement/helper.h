@@ -20,7 +20,7 @@ typedef enum { LOGS_MANAG_ERROR,
                LOGS_MANAG_INFO,
                LOGS_MANAG_DEBUG } Log_level;
 
-#if DEBUG_LEV
+#if LOGS_MANAG_DEBUG_LEV
 #define fprintf_log(log_level, ...)                          \
     do {                                                     \
         if (1) fprintf_log_internal(log_level, __VA_ARGS__); \
@@ -30,16 +30,16 @@ typedef enum { LOGS_MANAG_ERROR,
     do {                                                     \
         if (0) fprintf_log_internal(log_level, __VA_ARGS__); \
     } while (0)
-#endif  // DEBUG_LEV
+#endif  // LOGS_MANAG_DEBUG_LEV
 
 #ifndef m_assert
-#if DEBUG_LEV                                             // Disable m_assert if production release
+#if LOGS_MANAG_DEBUG_LEV                                             // Disable m_assert if production release
 #define m_assert(expr, msg) assert(((void)(msg), (expr))) /**< Custom assert function that prints out failure message */
 #else
 #define m_assert(expr, msg) \
     do {                    \
     } while (0)
-#endif  // DEBUG_LEV
+#endif  // LOGS_MANAG_DEBUG_LEV
 #endif  // m_assert
 
 // Portable thread local, see https://stackoverflow.com/questions/18298280/how-to-declare-a-variable-as-thread-local-portably
@@ -124,7 +124,7 @@ static inline char *get_basename(char const *path) {
  * @brief Custom formatted print implementation
  */
 static inline void fprintf_log_internal(Log_level log_level, FILE *stream, const char *format, ...) {
-    if (log_level > DEBUG_LEV) 
+    if (log_level > LOGS_MANAG_DEBUG_LEV) 
         return; 
 
     struct timeval tv;
