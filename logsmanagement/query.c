@@ -36,9 +36,9 @@ int execute_query(logs_query_params_t *p_query_params) {
             }
         }
     }
-    else return -1;
+    else return -2;
 
-    if(!p_file_info) return -1;
+    if(!p_file_info) return -2;
 
     /* Secure DB lock to ensure no data will be transferred from the buffers to the DB 
     * during the query execution and also no other execute_query will try to access the DB
@@ -61,7 +61,7 @@ int execute_query(logs_query_params_t *p_query_params) {
      * updated in db_search() due to (p_query_params->results_buff->len >= max_query_page_size) condition */
     if (p_query_params->results_buff->len < max_query_page_size) {
         fprintf_log(LOGS_MANAG_INFO, stderr, "\nSearching circular buffer!\n");
-        if(!p_query_params->keyword) circ_buff_search(p_file_info->msg_buff, p_query_params, max_query_page_size); // TODO: Implement keyword search for circ buffer.
+        circ_buff_search(p_file_info->msg_buff, p_query_params, max_query_page_size); // TODO: Implement keyword search for circ buffer.
     }
 
     db_release_lock(p_file_info->db_mut);
@@ -80,7 +80,7 @@ int execute_query(logs_query_params_t *p_query_params) {
                 (int64_t)db_search_time - start_time, (int64_t)end_time - db_search_time,
                 p_query_params->results_buff->len / 1000);
 
-    if(!p_query_params->results_buff->len) return -2;
+    if(!p_query_params->results_buff->len) return -3;
 
     return 0;
 }

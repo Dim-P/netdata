@@ -475,13 +475,20 @@ void circ_buff_search(Circ_buff_t *buff, logs_query_params_t *p_query_params, si
         fprintf_log(LOGS_MANAG_DEBUG, stderr, "tail:%d head:%d i:%d\n", buff->tail_index & BUFF_SIZE_MASK, head_index_tmp, i);
 
         if (buff->msgs[i].timestamp >= p_query_params->start_timestamp && buff->msgs[i].timestamp <= p_query_params->end_timestamp) {
-            fprintf_log(LOGS_MANAG_INFO, stderr, "Found text in circ buffer with timestamp: %" PRIu64 "\n", buff->msgs[i].timestamp);
-            fprintf_log(LOGS_MANAG_DEBUG, stdout, "Text to add: %s\n", buff->msgs[i].text);
+            fprintf_log(LOGS_MANAG_DEBUG, stderr, "Found text in circ buffer with timestamp: %" PRIu64 "\n", buff->msgs[i].timestamp);
+            fprintf_log(LOGS_MANAG_DEBUG, stderr, "circc Text to add: %.*s\n", buff->msgs[i].text_size, buff->msgs[i].text);
 
             buffer_increase(p_query_params->results_buff, buff->msgs[i].text_size);
-            memcpy(&p_query_params->results_buff->buffer[p_query_params->results_buff->len], buff->msgs[i].text, buff->msgs[i].text_size);
-            // buffer_overflow_check(p_query_params->results_buff);
-            p_query_params->results_buff->len += buff->msgs[i].text_size - 1; // -1 due to terminating NUL char
+            if(!p_query_params->keyword || !*p_query_params->keyword || !strcmp(p_query_params->keyword, " ")){
+                memcpy(&p_query_params->results_buff->buffer[p_query_params->results_buff->len], buff->msgs[i].text, buff->msgs[i].text_size);
+                // buffer_overflow_check(p_query_params->results_buff);
+                p_query_params->results_buff->len += buff->msgs[i].text_size - 1; // -1 due to terminating NUL char
+            }
+            else{
+                const size_t size = search_keyword(buff->msgs[i].text, &p_query_params->results_buff->buffer[p_query_params->results_buff->len], p_query_params->keyword, 1);
+                p_query_params->results_buff->len += size ? size - 1 : 0; // -1 due to terminating NUL char
+                fprintf_log(LOGS_MANAG_DEBUG, stderr, "circc Text keyword: %.*s\n", size, buff->msgs[i].text);
+            }
 
             if(p_query_params->results_buff->len >= max_query_page_size){
                 p_query_params->end_timestamp = buff->msgs[i].timestamp;

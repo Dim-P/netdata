@@ -1037,9 +1037,12 @@ inline int web_client_api_request_v1_logsmanagement(RRDHOST *host, struct web_cl
 
     switch(execute_query(&query_params)){
         case -1:
-            buffer_sprintf(wb, "Chart name not found!");
+            buffer_sprintf(wb, "Query generic error!");
             break;
         case -2:
+            buffer_sprintf(wb, "Chart name not found!");
+            break;
+        case -3:
             buffer_sprintf(wb, "Query returned no results!");
         default:
             buffer_sprintf(wb, "%s", buf->buffer);
