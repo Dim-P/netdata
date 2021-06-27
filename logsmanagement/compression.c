@@ -31,9 +31,9 @@ void compress_text(Message_t *msg) {
                                                    &kPrefs);
 
     end_time = get_unix_time_ms();
-    fprintf_log(LOGS_MANAG_INFO, stderr, "Original size: %zuB Compressed size: %zuB Ratio: x%zu\n",
+    fprintf_log(LOGS_MANAG_DEBUG, stderr, "Original size: %zuB Compressed size: %zuB Ratio: x%zu\n",
                 msg->text_size, msg->text_compressed_size, msg->text_size / msg->text_compressed_size);
-    fprintf_log(LOGS_MANAG_INFO, stderr, "It took %" PRIu64 "ms to compress.\n", end_time - start_time);
+    fprintf_log(LOGS_MANAG_DEBUG, stderr, "It took %" PRIu64 "ms to compress.\n", end_time - start_time);
 }
 
 #if 0 

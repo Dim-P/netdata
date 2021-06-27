@@ -127,38 +127,51 @@ static inline void fprintf_log_internal(Log_level log_level, FILE *stream, const
     if (log_level > LOGS_MANAG_DEBUG_LEV) 
         return; 
 
-    struct timeval tv;
-    time_t nowtime;
-    struct tm *nowtm;
-    char tmbuf[64];
+    const char info_msg_prefix[] = "LOGS_MANAG_INFO: ";
+    const char warn_msg_prefix[] = "LOGS_MANAG_WARN: ";
+    const char error_msg_prefix[] = "LOGS_MANAG_ERROR: ";
 
-    gettimeofday(&tv, NULL);
-    nowtime = tv.tv_sec;
-    nowtm = localtime(&nowtime);
-    // strftime(tmbuf, sizeof tmbuf, "%Y-%m-%d %H:%M:%S", nowtm);
-    strftime(tmbuf, sizeof tmbuf, "%H:%M:%S", nowtm);
-    fprintf(stream, "*ND-LGS %s.%06ld ", tmbuf, (long)tv.tv_usec);
+    const int msg_len = 256;
+    char msg[msg_len];
+
+    // struct timeval tv;
+    // time_t nowtime;
+    // struct tm *nowtm;
+    // char tmbuf[64];
+
+    // gettimeofday(&tv, NULL);
+    // nowtime = tv.tv_sec;
+    // nowtm = localtime(&nowtime);
+    // strftime(tmbuf, sizeof tmbuf, "%H:%M:%S", nowtm);
+    // fprintf(stream, "*ND-LGS %s.%06ld ", tmbuf, (long)tv.tv_usec);
+
+    va_list args;
+    va_start(args, format);
 
     switch (log_level) {
-        case LOGS_MANAG_WARNING:
-            fprintf(stream, "LOGS_MANAG_WARNING: ");
-            break;
-        case LOGS_MANAG_INFO:
-            fprintf(stream, "LOGS_MANAG_INFO: ");
-            break;
         case LOGS_MANAG_DEBUG:
             fprintf(stream, "LOGS_MANAG_DEBUG: ");
+            vfprintf(stream, format, args);
+            break;
+        case LOGS_MANAG_INFO:
+            sprintf(msg, info_msg_prefix);
+            vsnprintf(&msg[sizeof(info_msg_prefix) - 1], msg_len - (sizeof(info_msg_prefix) - 1), format, args);
+            info("%s", msg);
+            break;
+        case LOGS_MANAG_WARNING:
+            sprintf(msg, warn_msg_prefix);
+            vsnprintf(&msg[sizeof(warn_msg_prefix) - 1], msg_len - (sizeof(warn_msg_prefix) - 1), format, args);
+            info("%s", msg);
             break;
         case LOGS_MANAG_ERROR:
-            fprintf(stream, "LOGS_MANAG_ERROR: ");
+            sprintf(msg, error_msg_prefix);
+            vsnprintf(&msg[sizeof(error_msg_prefix) - 1], msg_len - (sizeof(error_msg_prefix) - 1), format, args);
+            info("%s", msg);
             break;
         default:
             break;
     }
 
-    va_list args;
-    va_start(args, format);
-    vfprintf(stream, format, args);
     va_end(args);
 }
 

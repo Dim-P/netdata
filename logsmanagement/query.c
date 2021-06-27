@@ -16,7 +16,7 @@ int execute_query(logs_query_params_t *p_query_params) {
     size_t max_query_page_size = p_query_params->results_buff->size;
     assert(max_query_page_size <= MAX_LOG_MSG_SIZE);  // Requested max size of results must be smaller than maximum size of each DB row entry.
 
-    fprintf(stderr, "Query params:%lu\n%lu\n%s\n%s\n%s\n", p_query_params->start_timestamp, p_query_params->end_timestamp, 
+    fprintf_log(LOGS_MANAG_DEBUG, stderr, "Query params:%lu\n%lu\n%s\n%s\n%s\n", p_query_params->start_timestamp, p_query_params->end_timestamp, 
          p_query_params->chart_name, p_query_params->filename, p_query_params->keyword);
 
     /* Find p_file_info for this query according to chart_name or filename if the former is not valid. */
@@ -60,7 +60,7 @@ int execute_query(logs_query_params_t *p_query_params) {
      * p_query_params->end_timestamp will be the originally requested here, as it won't have been
      * updated in db_search() due to (p_query_params->results_buff->len >= max_query_page_size) condition */
     if (p_query_params->results_buff->len < max_query_page_size) {
-        fprintf_log(LOGS_MANAG_INFO, stderr, "\nSearching circular buffer!\n");
+        fprintf_log(LOGS_MANAG_DEBUG, stderr, "\nSearching circular buffer!\n");
         circ_buff_search(p_file_info->msg_buff, p_query_params, max_query_page_size); // TODO: Implement keyword search for circ buffer.
     }
 
@@ -70,7 +70,7 @@ int execute_query(logs_query_params_t *p_query_params) {
     // p_query_params->results_buff->buffer[p_query_params->results_buff->len] = '\0';
 
     const uint64_t end_time = get_unix_time_ms();
-    fprintf_log(LOGS_MANAG_INFO, stderr,
+    fprintf_log(LOGS_MANAG_DEBUG, stderr,
                 "It took %" PRId64
                 "ms to execute query "
                 "(%" PRId64 "ms DB search, %" PRId64

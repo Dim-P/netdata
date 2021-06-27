@@ -50,7 +50,7 @@ static void msg_parser(uv_work_t *req){
         /* Number of lines */
         p_file_info->parser_metrics->num_lines_total += parser_metrics.num_lines_total;
         p_file_info->parser_metrics->num_lines_rate += parser_metrics.num_lines_rate;
-        fprintf(stderr, "NDLGS NumLines: Total:%lld Rate:%lld\n", p_file_info->parser_metrics->num_lines_total, p_file_info->parser_metrics->num_lines_rate);
+        fprintf_log(LOGS_MANAG_DEBUG, stderr, "NDLGS NumLines: Total:%lld Rate:%lld\n", p_file_info->parser_metrics->num_lines_total, p_file_info->parser_metrics->num_lines_rate);
 
         /* Vhost */
         if(p_file_info->parser_config->chart_config & CHART_VHOST){
@@ -422,7 +422,7 @@ void circ_buff_write(struct File_info *p_file_info) {
     }
 
     end_time = get_unix_time_ms();
-    fprintf_log(LOGS_MANAG_INFO, stderr, "It took %" PRIu64 "ms to insert message into buffer.\n", end_time - start_time);
+    fprintf_log(LOGS_MANAG_DEBUG, stderr, "It took %" PRIu64 "ms to insert message into buffer.\n", end_time - start_time);
 }
 
 /**

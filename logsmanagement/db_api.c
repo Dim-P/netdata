@@ -274,7 +274,7 @@ static void db_writer(void *arg){
 			/* (e) */
 			blob_filesize = 0;
 
-			fprintf_log(LOGS_MANAG_INFO, stderr,
+			fprintf_log(LOGS_MANAG_DEBUG, stderr,
                 "It took %" PRId64 "ms to rotate BLOBs\n",
                 (int64_t)get_unix_time_ms() - start_time);
 		}
@@ -574,11 +574,10 @@ void db_init() {
 
 			for (int id = 1; id <= blobs_table_max_id; id++){
 
-				// fprintf_log(LOGS_MANAG_DEBUG, stderr, "----Id:: %d\n", id);
 				rc = sqlite3_bind_int(stmt_retrieve_filename_last_digits, 1, id);
-				if (rc != SQLITE_OK) fatal_sqlite3_err(rc, __LINE__);
+				if (unlikely(rc != SQLITE_OK)) fatal_sqlite3_err(rc, __LINE__);
 				rc = sqlite3_step(stmt_retrieve_filename_last_digits);
-				if (rc != SQLITE_ROW) fatal_sqlite3_err(rc, __LINE__);
+				if (unlikely(rc != SQLITE_ROW)) fatal_sqlite3_err(rc, __LINE__);
 				int last_digits = sqlite3_column_int(stmt_retrieve_filename_last_digits, 0);
 				sqlite3_reset(stmt_retrieve_filename_last_digits);
 
@@ -588,9 +587,9 @@ void db_init() {
 
 					// Delete entry from DB BLOBS_TABLE
 					rc = sqlite3_bind_int(stmt_delete_row_by_id, 1, id);
-					if (rc != SQLITE_OK) fatal_sqlite3_err(rc, __LINE__);
+					if (unlikely(rc != SQLITE_OK)) fatal_sqlite3_err(rc, __LINE__);
 					rc = sqlite3_step(stmt_delete_row_by_id);
-					if (rc != SQLITE_DONE) fatal_sqlite3_err(rc, __LINE__);
+					if (unlikely(rc != SQLITE_DONE)) fatal_sqlite3_err(rc, __LINE__);
 					sqlite3_reset(stmt_delete_row_by_id);
 
 					// Delete BLOB file from filesystem
@@ -598,7 +597,7 @@ void db_init() {
 					sprintf(blob_delete_path, "%s" BLOB_STORE_FILENAME ".%d", p_file_infos_arr->data[i]->db_dir, last_digits);
 					uv_fs_t unlink_req;
 				    rc = uv_fs_unlink(db_loop, &unlink_req, blob_delete_path, NULL);
-				    if (rc) fprintf(stderr, "Delete %s error: %s\n", blob_delete_path, uv_strerror(rc));
+				    if (unlikely(rc)) fprintf_log(LOGS_MANAG_ERROR, stderr, "Delete %s error: %s\n", blob_delete_path, uv_strerror(rc));
 				    uv_fs_req_cleanup(&unlink_req);
 				   
 				}
@@ -774,7 +773,7 @@ void db_init() {
  * @todo Change results buffer to be long-lived.
  */
 void db_search(logs_query_params_t *p_query_params, struct File_info *p_file_info, size_t max_query_page_size) {
-	fprintf_log(LOGS_MANAG_INFO, stderr, "\nSearching DB...!\n");
+	fprintf_log(LOGS_MANAG_DEBUG, stderr, "\nSearching DB...!\n");
     int rc = 0;
     Message_t temp_msg = {0};
     int64_t blob_offset = 0;

@@ -250,7 +250,7 @@ static void read_file_cb(uv_fs_t *req) {
         p_file_info->buff[p_file_info->buff_size++] = '\0';
 
         circ_buff_write(p_file_info);
-        fprintf_log(LOGS_MANAG_INFO, stderr, "Circ buff size for %s: %d\n" LOG_SEPARATOR,
+        fprintf_log(LOGS_MANAG_DEBUG, stderr, "Circ buff size for %s: %d\n" LOG_SEPARATOR,
                     p_file_info->file_basename, circ_buff_get_size(p_file_info->msg_buff));
 
         // fprintf(stderr, "New filesize %" PRIu64 " for %s\n", p_file_info->filesize, p_file_info->filename);
@@ -287,7 +287,7 @@ static int check_file_rotation(struct File_info *p_file_info, uint64_t new_files
         uv_fs_req_cleanup(&read_req);
 
         end_time = get_unix_time_ms();
-        fprintf_log(LOGS_MANAG_INFO, stderr, "(1) It took %" PRIu64 "ms to check file rotation.\n", end_time - start_time);
+        fprintf_log(LOGS_MANAG_DEBUG, stderr, "(1) It took %" PRIu64 "ms to check file rotation.\n", end_time - start_time);
         return rotated;
     }
     if ((int64_t)new_filesize < (int64_t)p_file_info->filesize) {
@@ -308,7 +308,7 @@ static int check_file_rotation(struct File_info *p_file_info, uint64_t new_files
         uv_fs_req_cleanup(&read_req);
 
         end_time = get_unix_time_ms();
-        fprintf_log(LOGS_MANAG_INFO, stderr, "(2) It took %" PRIu64 "ms to check file rotation.\n", end_time - start_time);
+        fprintf_log(LOGS_MANAG_DEBUG, stderr, "(2) It took %" PRIu64 "ms to check file rotation.\n", end_time - start_time);
         return rotated;
     }
     if (new_filesize >= p_file_info->signature_size && new_filesize >= p_file_info->filesize) {
@@ -343,7 +343,7 @@ static int check_file_rotation(struct File_info *p_file_info, uint64_t new_files
         freez(comp_buff);
 
         end_time = get_unix_time_ms();
-        fprintf_log(LOGS_MANAG_INFO, stderr, "(3) It took %" PRIu64 "ms to check file rotation.\n", end_time - start_time);
+        fprintf_log(LOGS_MANAG_DEBUG, stderr, "(3) It took %" PRIu64 "ms to check file rotation.\n", end_time - start_time);
         return rotated;
     }
 
@@ -397,9 +397,9 @@ static void check_if_filesize_changed_cb(uv_fs_t *req) {
     // Check file rotation
     if (check_file_rotation(p_file_info, new_filesize)) {
         p_file_info->filesize = 0;  // New log file - we want to start reading from the beginning!
-        fprintf_log(LOGS_MANAG_INFO, stderr, "Rotated:%s\n", p_file_info->filename);
+        fprintf_log(LOGS_MANAG_DEBUG, stderr, "Rotated:%s\n", p_file_info->filename);
     } else
-        fprintf_log(LOGS_MANAG_INFO, stderr, "Not rotated:%s\n", p_file_info->filename);
+        fprintf_log(LOGS_MANAG_DEBUG, stderr, "Not rotated:%s\n", p_file_info->filename);
     uint64_t old_filesize = p_file_info->filesize;
 
     /* CASE 1: Filesize has increased */
@@ -535,7 +535,7 @@ static struct File_info *monitor_log_file_init(const char *filename) {
     int rc = 0;
 
     fprintf_log(LOGS_MANAG_INFO, stderr,
-                "Initialising file monitoring: %s\n",
+                "Initialising file monitoring for %s\n",
                 filename);
 
     struct File_info *p_file_info = callocz(1, sizeof(struct File_info));
@@ -561,7 +561,7 @@ static struct File_info *monitor_log_file_init(const char *filename) {
     } else {
         // Request succeeded; get filesize
         uv_stat_t *statbuf = uv_fs_get_statbuf(&stat_req);
-        fprintf_log(LOGS_MANAG_INFO, stderr, "Size of %s: %lldKB\n", p_file_info->filename,
+        fprintf_log(LOGS_MANAG_INFO, stderr, "Initial size of %s: %lldKB\n", p_file_info->filename,
                     (long long)statbuf->st_size / 1000);
         p_file_info->filesize = statbuf->st_size;
     }
@@ -700,7 +700,7 @@ static void config_init(){
     struct section *config_section = log_management_config.first_section;
     do{
     	/* Check if log parsing is enabled in configuration */
-        fprintf(stderr, "NDLGS Processing section: %s\n", config_section->name);
+        fprintf_log(LOGS_MANAG_DEBUG, stderr, "Processing logs management config section: %s\n", config_section->name);
         int enabled = appconfig_get_boolean(&log_management_config, config_section->name, "enabled", 0);
         // fprintf(stderr, "NDLGS Enabled value: %d for section: %s\n", enabled, config_section->name);
         // fprintf(stderr, "NDLGS config_section->next NULL? %s\n", config_section->next ? "yes" : "no");
@@ -709,7 +709,7 @@ static void config_init(){
 
         /* Check if log source path exists and is valid */
         char *log_source_path = appconfig_get(&log_management_config, config_section->name, "log path", NULL);
-        fprintf(stderr, "NDLGS log path value: %s for section: %s\n==== \n", log_source_path ? log_source_path : "NULL!", config_section->name);
+        fprintf_log(LOGS_MANAG_DEBUG, stderr, "log path value: %s for section: %s\n==== \n", log_source_path ? log_source_path : "NULL!", config_section->name);
         if(!log_source_path || log_source_path[0]=='\0') goto next_section;
 
 
@@ -721,15 +721,15 @@ static void config_init(){
         /* Check if a valid log format configuration is detected */
         char *log_format = appconfig_get(&log_management_config, config_section->name, "log format", NULL);
         const char delimiter = ' '; // TODO!!: TO READ FROM CONFIG
-        fprintf(stderr, "NDLGS log format value: %s for section: %s\n==== \n", log_format ? log_format : "NULL!", config_section->name);
+        fprintf_log(LOGS_MANAG_DEBUG, stderr, "log format value: %s for section: %s\n==== \n", log_format ? log_format : "NULL!", config_section->name);
 
 
 		if(!log_format || !strcmp(log_format, "auto")){ // TODO: Add another case in OR where log_format is compared with a valid reg exp.
-	        fprintf(stderr, "NDLGS Attempting auto-detection of log format for:%s\n", p_file_info->filename);
+	        fprintf_log(LOGS_MANAG_DEBUG, stderr, "NDLGS Attempting auto-detection of log format for:%s\n", p_file_info->filename);
 	        // TODO: Set default log format and delimiter if not found in config? Or auto-detect?
 	        Log_parser_buffs_t *parser_buff = callocz(1, sizeof(Log_parser_buffs_t));
 	        parser_buff->line = read_last_line(p_file_info->filename, 0);
-	        fprintf(stderr, "NDLGS Last:|%s|\n", parser_buff->line ? parser_buff->line : "NULL!");
+	        fprintf_log(LOGS_MANAG_DEBUG, stderr, "Last:|%s|\n", parser_buff->line ? parser_buff->line : "NULL!");
 	        if(!parser_buff->line){ 
 		        free(parser_buff);
 	        	goto next_section;
@@ -744,7 +744,7 @@ static void config_init(){
 		else{
 			p_file_info->parser_config = read_parse_config(log_format, delimiter);
 			freez(log_format);
-        	fprintf(stderr, "NDLGS Read parser_config for %s: %s\n", p_file_info->filename, p_file_info->parser_config ? "success!" : "failed!");
+        	fprintf_log(LOGS_MANAG_DEBUG, stderr, "Read parser_config for %s: %s\n", p_file_info->filename, p_file_info->parser_config ? "success!" : "failed!");
 		}
         if(!p_file_info->parser_config) goto next_section; // TODO: Terminate monitor_log_file_init() if p_file_info->parser_config is NULL? 
 
@@ -754,7 +754,7 @@ static void config_init(){
         p_file_info->parser_mut = mallocz(sizeof(uv_mutex_t));
         rc = uv_mutex_init(p_file_info->parser_mut);
         if(rc) fatal("Failed to initialise parser_mut for %s\n", p_file_info->filename);
-        fprintf(stderr, "NDLGS parser_mut initialised for %s\n", p_file_info->filename);
+        fprintf_log(LOGS_MANAG_DEBUG, stderr, "parser_mut initialised for %s\n", p_file_info->filename);
         for(int j = 0; j < p_file_info->parser_config->num_fields; j++){
             if((p_file_info->parser_config->fields[j] == VHOST_WITH_PORT || p_file_info->parser_config->fields[j] == VHOST) 
                 && appconfig_get_boolean(&log_management_config, config_section->name, "vhosts chart", 0)){ 
@@ -881,7 +881,5 @@ void logsmanagement_main(void) {
 #endif  // LOGS_MANAGEMENT_STRESS_TEST
 
     // Run uvlib loop
-
-    error("Test printing logs management error message!\n");
     uv_run(main_loop, UV_RUN_DEFAULT);
 }
