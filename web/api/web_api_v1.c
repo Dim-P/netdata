@@ -1027,6 +1027,9 @@ inline int web_client_api_request_v1_logsmanagement(RRDHOST *host, struct web_cl
         else if(!strcmp(name, "keyword")) {
             query_params.keyword = value;
         }
+        else if(!strcmp(name, "ignore_case")) {
+            query_params.ignore_case = strtol(value, NULL, 10) ? 1 : 0;
+        }
     }
 
     BUFFER *buf = buffer_create(buf_size);

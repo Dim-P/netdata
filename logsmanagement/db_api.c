@@ -829,7 +829,7 @@ void db_search(logs_query_params_t *p_query_params, struct File_info *p_file_inf
 	    } 
 	    else {
 	    	decompress_text(&temp_msg, NULL);
-	    	const size_t size = search_keyword(temp_msg.text, &p_query_params->results_buff->buffer[p_query_params->results_buff->len], p_query_params->keyword, 1);
+	    	const size_t size = search_keyword(temp_msg.text, &p_query_params->results_buff->buffer[p_query_params->results_buff->len], p_query_params->keyword, p_query_params->ignore_case);
 		    p_query_params->results_buff->len += size ? size - 1 : 0; // -1 due to terminating NUL char
 		    freez(temp_msg.text);
 	    }

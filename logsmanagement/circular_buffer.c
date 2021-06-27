@@ -485,7 +485,7 @@ void circ_buff_search(Circ_buff_t *buff, logs_query_params_t *p_query_params, si
                 p_query_params->results_buff->len += buff->msgs[i].text_size - 1; // -1 due to terminating NUL char
             }
             else{
-                const size_t size = search_keyword(buff->msgs[i].text, &p_query_params->results_buff->buffer[p_query_params->results_buff->len], p_query_params->keyword, 1);
+                const size_t size = search_keyword(buff->msgs[i].text, &p_query_params->results_buff->buffer[p_query_params->results_buff->len], p_query_params->keyword, p_query_params->ignore_case);
                 p_query_params->results_buff->len += size ? size - 1 : 0; // -1 due to terminating NUL char
             }
 

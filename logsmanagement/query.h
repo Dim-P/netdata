@@ -19,6 +19,8 @@
  * @param[in] chart_name Chart name of log source to be queried, as it appears on the netdata dashboard. 
  *                       If this is defined and not an empty string, the filename parameter is ignored.
  * @param[in] filename Full path of log source to be queried. Will only be used if the chart_name is not used.
+ * @param[in] keyword The keyword to be searched. IMPORTANT! Regular expressions are supported but have not been tested extensively, so their use should be avoided for now!
+ * @param[in] ignore_case If set to any integer other than 0, the query will be case-insensitive. If not set or if set to 0, the query will be case-sensitive.
  * @param[in,out] results_buff Buffer of BUFFER type to store the results of the query in. 
                                results_buff->size Defines the maximum quota of results to be expected. If exceeded, the query will return the results obtained so far.
                                results_buff->len The exact size of the results matched. 
@@ -30,6 +32,7 @@ typedef struct logs_query_params {
     char *chart_name;
     char *filename;
     char *keyword;
+    int ignore_case;
     BUFFER *results_buff;
 } logs_query_params_t;
 
