@@ -539,10 +539,11 @@ Log_parser_config_t *read_parse_config(const char *log_format, const char delimi
     return parser_config;
 }
 
-static Log_line_parsed_t *parse_log_line(Log_parser_config_t *parser_config, Log_parser_buffs_t *parser_buffs, const char *line, const int verify){
+static Log_line_parsed_t *parse_log_line(Log_parser_config_t *parser_config, Log_parser_buffs_t *parser_buffs, const int verify){
     log_line_field_t *fields_format = parser_config->fields;
     const int num_fields_config = parser_config->num_fields;
     const char delimiter = parser_config->delimiter;
+    const char *line = parser_buffs->line;
 
     parser_buffs->log_line_parsed = (Log_line_parsed_t) {};
     Log_line_parsed_t *log_line_parsed = &parser_buffs->log_line_parsed;
@@ -554,7 +555,7 @@ static Log_line_parsed_t *parse_log_line(Log_parser_config_t *parser_config, Log
 #if ENABLE_PARSE_LOG_LINE_FPRINTS
     fprintf_log(LOGS_MANAG_INFO, stderr, "Number of items in line: %d and expected from config: %d\n", num_fields_line, num_fields_config);
 #endif
-    // assert(num_fields_config == num_fields_line); // TODO: REMOVE FROM PRODUCTION - Handle error instead?
+
     if(num_fields_config != num_fields_line){ 
         free_csv_line(parsed);
         return NULL;
@@ -1427,7 +1428,7 @@ Log_parser_metrics_t parse_text_buf(Log_parser_buffs_t *parser_buffs, char *text
         memcpy(parser_buffs->line, line_start, line_len);
         parser_buffs->line[line_len] = '\0';
         
-        Log_line_parsed_t *line_parsed = parse_log_line(parser_config, parser_buffs, parser_buffs->line, verify);
+        Log_line_parsed_t *line_parsed = parse_log_line(parser_config, parser_buffs, verify);
         // TODO: Error handling in case line_parsed == NULL !!
         
         // TODO: Refactor the following, can be done inside parse_log_line() function to save a strcmp() call.
@@ -1461,7 +1462,7 @@ Log_parser_config_t *auto_detect_parse_config(Log_parser_buffs_t *parser_buffs, 
     for(int i = 0; csv_auto_format_guess_matrix[i] != NULL; i++){
         fprintf_log(LOGS_MANAG_DEBUG, stderr, "Auto detection iteration: %d\n", i);
         Log_parser_config_t *parser_config = read_parse_config(csv_auto_format_guess_matrix[i], delimiter);
-        Log_line_parsed_t *line_parsed = parse_log_line(parser_config, parser_buffs, parser_buffs->line, 1);
+        Log_line_parsed_t *line_parsed = parse_log_line(parser_config, parser_buffs, 1);
         if(line_parsed){
             freez(line_parsed->req_URL);
             fprintf_log(LOGS_MANAG_DEBUG, stderr, "Auto-detection errors: %d iter:%d\n", line_parsed->parsing_errors, i);
